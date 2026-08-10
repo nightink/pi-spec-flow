@@ -679,7 +679,9 @@ export function done(cwd, id) {
   } else if (fm.audit.verdict !== "pass") {
     gaps.push(`audit verdict=${fm.audit.verdict} (need pass)`);
   } else {
-    const currentSha = getHeadSha(cwd);
+    // Compare against the same repo audit() used (impl.repo if set, else cwd)
+    const auditRepo = fm.impl?.repo || cwd;
+    const currentSha = getHeadSha(auditRepo);
     if (fm.audit.sha !== currentSha) {
       gaps.push(
         `audit sha 过期 (audit.sha=${fm.audit.sha?.slice(0, 8)}, HEAD=${currentSha.slice(0, 8)})`

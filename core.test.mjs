@@ -254,6 +254,55 @@ status: in-progress
   );
 });
 
+test("done: accepts audit sha from impl.repo (external repo)", async () => {
+  // Project A: spec project
+  const dirA = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  repo: DIR_B_PLACEHOLDER
+  at: "2026-08-10T00:00:00Z"
+  gates: {}
+  e2e: {}
+audit:
+  verdict: pass
+  sha: SHA_B_PLACEHOLDER
+evidence:
+  human: []
+---
+
+- 状态：进行中`,
+  });
+  // Project B: separate implementation repo
+  const dirB = mkProject({});
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dirB,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  const shaB = execSync("git rev-parse HEAD", { cwd: dirB, stdio: "pipe" }).toString().trim();
+
+  // Also init dirA as git repo (but its HEAD will differ from dirB)
+  execSync("git init && git add . && git commit -m init --allow-empty", {
+    cwd: dirA,
+    stdio: "pipe",
+  });
+
+  // Patch the spec to use actual dirB path and shaB
+  let specContent = fs.readFileSync(path.join(dirA, "docs/specs/S1.0.md"), "utf8");
+  specContent = specContent.replace("DIR_B_PLACEHOLDER", dirB);
+  specContent = specContent.replace("SHA_B_PLACEHOLDER", shaB);
+  fs.writeFileSync(path.join(dirA, "docs/specs/S1.0.md"), specContent);
+
+  // done() should succeed — audit.sha matches dirB HEAD even though dirA HEAD differs
+  const output = done(dirA, "S1.0");
+  assert.ok(output.includes("已完成"));
+});
+
 test("done: reject when audit sha stale", async () => {
   const dir = mkProject({
     "docs/specs/S1.0.md": `---
