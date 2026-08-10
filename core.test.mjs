@@ -612,7 +612,7 @@ impl:
 // ─── buildAuditorArgs ──────────────────────────────────────────────────────
 test("buildAuditorArgs: returns @file arg, file contains prompt, cleanup works", () => {
   const { args, cleanup } = buildAuditorArgs("hello");
-  assert.deepStrictEqual(args, ["-p", "--no-extensions", "--no-skills", "--no-context-files", "hello"]);
+  assert.deepStrictEqual(args.slice(0, 4), ["-p", "--no-extensions", "--no-skills", "--no-context-files"]);
   assert.ok(args[args.length - 1].startsWith("@"));
   const file = args[args.length - 1].slice(1);
   assert.ok(fs.existsSync(file));
