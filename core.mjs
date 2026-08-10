@@ -9,7 +9,7 @@ import { execSync } from "node:child_process";
 import crypto from "node:crypto";
 
 // ─── Status mapping ──────────────────────────────────────────────────────────
-const STATUS_MAP = {
+export const STATUS_MAP = {
   pending: "待 review",
   approved: "已批准",
   "in-progress": "进行中",
@@ -74,7 +74,7 @@ export function detectDrift(content, fmData) {
   // Strip parenthetical notes and emoji prefixes for comparison
   const bodyBase = bodyStatus
     .replace(/（[^）]*）/g, "")
-    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}✀-➿\s]/gu, "")
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}✀-➿]/gu, "")
     .trim();
   if (bodyBase === expected) return { drifted: false };
   return { drifted: true, expected, got: bodyBase };
