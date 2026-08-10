@@ -233,12 +233,14 @@ export function runGates(cwd, gates) {
   const results = {};
   for (const gate of gates) {
     try {
-      execSync(gate.cmd, {
+      const out = execSync(gate.cmd, {
         cwd,
         timeout: 180000,
         stdio: ["pipe", "pipe", "pipe"],
-      });
-      results[gate.name] = { pass: true, tail: "" };
+      })
+        .toString();
+      const lines = out.split("\n").filter(Boolean);
+      results[gate.name] = { pass: true, tail: lines.slice(-3).join("\n") };
     } catch (e) {
       const output =
         (e.stdout?.toString() || "") + "\n" + (e.stderr?.toString() || "");
