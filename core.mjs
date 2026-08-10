@@ -5,6 +5,7 @@
 import yaml from "js-yaml";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import crypto from "node:crypto";
@@ -593,12 +594,16 @@ export async function impl(cwd, id, { signal, onGate } = {}) {
 }
 
 // ─── buildAuditorArgs ────────────────────────────────────────────────────────
-// Returns argv array for pi subprocess — no shell, zero expansion.
+// Returns { args, cleanup } for pi subprocess — prompt 经 @file 传入：
+// 大 diff（如锁文件 1.3 万行）会撑爆 argv 单参数上限（E2BIG），文件无此限。
 export function buildAuditorArgs(prompt, model = "") {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-audit-"));
+  const file = path.join(dir, "prompt.txt");
+  fs.writeFileSync(file, prompt, "utf8");
   const args = ["-p", "--no-extensions", "--no-skills", "--no-context-files"];
   if (model) args.push("--model", model);
-  args.push(prompt);
-  return args;
+  args.push("@" + file);
+  return { args, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
 // ─── parseVerdictJson ────────────────────────────────────────────────────────
@@ -712,7 +717,7 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
 
   let auditResult;
   try {
-    const args = buildAuditorArgs(prompt, auditorModel);
+    const { args, cleanup } = buildAuditorArgs(prompt, auditorModel);
     // Override for hermetic tests / custom auditor CLIs (default: pi)
     const auditorBin = process.env.SPECFLOW_AUDIT_BIN || "pi";
     const { stdout, stderr, code } = await runArgv(auditorBin, args, {
@@ -722,6 +727,7 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
       env: { ...process.env, NO_COLOR: "1" },
       signal,
     });
+    cleanup();
     if (code !== 0) {
       throw new Error(
         `pi 子进程退出 code=${code}: ${(stderr || "").slice(0, 500)}`

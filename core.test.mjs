@@ -610,33 +610,49 @@ impl:
 });
 
 // ─── buildAuditorArgs ──────────────────────────────────────────────────────
-test("buildAuditorArgs: returns array without model when model is empty", () => {
-  const args = buildAuditorArgs("hello");
+test("buildAuditorArgs: returns @file arg, file contains prompt, cleanup works", () => {
+  const { args, cleanup } = buildAuditorArgs("hello");
   assert.deepStrictEqual(args, ["-p", "--no-extensions", "--no-skills", "--no-context-files", "hello"]);
+  assert.ok(args[args.length - 1].startsWith("@"));
+  const file = args[args.length - 1].slice(1);
+  assert.ok(fs.existsSync(file));
+  assert.equal(fs.readFileSync(file, "utf8"), "hello");
+  cleanup();
+  assert.ok(!fs.existsSync(file));
 });
 
 test("buildAuditorArgs: includes --model when model is provided", () => {
-  const args = buildAuditorArgs("hello", "gpt-4");
+  const { args, cleanup } = buildAuditorArgs("hello", "gpt-4");
   assert.deepStrictEqual(args, ["-p", "--no-extensions", "--no-skills", "--no-context-files", "--model", "gpt-4", "hello"]);
+  cleanup();
 });
 
-test("buildAuditorArgs: preserves backticks, ${}, $(), double quotes in prompt", () => {
+test("buildAuditorArgs: preserves backticks, ${}, $(), double quotes in prompt file", () => {
   const nasty = 'echo `whoami` && ${HOME} && $(cat /etc/passwd) and "quoted"';
-  const args = buildAuditorArgs(nasty);
-  // The prompt must be the last element, character-for-character identical
-  assert.strictEqual(args[args.length - 1], nasty);
-  // No shell interpolation should have occurred
-  assert.ok(args[args.length - 1].includes("`whoami`"));
-  assert.ok(args[args.length - 1].includes("${HOME}"));
-  assert.ok(args[args.length - 1].includes("$(cat /etc/passwd)"));
-  assert.ok(args[args.length - 1].includes('"quoted"'));
+  const { args, cleanup } = buildAuditorArgs(nasty);
+  const file = args[args.length - 1].slice(1);
+  const content = fs.readFileSync(file, "utf8");
+  assert.strictEqual(content, nasty);
+  assert.ok(content.includes("`whoami`"));
+  assert.ok(content.includes("${HOME}"));
+  assert.ok(content.includes("$(cat /etc/passwd)"));
+  assert.ok(content.includes('"quoted"'));
+  cleanup();
 });
 
 test("buildAuditorArgs: returns a new array each call (no shared mutation)", () => {
-  const a = buildAuditorArgs("x");
-  const b = buildAuditorArgs("y");
+  const { args: a, cleanup: ca } = buildAuditorArgs("x");
+  const { args: b, cleanup: cb } = buildAuditorArgs("y");
   a.push("MUTATE");
   assert.ok(!b.includes("MUTATE"));
+  ca(); cb();
+});
+
+test("buildAuditorArgs: long prompt over argv limit goes to file", () => {
+  const { args, cleanup } = buildAuditorArgs("x".repeat(300000));
+  const file = args[args.length - 1].slice(1);
+  assert.equal(fs.readFileSync(file, "utf8").length, 300000);
+  cleanup();
 });
 
 // ─── nextStep ──────────────────────────────────────────────────────────────
