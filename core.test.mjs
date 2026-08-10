@@ -20,6 +20,7 @@ import {
   checkCI,
   audit,
   shouldBypass,
+  commitGateAction,
   parseE2eOutput,
   impl,
   buildAuditorArgs,
@@ -864,6 +865,45 @@ test("parseVerdictJson: totally broken JSON falls back to verdict=fail", () => {
   const result = parseVerdictJson(raw);
   assert.equal(result.verdict, "fail");
   assert.ok(result.criteria[0].evidence.includes("未找到 JSON 对象"));
+});
+
+// ─── commitGateAction ─────────────────────────────────────────────────────
+test("commitGateAction: non-commit command → allow", () => {
+  const result = commitGateAction("echo hello", { typecheck: { pass: false, tail: "error" } });
+  assert.equal(result.action, "allow");
+});
+
+test("commitGateAction: all gates green → allow", () => {
+  const result = commitGateAction("git commit -m 'fix'", {
+    typecheck: { pass: true, tail: "" },
+    biome: { pass: true, tail: "" },
+  });
+  assert.equal(result.action, "allow");
+});
+
+test("commitGateAction: red gate → block with gate name in reason", () => {
+  const result = commitGateAction("git commit -m 'fix'", {
+    typecheck: { pass: true, tail: "" },
+    biome: { pass: false, tail: "Unexpected token" },
+  });
+  assert.equal(result.action, "block");
+  assert.ok(result.reason.includes("biome"));
+  assert.ok(result.reason.includes("Unexpected token"));
+});
+
+test("commitGateAction: SPECFLOW_BYPASS prefix → bypass", () => {
+  const result = commitGateAction("SPECFLOW_BYPASS=1 git commit -m 'fix'", {
+    typecheck: { pass: false, tail: "error" },
+  });
+  assert.equal(result.action, "bypass");
+});
+
+test("commitGateAction: SPECFLOW_BYPASS in message → NOT bypass, still block", () => {
+  const result = commitGateAction('git commit -m "document SPECFLOW_BYPASS=1"', {
+    typecheck: { pass: false, tail: "error TS2345" },
+  });
+  assert.equal(result.action, "block");
+  assert.ok(result.reason.includes("typecheck"));
 });
 
 console.log("✅ All tests defined");

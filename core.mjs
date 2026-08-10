@@ -278,6 +278,39 @@ export function shouldBypass(command) {
   return re.test(command);
 }
 
+// ─── Commit gate action (pure) ──────────────────────────────────────────────
+// Pure function: decide whether to allow, block, or bypass a git commit.
+// Returns { action: "allow" | "block" | "bypass", reason?: string }
+const COMMIT_RE = /(^|[;&|]\s*)(?:\S+=\S+\s+)*git\s+commit/;
+
+export function commitGateAction(command, gateResults) {
+  // 1. Not a commit command → allow
+  if (!COMMIT_RE.test(command)) {
+    return { action: "allow" };
+  }
+
+  // 2. Bypass env prefix → bypass (even if gates fail)
+  if (shouldBypass(command)) {
+    return { action: "bypass" };
+  }
+
+  // 3. All gates pass (or no gates) → allow
+  const results = Object.values(gateResults);
+  if (results.every((r) => r.pass)) {
+    return { action: "allow" };
+  }
+
+  // 4. Block — reason includes failed gate names + tail summaries
+  const failedGates = Object.entries(gateResults)
+    .filter(([_, v]) => !v.pass)
+    .map(([name, v]) => `${name}:\n${v.tail}`);
+
+  return {
+    action: "block",
+    reason: `spec-flow: 门禁未通过，禁止 commit\n\n${failedGates.join("\n\n")}`,
+  };
+}
+
 // ─── Ledger ──────────────────────────────────────────────────────────────────
 export function appendLedger(cwd, event) {
   const ledgerPath = path.join(cwd, ".spec-flow-ledger.jsonl");

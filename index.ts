@@ -16,7 +16,7 @@ import {
   runGates,
   detectProjectConfig,
   parseFrontmatter,
-  shouldBypass,
+  commitGateAction,
   nextStep,
 } from "./core.mjs";
 
@@ -155,47 +155,35 @@ export default function (pi: ExtensionAPI) {
     if (event.toolName !== "bash") return;
     const command = (event.input as any).command || "";
 
-    // Match git commit (with optional env vars like SPECFLOW_BYPASS=1)
-    const commitMatch = /(^|[;&|]\s*)(?:\S+=\S+\s+)*git\s+commit/.exec(command);
-    if (!commitMatch) return;
+    // Quick exit: not a git commit command (avoid unnecessary gate IO)
+    if (!/(?:^|[;&|]\s*)(?:\S+=\S+\s+)*git\s+commit/.test(command)) return;
 
-    // Check bypass — only match env prefix, not substrings in messages
-    const hasBypass = shouldBypass(command);
-
-    // Run gates (prefer cache)
+    // IO: detect and run gates
     const config = detectProjectConfig(ctx.cwd);
-    if (config.gates.length === 0) return; // no gates, allow
-
+    if (config.gates.length === 0) return;
     const gateResults = runGates(ctx.cwd, config.gates);
-    const allPass = Object.values(gateResults).every((r) => r.pass);
 
-    if (allPass) return; // gates green, allow
+    // Pure decision
+    const decision = commitGateAction(command, gateResults);
 
-    // Gates red
-    if (hasBypass) {
+    if (decision.action === "allow") return;
+
+    if (decision.action === "bypass") {
       ctx.ui.notify(
         "⚠️ spec-flow: SPECFLOW_BYPASS=1 detected, allowing commit despite gate failures",
         "warning"
       );
-      // Log bypass to ledger
       const { appendLedger } = await import("./core.mjs");
       appendLedger(ctx.cwd, {
         type: "bypass",
         gates: gateResults,
         command: command.slice(0, 200),
       });
-      return; // allow
+      return;
     }
 
-    // Block
-    const failedGates = Object.entries(gateResults)
-      .filter(([_, v]) => !v.pass)
-      .map(([name, v]) => `${name}:\n${v.tail}`);
-
-    return {
-      block: true,
-      reason: `spec-flow: 门禁未通过，禁止 commit\n\n${failedGates.join("\n\n")}`,
-    };
+    // block
+    return { block: true, reason: decision.reason };
   });
 
   // ─── session_start: notify active specs ──────────────────────────────────
