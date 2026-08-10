@@ -499,10 +499,10 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
 只输出一个 JSON 对象，不要输出其他内容。schema：
 {
   "verdict": "pass" | "fail",
-  "findings": [
+  "criteria": [
     {
       "criterion": "验收标准描述",
-      "result": "pass" | "fail" | "unverifiable",
+      "status": "pass" | "fail" | "unverifiable",
       "evidence": "引用 diff hunk 或说明"
     }
   ],
@@ -510,7 +510,7 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
 }
 
 规则：
-- 任何 finding 的 result 为 fail 或 unverifiable → verdict=fail
+- 任何 criterion 的 status 为 fail 或 unverifiable → verdict=fail
 - evidence 必须引用具体 diff hunk（行号或代码片段）
 - 不要编造 diff 中不存在的内容
 - scope_deviations 列出方案声明但未实现的部分`;
@@ -536,10 +536,10 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
   } catch (e) {
     auditResult = {
       verdict: "fail",
-      findings: [
+      criteria: [
         {
           criterion: "审计执行",
-          result: "unverifiable",
+          status: "unverifiable",
           evidence: `审计子进程失败: ${e.message}`,
         },
       ],
@@ -552,7 +552,7 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
     at: new Date().toISOString(),
     sha: currentSha,
     verdict: auditResult.verdict,
-    findings: auditResult.findings || [],
+    criteria: auditResult.criteria || [],
   };
 
   let newContent = writeFrontmatter(spec.content, fm);
@@ -568,10 +568,10 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
   const summary = [
     `Spec ${id} 审计结果: ${auditResult.verdict === "pass" ? "✅ PASS" : "❌ FAIL"}`,
     `  sha: ${currentSha}`,
-    `  findings:`,
+    `  criteria:`,
   ];
-  for (const f of auditResult.findings || []) {
-    const mark = f.result === "pass" ? "✓" : f.result === "fail" ? "✗" : "?";
+  for (const f of auditResult.criteria || []) {
+    const mark = f.status === "pass" ? "✓" : f.status === "fail" ? "✗" : "?";
     summary.push(`    [${mark}] ${f.criterion}`);
     if (f.evidence) summary.push(`      ${f.evidence.slice(0, 200)}`);
   }

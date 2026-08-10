@@ -18,6 +18,7 @@ import {
   done,
   board,
   checkCI,
+  audit,
 } from "./core.mjs";
 
 // Helper: create temp project
@@ -322,6 +323,34 @@ evidence:
   const result = checkCI(dir);
   assert.equal(result.pass, false);
   assert.ok(result.output.includes("e2e-99.mjs"));
+});
+
+// ─── Audit criteria naming ──────────────────────────────────────────────────
+test("audit: fallback uses spec-contract field names (criteria/status)", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  base_sha: abc123
+---
+
+- 状态：进行中`,
+  });
+  // Init git so getHeadSha works
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dir,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  // pi subprocess will fail in test env, triggering fallback path
+  const output = await audit(dir, "S1.0");
+  // The summary should use "criteria" not "findings"
+  assert.ok(output.includes("criteria:"), "summary should say 'criteria:' not 'findings:'");
+  assert.ok(!output.includes("findings:"), "should not contain old field name 'findings:'");
 });
 
 console.log("✅ All tests defined");
