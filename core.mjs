@@ -6,7 +6,7 @@ import yaml from "js-yaml";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import crypto from "node:crypto";
 
@@ -54,6 +54,7 @@ export async function runArgv(
       signal,
       env,
       windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"], // stdin 立即 EOF——否则 pi -p 等 stdin 会挂起
     });
     return { stdout, stderr, code: 0 };
   } catch (e) {
@@ -720,18 +721,24 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
     const { args, cleanup } = buildAuditorArgs(prompt, auditorModel);
     // Override for hermetic tests / custom auditor CLIs (default: pi)
     const auditorBin = process.env.SPECFLOW_AUDIT_BIN || "pi";
-    const { stdout, stderr, code } = await runArgv(auditorBin, args, {
-      cwd,
-      timeout: 300000,
-      maxBuffer: 32 * 1024 * 1024,
-      env: { ...process.env, NO_COLOR: "1" },
-      signal,
-    });
-    cleanup();
-    if (code !== 0) {
+    // 用 execFileSync：实测 execFileP（异步管道）spawn pi 会挂起/秒退，spawnSync 稳定
+    // （差异在 async execFile 的管道 EOF 等待；审计本就是阻塞长操作，同步可接受）
+    let stdout = "";
+    try {
+      stdout = execFileSync(auditorBin, args, {
+        cwd,
+        timeout: 300000,
+        maxBuffer: 32 * 1024 * 1024,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, NO_COLOR: "1" },
+      }).toString();
+    } catch (e) {
+      const out = (e.stdout?.toString() || "") + (e.stderr?.toString() || "");
       throw new Error(
-        `pi 子进程退出 code=${code}: ${(stderr || "").slice(0, 500)}`
+        `pi 子进程失败: ${(out || e.message || "未知错误").slice(0, 300)}`
       );
+    } finally {
+      cleanup();
     }
     auditResult = parseVerdictJson(stdout);
   } catch (e) {
