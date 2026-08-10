@@ -22,6 +22,7 @@ import {
   shouldBypass,
   parseE2eOutput,
   impl,
+  buildAuditorArgs,
 } from "./core.mjs";
 
 // Helper: create temp project
@@ -525,6 +526,36 @@ impl:
   // The summary should use "criteria" not "findings"
   assert.ok(output.includes("criteria:"), "summary should say 'criteria:' not 'findings:'");
   assert.ok(!output.includes("findings:"), "should not contain old field name 'findings:'");
+});
+
+// ─── buildAuditorArgs ──────────────────────────────────────────────────────
+test("buildAuditorArgs: returns array without model when model is empty", () => {
+  const args = buildAuditorArgs("hello");
+  assert.deepStrictEqual(args, ["-p", "--no-extensions", "--no-skills", "--no-context-files", "hello"]);
+});
+
+test("buildAuditorArgs: includes --model when model is provided", () => {
+  const args = buildAuditorArgs("hello", "gpt-4");
+  assert.deepStrictEqual(args, ["-p", "--no-extensions", "--no-skills", "--no-context-files", "--model", "gpt-4", "hello"]);
+});
+
+test("buildAuditorArgs: preserves backticks, ${}, $(), double quotes in prompt", () => {
+  const nasty = 'echo `whoami` && ${HOME} && $(cat /etc/passwd) and "quoted"';
+  const args = buildAuditorArgs(nasty);
+  // The prompt must be the last element, character-for-character identical
+  assert.strictEqual(args[args.length - 1], nasty);
+  // No shell interpolation should have occurred
+  assert.ok(args[args.length - 1].includes("`whoami`"));
+  assert.ok(args[args.length - 1].includes("${HOME}"));
+  assert.ok(args[args.length - 1].includes("$(cat /etc/passwd)"));
+  assert.ok(args[args.length - 1].includes('"quoted"'));
+});
+
+test("buildAuditorArgs: returns a new array each call (no shared mutation)", () => {
+  const a = buildAuditorArgs("x");
+  const b = buildAuditorArgs("y");
+  a.push("MUTATE");
+  assert.ok(!b.includes("MUTATE"));
 });
 
 console.log("✅ All tests defined");

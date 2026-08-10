@@ -5,7 +5,7 @@
 import yaml from "js-yaml";
 import fs from "node:fs";
 import path from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 
 // ─── Status mapping ──────────────────────────────────────────────────────────
@@ -482,6 +482,15 @@ export function impl(cwd, id) {
   return summary.join("\n");
 }
 
+// ─── buildAuditorArgs ────────────────────────────────────────────────────────
+// Returns argv array for pi subprocess — no shell, zero expansion.
+export function buildAuditorArgs(prompt, model = "") {
+  const args = ["-p", "--no-extensions", "--no-skills", "--no-context-files"];
+  if (model) args.push("--model", model);
+  args.push(prompt);
+  return args;
+}
+
 // ─── audit ───────────────────────────────────────────────────────────────────
 export async function audit(cwd, id) {
   const spec = findSpec(cwd, id);
@@ -505,7 +514,6 @@ export async function audit(cwd, id) {
 
   // Build auditor prompt
   const auditorModel = process.env.SPECFLOW_AUDIT_MODEL || "";
-  const modelFlag = auditorModel ? `--model ${auditorModel}` : "";
 
   const prompt = `你是一个独立的 spec 审计员。你的任务是对比 spec 方案与实施 diff，逐条判定验收标准是否满足。
 
@@ -541,10 +549,11 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
 
   let auditResult;
   try {
-    const cmd = `pi -p --no-extensions --no-skills --no-context-files ${modelFlag} ${JSON.stringify(prompt)}`;
-    const output = execSync(cmd, {
+    const args = buildAuditorArgs(prompt, auditorModel);
+    const output = execFileSync("pi", args, {
       cwd,
       timeout: 300000,
+      maxBuffer: 32 * 1024 * 1024,
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, NO_COLOR: "1" },
     }).toString();
