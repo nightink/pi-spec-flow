@@ -909,7 +909,7 @@ test("commitGateAction: SPECFLOW_BYPASS in message → NOT bypass, still block",
 console.log("✅ All tests defined");
 
 test("runGates: success captures stdout tail for evidence", () => {
-  const cwd = mkdtempSync(path.join(tmpdir(), "specflow-gates-tail-"));
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-gates-tail-"));
   const res = runGates(cwd, [{ name: "echo", cmd: "node -e \"console.log('a');console.log('Tests 218 passed')\"" }]);
   assert.equal(res.echo.pass, true);
   assert.match(res.echo.tail, /Tests 218 passed/);
