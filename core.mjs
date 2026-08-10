@@ -260,6 +260,14 @@ export function runGates(cwd, gates) {
   return results;
 }
 
+// ─── E2E output parsing ─────────────────────────────────────────────────────
+// Count ^PASS and ^FAIL lines. Pass iff PASS>0 AND FAIL==0.
+export function parseE2eOutput(output) {
+  const passCount = (output.match(/^PASS /gm) || []).length;
+  const failCount = (output.match(/^FAIL /gm) || []).length;
+  return { pass: passCount > 0 && failCount === 0, passCount, failCount };
+}
+
 // ─── Bypass detection ────────────────────────────────────────────────────────
 // Only match SPECFLOW_BYPASS=1 as a prefix env assignment to git commit,
 // not as a substring in commit messages or other arguments.
@@ -389,8 +397,13 @@ export function impl(cwd, id) {
           timeout: 180000,
           stdio: ["pipe", "pipe", "pipe"],
         }).toString();
-        const pass = /^PASS/m.test(output);
-        e2eResults[e2eId] = { pass, tail: output.split("\n").slice(-5).join("\n") };
+        const parsed = parseE2eOutput(output);
+        e2eResults[e2eId] = {
+          pass: parsed.pass,
+          passCount: parsed.passCount,
+          failCount: parsed.failCount,
+          tail: output.split("\n").slice(-5).join("\n"),
+        };
       } catch (e) {
         const output =
           (e.stdout?.toString() || "") + "\n" + (e.stderr?.toString() || "");
@@ -454,7 +467,8 @@ export function impl(cwd, id) {
   if (Object.keys(e2eResults).length > 0) {
     summary.push(`  E2E:`);
     for (const [k, v] of Object.entries(e2eResults)) {
-      summary.push(`    ${k}: ${v.pass ? "✓" : "✗"}`);
+      const countStr = v.passCount != null ? ` (${v.passCount} PASS)` : "";
+      summary.push(`    ${k}: ${v.pass ? "✓" : "✗"}${countStr}`);
       if (!v.pass && v.tail) summary.push(`      ${v.tail.split("\n")[0]}`);
     }
   }

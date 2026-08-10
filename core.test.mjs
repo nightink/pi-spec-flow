@@ -20,6 +20,8 @@ import {
   checkCI,
   audit,
   shouldBypass,
+  parseE2eOutput,
+  impl,
 } from "./core.mjs";
 
 // Helper: create temp project
@@ -352,6 +354,100 @@ test("bypass: substring in commit message is NOT recognized", () => {
 test("bypass: no bypass var is not recognized", () => {
   assert.equal(shouldBypass("git commit -m 'normal'"), false);
   assert.equal(shouldBypass("OTHER_VAR=1 git commit -m 'x'"), false);
+});
+
+// ─── E2E output parsing ─────────────────────────────────────────────────────
+test("e2e parse: all PASS exit0 → pass", () => {
+  const output = "PASS x\nPASS y\nPASS z\n";
+  const result = parseE2eOutput(output);
+  assert.equal(result.pass, true);
+  assert.equal(result.passCount, 3);
+  assert.equal(result.failCount, 0);
+});
+
+test("e2e parse: PASS + FAIL lines → fail", () => {
+  const output = "PASS x\nFAIL y\n";
+  const result = parseE2eOutput(output);
+  assert.equal(result.pass, false);
+  assert.equal(result.passCount, 1);
+  assert.equal(result.failCount, 1);
+});
+
+test("e2e parse: only FAIL → fail", () => {
+  const output = "FAIL something\n";
+  const result = parseE2eOutput(output);
+  assert.equal(result.pass, false);
+  assert.equal(result.passCount, 0);
+  assert.equal(result.failCount, 1);
+});
+
+test("e2e parse: no PASS no FAIL → fail", () => {
+  const output = "some random output\n";
+  const result = parseE2eOutput(output);
+  assert.equal(result.pass, false);
+  assert.equal(result.passCount, 0);
+  assert.equal(result.failCount, 0);
+});
+
+test("e2e parse: PASS must be at line start", () => {
+  // "PASS" inside a word should not count
+  const output = "COMPASS test\nPASS real\n";
+  const result = parseE2eOutput(output);
+  assert.equal(result.pass, true);
+  assert.equal(result.passCount, 1);
+});
+
+test("impl: e2e with FAIL lines in output is detected as failure", () => {
+  const dir = mkProject({
+    "package.json": JSON.stringify({ scripts: {} }),
+    "tests/e2e/e2e-01.mjs": `console.log("PASS x"); console.log("FAIL y"); process.exit(0);`,
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+evidence:
+  e2e: [e2e-01]
+---
+
+- 状态：进行中`,
+  });
+  const output = impl(dir, "S1.0");
+  // The e2e should be detected as failed because of FAIL line
+  assert.ok(output.includes("✗") || output.includes("FAIL"), "e2e with FAIL line should not pass");
+});
+
+test("impl: e2e with all PASS lines passes", () => {
+  const dir = mkProject({
+    "package.json": JSON.stringify({ scripts: {} }),
+    "tests/e2e/e2e-01.mjs": `console.log("PASS a"); console.log("PASS b");`,
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+evidence:
+  e2e: [e2e-01]
+---
+
+- 状态：进行中`,
+  });
+  const output = impl(dir, "S1.0");
+  assert.ok(output.includes("✓") || output.includes("PASS"), "all PASS should succeed");
+  assert.ok(output.includes("2 PASS"), "should show count");
+});
+
+test("impl: e2e with non-zero exit is failure", () => {
+  const dir = mkProject({
+    "package.json": JSON.stringify({ scripts: {} }),
+    "tests/e2e/e2e-01.mjs": `console.log("PASS x"); process.exit(1);`,
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+evidence:
+  e2e: [e2e-01]
+---
+
+- 状态：进行中`,
+  });
+  const output = impl(dir, "S1.0");
+  assert.ok(output.includes("✗"), "non-zero exit should fail");
 });
 
 // ─── Audit criteria naming ──────────────────────────────────────────────────
