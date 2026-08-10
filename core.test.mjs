@@ -81,6 +81,22 @@ test("status line: update preserves note", () => {
   const content = `- 状态：进行中（2026-08-10 开工）`;
   const updated = updateStatusLine(content, "done");
   assert.ok(updated.includes("已完成"));
+  // Note should be preserved when no new note is provided
+  assert.ok(updated.includes("2026-08-10 开工"));
+});
+
+test("status line: update replaces note when new note provided", () => {
+  const content = `- 状态：进行中（旧备注）`;
+  const updated = updateStatusLine(content, "done", "新备注");
+  assert.ok(updated.includes("已完成"));
+  assert.ok(updated.includes("新备注"));
+  assert.ok(!updated.includes("旧备注"));
+});
+
+test("status line: update without note on line without note", () => {
+  const content = `- 状态：进行中`;
+  const updated = updateStatusLine(content, "done");
+  assert.equal(updated, `- 状态：已完成`);
 });
 
 // ─── Drift detection ─────────────────────────────────────────────────────────

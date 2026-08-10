@@ -51,7 +51,15 @@ export function extractStatusLine(content) {
 
 export function updateStatusLine(content, status, note) {
   const label = STATUS_MAP[status] || status;
-  const newLine = note ? `- 状态：${label}（${note}）` : `- 状态：${label}`;
+  // If note not provided, preserve existing parenthetical note from current line
+  let effectiveNote = note;
+  if (effectiveNote === undefined || effectiveNote === null) {
+    const existingMatch = content.match(/^- 状态：[^\n]*（([^）]*)）/m);
+    if (existingMatch) {
+      effectiveNote = existingMatch[1];
+    }
+  }
+  const newLine = effectiveNote ? `- 状态：${label}（${effectiveNote}）` : `- 状态：${label}`;
   const re = /^- 状态：.+$/m;
   if (re.test(content)) {
     return content.replace(re, newLine);
