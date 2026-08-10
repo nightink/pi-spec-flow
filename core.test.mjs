@@ -623,7 +623,8 @@ test("buildAuditorArgs: returns @file arg, file contains prompt, cleanup works",
 
 test("buildAuditorArgs: includes --model when model is provided", () => {
   const { args, cleanup } = buildAuditorArgs("hello", "gpt-4");
-  assert.deepStrictEqual(args, ["-p", "--no-extensions", "--no-skills", "--no-context-files", "--model", "gpt-4", "hello"]);
+  assert.deepStrictEqual(args.slice(0, 6), ["-p", "--no-extensions", "--no-skills", "--no-context-files", "--model", "gpt-4"]);
+  assert.ok(args[args.length - 1].startsWith("@"));
   cleanup();
 });
 
