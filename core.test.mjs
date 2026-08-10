@@ -12,6 +12,7 @@ import {
   updateStatusLine,
   detectDrift,
   detectProjectConfig,
+  runGates,
   loadSpecs,
   migrateAlloc,
   attest,
