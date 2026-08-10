@@ -17,6 +17,7 @@ import {
   detectProjectConfig,
   parseFrontmatter,
   shouldBypass,
+  nextStep,
 } from "./core.mjs";
 
 export default function (pi: ExtensionAPI) {
@@ -211,7 +212,8 @@ export default function (pi: ExtensionAPI) {
         const fm = spec.frontmatter!;
         const id = fm.id || spec.file;
         const baseSha = fm.impl?.base_sha?.slice(0, 8) || "?";
-        lines.push(`  • ${id} (base=${baseSha})`);
+        const suggestion = nextStep(ctx.cwd, spec);
+        lines.push(`  • ${id} (base=${baseSha}) — ${suggestion}`);
       }
       ctx.ui.notify(lines.join("\n"), "info");
     } catch {

@@ -187,7 +187,7 @@ export function findSpec(cwd, id) {
 }
 
 // ─── Git helpers ─────────────────────────────────────────────────────────────
-function getHeadSha(cwd) {
+export function getHeadSha(cwd) {
   try {
     return execSync("git rev-parse HEAD", { cwd, stdio: ["pipe", "pipe", "pipe"] })
       .toString()
@@ -805,6 +805,49 @@ export function checkCI(cwd) {
   }
 
   return { output: lines.join("\n"), pass: errors.length === 0 };
+}
+
+// ─── nextStep: suggest next action for an in-progress spec ──────────────────
+export function nextStep(cwd, spec) {
+  const fm = spec.frontmatter;
+  const id = fm.id || spec.file;
+
+  // 1. impl not run yet
+  if (!fm.impl?.at) {
+    return `下一步：spec_impl ${id}`;
+  }
+
+  // Check impl pass: all gates green + all e2e green
+  const gates = fm.impl.gates || {};
+  const e2e = fm.impl.e2e || {};
+  const allGatesPass = Object.values(gates).every((r) => r.pass);
+  const allE2ePass = Object.values(e2e).every((r) => r.pass);
+  const implPass = allGatesPass && allE2ePass;
+
+  // 2. impl has failures → fix and rerun impl
+  if (!implPass) {
+    return `下一步：修复 impl 问题后重跑 spec_impl ${id}`;
+  }
+
+  // 3. impl pass, audit not run yet
+  if (!fm.audit?.verdict) {
+    return `下一步：spec_audit ${id}`;
+  }
+
+  // 4. audit verdict = fail
+  if (fm.audit.verdict === "fail") {
+    return `下一步：修复审计 findings 后重跑 spec_audit ${id}`;
+  }
+
+  // 5. audit pass but sha stale
+  const auditRepo = fm.impl?.repo || cwd;
+  const currentSha = getHeadSha(auditRepo);
+  if (fm.audit.sha !== currentSha) {
+    return `下一步：重跑 spec_audit ${id}（sha 失配）`;
+  }
+
+  // 6. all green
+  return `下一步：spec_done ${id}`;
 }
 
 // ─── CLI entry ───────────────────────────────────────────────────────────────

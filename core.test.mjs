@@ -23,6 +23,8 @@ import {
   parseE2eOutput,
   impl,
   buildAuditorArgs,
+  nextStep,
+  getHeadSha,
 } from "./core.mjs";
 
 // Helper: create temp project
@@ -556,6 +558,210 @@ test("buildAuditorArgs: returns a new array each call (no shared mutation)", () 
   const b = buildAuditorArgs("y");
   a.push("MUTATE");
   assert.ok(!b.includes("MUTATE"));
+});
+
+// ─── nextStep ──────────────────────────────────────────────────────────────
+test("nextStep: impl.at empty → spec_impl", () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+---
+
+- 状态：进行中`,
+  });
+  const specs = loadSpecs(dir);
+  const step = nextStep(dir, specs[0]);
+  assert.equal(step, "下一步：spec_impl S1.0");
+});
+
+test("nextStep: impl pass, no audit → spec_audit", () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  at: '2026-08-10T00:00:00Z'
+  gates:
+    typecheck:
+      pass: true
+      tail: ''
+  e2e:
+    e2e-01:
+      pass: true
+      passCount: 3
+      failCount: 0
+---
+
+- 状态：进行中`,
+  });
+  const specs = loadSpecs(dir);
+  const step = nextStep(dir, specs[0]);
+  assert.equal(step, "下一步：spec_audit S1.0");
+});
+
+test("nextStep: impl has gate failure → fix impl", () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  at: '2026-08-10T00:00:00Z'
+  gates:
+    typecheck:
+      pass: false
+      tail: 'error TS2345'
+  e2e: {}
+---
+
+- 状态：进行中`,
+  });
+  const specs = loadSpecs(dir);
+  const step = nextStep(dir, specs[0]);
+  assert.equal(step, "下一步：修复 impl 问题后重跑 spec_impl S1.0");
+});
+
+test("nextStep: audit verdict fail → fix findings", () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  at: '2026-08-10T00:00:00Z'
+  gates:
+    typecheck:
+      pass: true
+      tail: ''
+  e2e: {}
+audit:
+  verdict: fail
+  sha: abc123
+---
+
+- 状态：进行中`,
+  });
+  const specs = loadSpecs(dir);
+  const step = nextStep(dir, specs[0]);
+  assert.equal(step, "下一步：修复审计 findings 后重跑 spec_audit S1.0");
+});
+
+test("nextStep: audit pass but sha stale → rerun audit", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  at: '2026-08-10T00:00:00Z'
+  gates:
+    typecheck:
+      pass: true
+      tail: ''
+  e2e: {}
+audit:
+  verdict: pass
+  sha: stale_sha
+---
+
+- 状态：进行中`,
+  });
+  // Init git to get a real HEAD
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dir,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  const specs = loadSpecs(dir);
+  const step = nextStep(dir, specs[0]);
+  assert.equal(step, "下一步：重跑 spec_audit S1.0（sha 失配）");
+});
+
+test("nextStep: all green → spec_done", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  at: '2026-08-10T00:00:00Z'
+  gates:
+    typecheck:
+      pass: true
+      tail: ''
+  e2e:
+    e2e-01:
+      pass: true
+      passCount: 2
+      failCount: 0
+audit:
+  verdict: pass
+  sha: PLACEHOLDER
+---
+
+- 状态：进行中`,
+  });
+  // Init git to get a real HEAD
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dir,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  const realSha = getHeadSha(dir);
+  // Patch the spec to use real sha
+  let content = fs.readFileSync(path.join(dir, "docs/specs/S1.0.md"), "utf8");
+  content = content.replace("PLACEHOLDER", realSha);
+  fs.writeFileSync(path.join(dir, "docs/specs/S1.0.md"), content);
+
+  const specs = loadSpecs(dir);
+  const step = nextStep(dir, specs[0]);
+  assert.equal(step, "下一步：spec_done S1.0");
+});
+
+test("nextStep: uses impl.repo for sha comparison when set", async () => {
+  const dirA = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  repo: DIR_B_PLACEHOLDER
+  at: '2026-08-10T00:00:00Z'
+  gates: {}
+  e2e: {}
+audit:
+  verdict: pass
+  sha: SHA_B_PLACEHOLDER
+---
+
+- 状态：进行中`,
+  });
+  const dirB = mkProject({});
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dirB,
+      stdio: "pipe",
+    });
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dirA,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  const shaB = execSync("git rev-parse HEAD", { cwd: dirB, stdio: "pipe" }).toString().trim();
+
+  let content = fs.readFileSync(path.join(dirA, "docs/specs/S1.0.md"), "utf8");
+  content = content.replace("DIR_B_PLACEHOLDER", dirB);
+  content = content.replace("SHA_B_PLACEHOLDER", shaB);
+  fs.writeFileSync(path.join(dirA, "docs/specs/S1.0.md"), content);
+
+  const specs = loadSpecs(dirA);
+  const step = nextStep(dirA, specs[0]);
+  // sha matches dirB HEAD → all green
+  assert.equal(step, "下一步：spec_done S1.0");
 });
 
 console.log("✅ All tests defined");
