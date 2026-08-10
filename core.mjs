@@ -1001,7 +1001,6 @@ export async function checkCI(cwd) {
 export async function nextStep(cwd, spec, signal) {
   const fm = spec.frontmatter;
   const id = fm.id || spec.file;
-
   // 1. impl not run yet
   if (!fm.impl?.at) {
     return `下一步：spec_impl ${id}`;
@@ -1038,6 +1037,108 @@ export async function nextStep(cwd, spec, signal) {
 
   // 6. all green
   return `下一步：spec_done ${id}`;
+}
+
+// ─── renderBoard: full project board (for /spec command) ────────────────────
+// Returns "" when the project has no docs/specs/ dir.
+export async function renderBoard(cwd, signal) {
+  const specs = loadSpecs(cwd);
+  if (specs.length === 0) return "";
+
+  const config = detectProjectConfig(cwd);
+  const gateNames = config.gates.map((g) => g.name).join(", ");
+  const lines = [`📋 spec-flow board — ${specs.length} 个 spec`];
+  lines.push(
+    `门禁: ${gateNames || "无"} | e2e: ${config.e2eFiles.length} | 迁移: ${config.migFiles.length}`
+  );
+  lines.push("");
+
+  for (const spec of specs) {
+    if (!spec.hasFrontmatter) {
+      lines.push(`• ${spec.file} ⚠️ 未纳管（无 frontmatter）`);
+      continue;
+    }
+    const fm = spec.frontmatter;
+    const id = fm.id || spec.file;
+    const label = STATUS_MAP[fm.status] || fm.status || "?";
+    const drift = detectDrift(spec.content, fm);
+    const driftMark = drift.drifted ? " ⚠️漂移" : "";
+    lines.push(`• ${id} [${spec.file}] ${label}${driftMark}`);
+
+    if (fm.status === "in-progress") {
+      const parts = [];
+      if (fm.impl?.at) {
+        const gatesOk = Object.values(fm.impl?.gates || {}).every((r) => r.pass);
+        const e2eOk = Object.values(fm.impl?.e2e || {}).every((r) => r.pass);
+        parts.push(`impl ${gatesOk && e2eOk ? "✓" : "✗"} ${fm.impl.at.slice(0, 10)}`);
+      }
+      if (fm.audit?.verdict) {
+        parts.push(`audit ${fm.audit.verdict === "pass" ? "✓" : "✗"}`);
+      }
+      const human = fm.evidence?.human || [];
+      if (human.length > 0) {
+        const attested = human.filter((i) => fm.attestations?.[i]).length;
+        parts.push(`attest ${attested}/${human.length}`);
+      }
+      if (parts.length > 0) lines.push(`    ${parts.join(" | ")}`);
+      lines.push(`    ${await nextStep(cwd, spec, signal)}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+// ─── renderSpecDetail: single spec detail (for /spec <id> command) ──────────
+// Returns null when the spec id/file is not found.
+export async function renderSpecDetail(cwd, id, signal) {
+  const spec = findSpec(cwd, id);
+  if (!spec) return null;
+  if (!spec.hasFrontmatter) {
+    return `${spec.file}: 未纳管（无 frontmatter）`;
+  }
+
+  const fm = spec.frontmatter;
+  const lines = [
+    `📋 ${fm.id || spec.file} [${spec.file}] ${
+      STATUS_MAP[fm.status] || fm.status || "?"
+    }`,
+  ];
+  if (fm.review?.decision) lines.push(`review: ${fm.review.decision}`);
+  if (fm.deps?.length) lines.push(`deps: ${fm.deps.join(", ")}`);
+  if (fm.impl?.base_sha) lines.push(`base_sha: ${fm.impl.base_sha.slice(0, 12)}`);
+  if (fm.impl?.at) {
+    const gates = Object.entries(fm.impl.gates || {})
+      .map(([k, v]) => `${k}${v.pass ? "✓" : "✗"}`)
+      .join(" ");
+    const e2e = Object.entries(fm.impl.e2e || {})
+      .map(([k, v]) => `${k}${v.pass ? "✓" : "✗"}`)
+      .join(" ");
+    lines.push(`impl: ${fm.impl.at.slice(0, 16)}`);
+    if (gates) lines.push(`  gates: ${gates}`);
+    if (e2e) lines.push(`  e2e: ${e2e}`);
+  }
+  if (fm.audit?.verdict) {
+    lines.push(`audit: ${fm.audit.verdict} @${fm.audit.sha?.slice(0, 8)}`);
+  }
+  const human = fm.evidence?.human || [];
+  if (human.length > 0) {
+    const marks = human.map((i) => `${i} ${fm.attestations?.[i] ? "✓" : "—"}`);
+    lines.push(`attest: ${marks.join(" ")}`);
+  }
+  if (fm.evidence?.e2e?.length) {
+    lines.push(`evidence.e2e: ${fm.evidence.e2e.join(", ")}`);
+  }
+  if (fm.evidence?.migrations?.length) {
+    const migs = fm.evidence.migrations
+      .map((m) => String(m).padStart(3, "0"))
+      .join(", ");
+    lines.push(`evidence.migrations: ${migs}`);
+  }
+  if (fm.status === "in-progress") {
+    lines.push(await nextStep(cwd, spec, signal));
+  }
+
+  return lines.join("\n");
 }
 
 // ─── CLI entry ───────────────────────────────────────────────────────────────

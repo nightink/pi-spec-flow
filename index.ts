@@ -21,7 +21,12 @@ import {
   commitGateAction,
   nextStep,
   appendLedger,
+  renderBoard,
+  renderSpecDetail,
 } from "./core.mjs";
+
+// Track latest session cwd — command completions have no ctx
+let lastCwd = process.cwd();
 
 export default function (pi: ExtensionAPI) {
   // ─── Register tools ──────────────────────────────────────────────────────
@@ -161,6 +166,44 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+  // ─── /spec command: project spec board ───────────────────────────────────
+  pi.registerCommand("spec", {
+    description: "spec-flow: 当前项目 spec 看板（/spec board；/spec <id> 看单个详情）",
+    getArgumentCompletions: (prefix: string) => {
+      try {
+        const ids = loadSpecs(lastCwd).map((s) => ({
+          value: s.frontmatter?.id || s.file,
+          label: s.frontmatter?.id ? s.file : undefined,
+        }));
+        const items = [
+          { value: "board", label: "看板" },
+          ...ids,
+        ].filter((i) => i.value.startsWith(prefix));
+        return items.length > 0 ? items : null;
+      } catch {
+        return null;
+      }
+    },
+    handler: async (args, ctx) => {
+      try {
+        const arg = args.trim();
+        const text =
+          arg && arg !== "board"
+            ? await renderSpecDetail(ctx.cwd, arg, ctx.signal)
+            : await renderBoard(ctx.cwd, ctx.signal);
+        if (text === null) {
+          ctx.ui.notify(`spec-flow: 未找到 spec ${arg}`, "warning");
+        } else if (text === "") {
+          ctx.ui.notify("spec-flow: 当前项目无 docs/specs/ 目录", "warning");
+        } else {
+          ctx.ui.notify(text, "info");
+        }
+      } catch (e: any) {
+        ctx.ui.notify(`spec-flow: ${e.message}`, "error");
+      }
+    },
+  });
+
   // ─── tool_call intercept: git commit → gate check ────────────────────────
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "bash") return;
@@ -207,6 +250,7 @@ export default function (pi: ExtensionAPI) {
 
   // ─── session_start: notify active specs ──────────────────────────────────
   pi.on("session_start", async (_event, ctx) => {
+    lastCwd = ctx.cwd;
     try {
       const specs = loadSpecs(ctx.cwd);
       const active = specs.filter(
@@ -228,3 +272,4 @@ export default function (pi: ExtensionAPI) {
     }
   });
 }
+

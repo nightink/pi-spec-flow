@@ -35,6 +35,16 @@ cd ~/.pi/agent/extensions/spec-flow && npm install
 | `spec_attest <id> <item> <note>` | 人工核验登记（note ≥20 字） |
 | `spec_done <id>` | 终态闸门：impl ✓ + audit pass + sha 新鲜 + human 全 attest → status=已完成 |
 
+## TUI 命令
+
+```
+/spec          当前项目 spec 看板（状态、漂移、impl/audit/attest、下一步）
+/spec board    同上
+/spec <id>     单个 spec 详情（review/deps/impl/audit/attest/evidence）
+```
+
+Tab 可补全 spec id。
+
 ## CLI（同核心，CI 用）
 
 ```bash

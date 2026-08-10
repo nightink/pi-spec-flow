@@ -28,6 +28,8 @@ import {
   nextStep,
   getHeadSha,
   parseVerdictJson,
+  renderBoard,
+  renderSpecDetail,
 } from "./core.mjs";
 
 // Helper: create temp project
@@ -839,6 +841,161 @@ audit:
   const step = await nextStep(dirA, specs[0]);
   // sha matches dirB HEAD → all green
   assert.equal(step, "下一步：spec_done S1.0");
+});
+
+// ─── renderBoard / renderSpecDetail (for /spec command) ───────────────────
+test("renderBoard: empty project → empty string", async () => {
+  const dir = mkProject({});
+  assert.equal(await renderBoard(dir), "");
+});
+
+test("renderBoard: shows status, drift, impl/audit/attest, next step", async () => {
+  const dir = mkProject({
+    "package.json": JSON.stringify({ scripts: { typecheck: "tsc" } }),
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  at: "2026-08-10T12:00:00Z"
+  gates:
+    typecheck:
+      pass: true
+      tail: ""
+  e2e: {}
+audit:
+  verdict: pass
+  sha: abc12345
+evidence:
+  human: [R1, R2]
+attestations:
+  R1:
+    at: "2026-08-10T13:00:00Z"
+    note: "verified sample data"
+---
+
+- 状态：进行中`,
+    "docs/specs/S2.0.md": `# No frontmatter
+
+Body`,
+  });
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dir,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  const realSha = execSync("git rev-parse HEAD", { cwd: dir, stdio: "pipe" })
+    .toString()
+    .trim();
+  // Patch the audit sha to the real HEAD so nextStep says spec_done
+  let specContent = fs.readFileSync(path.join(dir, "docs/specs/S1.0.md"), "utf8");
+  specContent = specContent.replace("abc12345", realSha);
+  fs.writeFileSync(path.join(dir, "docs/specs/S1.0.md"), specContent);
+
+  const output = await renderBoard(dir);
+  assert.ok(output.includes("spec-flow board — 2 个 spec"));
+  assert.ok(output.includes("门禁: typecheck"));
+  assert.ok(output.includes("• S1.0 [S1.0.md] 进行中"));
+  assert.ok(output.includes("impl ✓"));
+  assert.ok(output.includes("audit ✓"));
+  assert.ok(output.includes("attest 1/2"));
+  assert.ok(output.includes("下一步：spec_done S1.0"));
+  assert.ok(output.includes("S2.0.md ⚠️ 未纳管"));
+});
+
+test("renderBoard: drift detected on mismatched status line", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+---
+
+- 状态：已完成`,
+  });
+  const output = await renderBoard(dir);
+  assert.ok(output.includes("⚠️漂移"));
+});
+
+test("renderSpecDetail: not found → null", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: pending
+---
+
+- 状态：待 review`,
+  });
+  assert.equal(await renderSpecDetail(dir, "NOPE"), null);
+});
+
+test("renderSpecDetail: unmanaged → warning line", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `# No frontmatter`,
+  });
+  assert.ok((await renderSpecDetail(dir, "S1.0")).includes("未纳管"));
+});
+
+test("renderSpecDetail: shows review/deps/impl/audit/attest lines", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+review:
+  decision: approved
+deps: [S0.9]
+impl:
+  base_sha: deadbeefcafe
+  at: "2026-08-10T12:00:00Z"
+  gates:
+    typecheck:
+      pass: true
+      tail: ""
+  e2e:
+    e2e-01:
+      pass: true
+      passCount: 2
+      failCount: 0
+audit:
+  verdict: pass
+  sha: abc12345
+evidence:
+  human: [R1]
+  e2e: [e2e-01]
+  migrations: [001]
+attestations:
+  R1:
+    at: "2026-08-10T13:00:00Z"
+    note: "verified"
+---
+
+- 状态：进行中`,
+  });
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dir,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  // Patch the audit sha to the real HEAD so nextStep says spec_done
+  let specContent = fs.readFileSync(path.join(dir, "docs/specs/S1.0.md"), "utf8");
+  specContent = specContent.replace("abc12345", execSync("git rev-parse HEAD", { cwd: dir, stdio: "pipe" }).toString().trim());
+  fs.writeFileSync(path.join(dir, "docs/specs/S1.0.md"), specContent);
+
+  const output = await renderSpecDetail(dir, "S1.0");
+  assert.ok(output.includes("[S1.0.md] 进行中"));
+  assert.ok(output.includes("review: approved"));
+  assert.ok(output.includes("deps: S0.9"));
+  assert.ok(output.includes("base_sha: deadbeefcafe"));
+  assert.ok(output.includes("gates: typecheck✓"));
+  assert.ok(output.includes("e2e: e2e-01✓"));
+  assert.ok(output.includes("audit: pass @"), "audit line shows verdict+sha");
+  assert.ok(output.includes("attest: R1 ✓"));
+  assert.ok(output.includes("evidence.migrations: 001"));
+  assert.ok(output.includes("下一步：spec_done S1.0"));
 });
 
 // ─── parseVerdictJson ─────────────────────────────────────────────────────
