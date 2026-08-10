@@ -279,15 +279,26 @@ async function getDiff(repo, baseSha, headSha = "HEAD", scope, signal) {
 }
 
 // ─── Gate execution with cache ───────────────────────────────────────────────
+function treeHash(cwd) {
+  try {
+    const head = execSync("git rev-parse HEAD", { cwd, stdio: ["pipe", "pipe", "pipe"] }).toString().trim();
+    const dirty = execSync("git status --porcelain", { cwd, stdio: ["pipe", "pipe", "pipe"] }).toString();
+    return crypto.createHash("md5").update(head + "|" + dirty).digest("hex").slice(0, 12);
+  } catch {
+    return null; // 非 git 仓：指纹不可用
+  }
+}
+
 export async function runGates(cwd, gates, { signal, onGate } = {}) {
   const cacheKey = crypto.createHash("md5").update(cwd).digest("hex");
   const cachePath = `<tmp>/specflow-gates-${cacheKey}.json`;
+  const tree = treeHash(cwd);
 
-  // Check cache (TTL 5min)
+  // Check cache (TTL 5min) — 且工作树指纹一致（多会话并发/修复后不再误用旧结果）
   if (fs.existsSync(cachePath)) {
     try {
       const cached = JSON.parse(fs.readFileSync(cachePath, "utf8"));
-      if (Date.now() - cached.ts < 5 * 60 * 1000) {
+      if (Date.now() - cached.ts < 5 * 60 * 1000 && (tree === null || cached.tree === tree)) {
         return cached.result;
       }
     } catch {
@@ -317,7 +328,7 @@ export async function runGates(cwd, gates, { signal, onGate } = {}) {
     }
   }
 
-  const cacheData = { ts: Date.now(), result: results };
+  const cacheData = { ts: Date.now(), tree, result: results };
   try {
     fs.writeFileSync(cachePath, JSON.stringify(cacheData));
   } catch {
