@@ -5,8 +5,65 @@
 import yaml from "js-yaml";
 import fs from "node:fs";
 import path from "node:path";
-import { execSync, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import crypto from "node:crypto";
+
+const execFileP = promisify(execFile);
+
+// ─── Async subprocess helpers ────────────────────────────────────────────────
+// Run a shell command string without blocking the event loop (TUI stays live).
+// Resolves { stdout, stderr, code } — never throws on non-zero exit.
+// AbortError is re-thrown so callers can propagate cancellation (Esc / abort).
+export async function runCmd(
+  cmd,
+  { cwd, timeout = 180000, maxBuffer = 10 * 1024 * 1024, signal } = {}
+) {
+  try {
+    const { stdout, stderr } = await execFileP(cmd, [], {
+      cwd,
+      timeout,
+      maxBuffer,
+      signal,
+      shell: true,
+      windowsHide: true,
+    });
+    return { stdout, stderr, code: 0 };
+  } catch (e) {
+    if (e?.name === "AbortError") throw e;
+    return {
+      stdout: e.stdout ?? "",
+      stderr: e.stderr ?? "",
+      code: typeof e.code === "number" ? e.code : 1,
+    };
+  }
+}
+
+// Run an argv array directly (no shell, no quoting issues). Same contract.
+export async function runArgv(
+  file,
+  args,
+  { cwd, timeout = 180000, maxBuffer = 10 * 1024 * 1024, signal, env } = {}
+) {
+  try {
+    const { stdout, stderr } = await execFileP(file, args, {
+      cwd,
+      timeout,
+      maxBuffer,
+      signal,
+      env,
+      windowsHide: true,
+    });
+    return { stdout, stderr, code: 0 };
+  } catch (e) {
+    if (e?.name === "AbortError") throw e;
+    return {
+      stdout: e.stdout ?? "",
+      stderr: e.stderr ?? "",
+      code: typeof e.code === "number" ? e.code : 1,
+    };
+  }
+}
 
 // ─── Status mapping ──────────────────────────────────────────────────────────
 export const STATUS_MAP = {
@@ -187,34 +244,42 @@ export function findSpec(cwd, id) {
 }
 
 // ─── Git helpers ─────────────────────────────────────────────────────────────
-export function getHeadSha(cwd) {
+export async function getHeadSha(cwd, signal) {
   try {
-    return execSync("git rev-parse HEAD", { cwd, stdio: ["pipe", "pipe", "pipe"] })
-      .toString()
-      .trim();
-  } catch {
+    const { stdout, code } = await runCmd("git rev-parse HEAD", {
+      cwd,
+      timeout: 10000,
+      signal,
+    });
+    if (code !== 0) return "unknown";
+    return stdout.trim() || "unknown";
+  } catch (e) {
+    if (e?.name === "AbortError") throw e;
     return "unknown";
   }
 }
 
-function getDiff(repo, baseSha, headSha = "HEAD", scope) {
+async function getDiff(repo, baseSha, headSha = "HEAD", scope, signal) {
   try {
     let cmd = `git diff ${baseSha}...${headSha}`;
     if (scope) {
       cmd += ` -- ${scope}`;
     }
-    return execSync(cmd, {
+    const { stdout } = await runCmd(cmd, {
       cwd: repo,
-      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 30000,
       maxBuffer: 10 * 1024 * 1024,
-    }).toString();
-  } catch {
+      signal,
+    });
+    return stdout;
+  } catch (e) {
+    if (e?.name === "AbortError") throw e;
     return "(diff unavailable)";
   }
 }
 
 // ─── Gate execution with cache ───────────────────────────────────────────────
-export function runGates(cwd, gates) {
+export async function runGates(cwd, gates, { signal, onGate } = {}) {
   const cacheKey = crypto.createHash("md5").update(cwd).digest("hex");
   const cachePath = `<tmp>/specflow-gates-${cacheKey}.json`;
 
@@ -232,18 +297,17 @@ export function runGates(cwd, gates) {
 
   const results = {};
   for (const gate of gates) {
-    try {
-      const out = execSync(gate.cmd, {
-        cwd,
-        timeout: 180000,
-        stdio: ["pipe", "pipe", "pipe"],
-      })
-        .toString();
-      const lines = out.split("\n").filter(Boolean);
+    if (onGate) onGate(gate.name);
+    const { stdout, stderr, code } = await runCmd(gate.cmd, {
+      cwd,
+      timeout: 180000,
+      signal,
+    });
+    if (code === 0) {
+      const lines = stdout.split("\n").filter(Boolean);
       results[gate.name] = { pass: true, tail: lines.slice(-3).join("\n") };
-    } catch (e) {
-      const output =
-        (e.stdout?.toString() || "") + "\n" + (e.stderr?.toString() || "");
+    } else {
+      const output = stdout + "\n" + stderr;
       const tail = output
         .split("\n")
         .filter(Boolean)
@@ -354,7 +418,7 @@ export function board(cwd) {
 }
 
 // ─── begin ───────────────────────────────────────────────────────────────────
-export function begin(cwd, id) {
+export async function begin(cwd, id, { signal } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter (unmanaged)`);
@@ -380,7 +444,7 @@ export function begin(cwd, id) {
     }
   }
 
-  const baseSha = getHeadSha(cwd);
+  const baseSha = await getHeadSha(cwd, signal);
   fm.status = "in-progress";
   fm.impl = fm.impl || {};
   fm.impl.base_sha = baseSha;
@@ -399,7 +463,7 @@ export function begin(cwd, id) {
 }
 
 // ─── impl ────────────────────────────────────────────────────────────────────
-export function impl(cwd, id) {
+export async function impl(cwd, id, { signal, onGate } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
@@ -412,7 +476,7 @@ export function impl(cwd, id) {
   const config = detectProjectConfig(cwd);
 
   // Run gates
-  const gateResults = runGates(cwd, config.gates);
+  const gateResults = await runGates(cwd, config.gates, { signal, onGate });
   const allGatesPass = Object.values(gateResults).every((r) => r.pass);
 
   // Run e2e
@@ -426,22 +490,22 @@ export function impl(cwd, id) {
         e2eResults[e2eId] = { pass: false, tail: `File not found: ${fileName}` };
         continue;
       }
-      try {
-        const output = execSync(`node ${filePath}`, {
-          cwd,
-          timeout: 180000,
-          stdio: ["pipe", "pipe", "pipe"],
-        }).toString();
-        const parsed = parseE2eOutput(output);
+      // Run via argv (no shell) — safe for paths with spaces
+      const { stdout, stderr, code } = await runArgv("node", [filePath], {
+        cwd,
+        timeout: 180000,
+        signal,
+      });
+      if (code === 0) {
+        const parsed = parseE2eOutput(stdout);
         e2eResults[e2eId] = {
           pass: parsed.pass,
           passCount: parsed.passCount,
           failCount: parsed.failCount,
-          tail: output.split("\n").slice(-5).join("\n"),
+          tail: stdout.split("\n").slice(-5).join("\n"),
         };
-      } catch (e) {
-        const output =
-          (e.stdout?.toString() || "") + "\n" + (e.stderr?.toString() || "");
+      } else {
+        const output = stdout + "\n" + stderr;
         e2eResults[e2eId] = {
           pass: false,
           tail: output.split("\n").slice(-5).join("\n"),
@@ -580,7 +644,7 @@ export function parseVerdictJson(raw) {
 }
 
 // ─── audit ───────────────────────────────────────────────────────────────────
-export async function audit(cwd, id) {
+export async function audit(cwd, id, { signal } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
@@ -597,8 +661,8 @@ export async function audit(cwd, id) {
 
   const repo = fm.impl?.repo || cwd;
   const scope = fm.scope || null;
-  const diff = getDiff(repo, baseSha, "HEAD", scope);
-  const currentSha = getHeadSha(repo);
+  const diff = await getDiff(repo, baseSha, "HEAD", scope, signal);
+  const currentSha = await getHeadSha(repo, signal);
 
   // Build auditor prompt
   const auditorModel = process.env.SPECFLOW_AUDIT_MODEL || "";
@@ -638,16 +702,23 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
   let auditResult;
   try {
     const args = buildAuditorArgs(prompt, auditorModel);
-    const output = execFileSync("pi", args, {
+    // Override for hermetic tests / custom auditor CLIs (default: pi)
+    const auditorBin = process.env.SPECFLOW_AUDIT_BIN || "pi";
+    const { stdout, stderr, code } = await runArgv(auditorBin, args, {
       cwd,
       timeout: 300000,
       maxBuffer: 32 * 1024 * 1024,
-      stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, NO_COLOR: "1" },
-    }).toString();
-
-    auditResult = parseVerdictJson(output);
+      signal,
+    });
+    if (code !== 0) {
+      throw new Error(
+        `pi 子进程退出 code=${code}: ${(stderr || "").slice(0, 500)}`
+      );
+    }
+    auditResult = parseVerdictJson(stdout);
   } catch (e) {
+    if (e?.name === "AbortError") throw e; // cancellation: don't write fake fail
     auditResult = {
       verdict: "fail",
       criteria: [
@@ -734,7 +805,7 @@ export function attest(cwd, id, item, note) {
 }
 
 // ─── done ────────────────────────────────────────────────────────────────────
-export function done(cwd, id) {
+export async function done(cwd, id, { signal } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
@@ -771,7 +842,7 @@ export function done(cwd, id) {
   } else {
     // Compare against the same repo audit() used (impl.repo if set, else cwd)
     const auditRepo = fm.impl?.repo || cwd;
-    const currentSha = getHeadSha(auditRepo);
+    const currentSha = await getHeadSha(auditRepo, signal);
     if (fm.audit.sha !== currentSha) {
       gaps.push(
         `audit sha 过期 (audit.sha=${fm.audit.sha?.slice(0, 8)}, HEAD=${currentSha.slice(0, 8)})`
@@ -829,7 +900,7 @@ export function done(cwd, id) {
 }
 
 // ─── check --ci ──────────────────────────────────────────────────────────────
-export function checkCI(cwd) {
+export async function checkCI(cwd) {
   const specs = loadSpecs(cwd);
   const config = detectProjectConfig(cwd);
   const errors = [];
@@ -889,7 +960,7 @@ export function checkCI(cwd) {
 
   // Run gates
   if (config.gates.length > 0) {
-    const gateResults = runGates(cwd, config.gates);
+    const gateResults = await runGates(cwd, config.gates);
     for (const [name, result] of Object.entries(gateResults)) {
       if (!result.pass) {
         errors.push(`门禁 ${name} 未通过`);
@@ -916,7 +987,7 @@ export function checkCI(cwd) {
 }
 
 // ─── nextStep: suggest next action for an in-progress spec ──────────────────
-export function nextStep(cwd, spec) {
+export async function nextStep(cwd, spec, signal) {
   const fm = spec.frontmatter;
   const id = fm.id || spec.file;
 
@@ -949,7 +1020,7 @@ export function nextStep(cwd, spec) {
 
   // 5. audit pass but sha stale
   const auditRepo = fm.impl?.repo || cwd;
-  const currentSha = getHeadSha(auditRepo);
+  const currentSha = await getHeadSha(auditRepo, signal);
   if (fm.audit.sha !== currentSha) {
     return `下一步：重跑 spec_audit ${id}（sha 失配）`;
   }
@@ -977,11 +1048,11 @@ async function main() {
         break;
       case "begin":
         if (!args[0]) throw new Error("begin requires <id>");
-        console.log(begin(cwd, args[0]));
+        console.log(await begin(cwd, args[0]));
         break;
       case "impl":
         if (!args[0]) throw new Error("impl requires <id>");
-        console.log(impl(cwd, args[0]));
+        console.log(await impl(cwd, args[0]));
         break;
       case "audit":
         if (!args[0]) throw new Error("audit requires <id>");
@@ -994,14 +1065,14 @@ async function main() {
         break;
       case "done":
         if (!args[0]) throw new Error("done requires <id>");
-        console.log(done(cwd, args[0]));
+        console.log(await done(cwd, args[0]));
         break;
       case "migrate-alloc":
         console.log(migrateAlloc(cwd));
         break;
       case "check":
         if (args.includes("--ci")) {
-          const result = checkCI(cwd);
+          const result = await checkCI(cwd);
           console.log(result.output);
           process.exit(result.pass ? 0 : 1);
         } else {

@@ -68,3 +68,9 @@ node ~/.pi/agent/extensions/spec-flow/core.mjs check --ci
 ```bash
 cd ~/.pi/agent/extensions/spec-flow && node --test core.test.mjs
 ```
+
+## 实现细节
+
+- 所有子进程（门禁 / e2e / `pi` 审计子进程）均为异步执行，不阻塞 TUI 事件循环；Esc 中止会杀掉子进程（AbortSignal 透传）。
+- `SPECFLOW_AUDIT_MODEL`：指定审计子进程模型（默认同主会话）。
+- `SPECFLOW_AUDIT_BIN`：覆盖审计 CLI 可执行文件（默认 `pi`），测试或自定义审计器用。

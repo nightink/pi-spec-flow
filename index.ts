@@ -1,5 +1,7 @@
 // spec-flow index.ts — pi extension adapter
 // Thin wrapper: registerTool ×6 + tool_call intercept + session_start summary
+// All long-running work (gates, e2e, pi audit subprocess) is async — the
+// event loop stays free so the TUI never freezes while waiting.
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -18,6 +20,7 @@ import {
   parseFrontmatter,
   commitGateAction,
   nextStep,
+  appendLedger,
 } from "./core.mjs";
 
 export default function (pi: ExtensionAPI) {
@@ -48,9 +51,9 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID (e.g., S3.13)" }),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       try {
-        const output = begin(ctx.cwd, params.id);
+        const output = await begin(ctx.cwd, params.id, { signal });
         return { content: [{ type: "text", text: output }], details: {} };
       } catch (e: any) {
         return {
@@ -69,9 +72,13 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       try {
-        const output = impl(ctx.cwd, params.id);
+        const output = await impl(ctx.cwd, params.id, {
+          signal,
+          onGate: (name) =>
+            ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
+        });
         return { content: [{ type: "text", text: output }], details: {} };
       } catch (e: any) {
         return {
@@ -90,9 +97,13 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       try {
-        const output = await audit(ctx.cwd, params.id);
+        ctx.ui.notify(
+          "🔍 spec-flow: 独立审计子进程运行中（最长 5 分钟，TUI 不受阻塞）…",
+          "info"
+        );
+        const output = await audit(ctx.cwd, params.id, { signal });
         return { content: [{ type: "text", text: output }], details: {} };
       } catch (e: any) {
         return {
@@ -136,9 +147,9 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       try {
-        const output = done(ctx.cwd, params.id);
+        const output = await done(ctx.cwd, params.id, { signal });
         return { content: [{ type: "text", text: output }], details: {} };
       } catch (e: any) {
         return {
@@ -158,10 +169,18 @@ export default function (pi: ExtensionAPI) {
     // Quick exit: not a git commit command (avoid unnecessary gate IO)
     if (!/(?:^|[;&|]\s*)(?:\S+=\S+\s+)*git\s+commit/.test(command)) return;
 
-    // IO: detect and run gates
+    // IO: detect and run gates (async — TUI stays responsive while waiting)
     const config = detectProjectConfig(ctx.cwd);
     if (config.gates.length === 0) return;
-    const gateResults = runGates(ctx.cwd, config.gates);
+    ctx.ui.notify(
+      `⏳ spec-flow: 运行 ${config.gates.length} 个门禁（git commit 等待中）…`,
+      "info"
+    );
+    const gateResults = await runGates(ctx.cwd, config.gates, {
+      signal: ctx.signal,
+      onGate: (name) =>
+        ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
+    });
 
     // Pure decision
     const decision = commitGateAction(command, gateResults);
@@ -200,7 +219,7 @@ export default function (pi: ExtensionAPI) {
         const fm = spec.frontmatter!;
         const id = fm.id || spec.file;
         const baseSha = fm.impl?.base_sha?.slice(0, 8) || "?";
-        const suggestion = nextStep(ctx.cwd, spec);
+        const suggestion = await nextStep(ctx.cwd, spec, ctx.signal);
         lines.push(`  • ${id} (base=${baseSha}) — ${suggestion}`);
       }
       ctx.ui.notify(lines.join("\n"), "info");
