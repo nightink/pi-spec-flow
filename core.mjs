@@ -491,6 +491,59 @@ export function buildAuditorArgs(prompt, model = "") {
   return args;
 }
 
+// ─── parseVerdictJson ────────────────────────────────────────────────────────
+// Parse auditor JSON output with backslash repair for invalid escapes.
+// LLM auditors sometimes emit regex like \s or \. inside evidence strings;
+// single backslash + non-escape char is not valid JSON.
+export function parseVerdictJson(raw) {
+  const firstBrace = raw.indexOf("{");
+  const lastBrace = raw.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return {
+      verdict: "fail",
+      criteria: [
+        {
+          criterion: "审计 JSON 解析",
+          status: "unverifiable",
+          evidence: `审计输出中未找到 JSON 对象。原始输出片段: ${raw.slice(0, 500)}`,
+        },
+      ],
+      scope_deviations: [],
+    };
+  }
+  const jsonStr = raw.slice(firstBrace, lastBrace + 1);
+
+  // Attempt 1: direct parse
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    // fall through to repair
+  }
+
+  // Attempt 2: repair lone backslashes that aren't valid JSON escapes
+  // Valid JSON escapes after \: " \ / b f n r t u (plus uXXXX)
+  const repaired = jsonStr.replace(
+    /\\(?!["\\/bfnrtu]|u[0-9a-fA-F]{4})/g,
+    "\\\\"
+  );
+  try {
+    return JSON.parse(repaired);
+  } catch (e2) {
+    // Attempt 3: fallback — verdict=fail with raw snippet as evidence
+    return {
+      verdict: "fail",
+      criteria: [
+        {
+          criterion: "审计 JSON 解析",
+          status: "unverifiable",
+          evidence: `JSON 解析失败（修复后仍报错: ${e2.message}）。原始输出片段: ${jsonStr.slice(0, 500)}`,
+        },
+      ],
+      scope_deviations: [],
+    };
+  }
+}
+
 // ─── audit ───────────────────────────────────────────────────────────────────
 export async function audit(cwd, id) {
   const spec = findSpec(cwd, id);
@@ -528,7 +581,7 @@ gates: ${JSON.stringify(fm.impl?.gates || {}, null, 2)}
 e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
 
 ## 输出要求
-只输出一个 JSON 对象，不要输出其他内容。schema：
+只输出一个 JSON 对象，不要输出其他内容。输出必须是严格合法 JSON：字符串值中的反斜杠一律写成 \\\\（双反斜杠），代码/正则引用同样遵守。schema：
 {
   "verdict": "pass" | "fail",
   "criteria": [
@@ -558,14 +611,7 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
       env: { ...process.env, NO_COLOR: "1" },
     }).toString();
 
-    // Parse JSON from output (lenient: first { to last })
-    const firstBrace = output.indexOf("{");
-    const lastBrace = output.lastIndexOf("}");
-    if (firstBrace === -1 || lastBrace === -1) {
-      throw new Error("Auditor output has no JSON object");
-    }
-    const jsonStr = output.slice(firstBrace, lastBrace + 1);
-    auditResult = JSON.parse(jsonStr);
+    auditResult = parseVerdictJson(output);
   } catch (e) {
     auditResult = {
       verdict: "fail",

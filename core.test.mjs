@@ -25,6 +25,7 @@ import {
   buildAuditorArgs,
   nextStep,
   getHeadSha,
+  parseVerdictJson,
 } from "./core.mjs";
 
 // Helper: create temp project
@@ -828,6 +829,41 @@ audit:
   const step = nextStep(dirA, specs[0]);
   // sha matches dirB HEAD → all green
   assert.equal(step, "下一步：spec_done S1.0");
+});
+
+// ─── parseVerdictJson ─────────────────────────────────────────────────────
+test("parseVerdictJson: handles \\s in evidence string", () => {
+  // Simulate auditor output where evidence contains regex with lone backslashes
+  const raw = `Some preamble text
+{
+  "verdict": "pass",
+  "criteria": [
+    {
+      "criterion": "正则匹配正确",
+      "status": "pass",
+      "evidence": "代码使用 /\\s+\\.+/ 正则匹配 whitespace 和 dot"
+    }
+  ],
+  "scope_deviations": []
+}`;
+  const result = parseVerdictJson(raw);
+  assert.equal(result.verdict, "pass");
+  assert.equal(result.criteria.length, 1);
+  assert.ok(result.criteria[0].evidence.includes("\\s"));
+});
+
+test("parseVerdictJson: valid JSON passes through unchanged", () => {
+  const raw = `{"verdict":"fail","criteria":[{"criterion":"test","status":"fail","evidence":"no diff"}],"scope_deviations":[]}`;
+  const result = parseVerdictJson(raw);
+  assert.equal(result.verdict, "fail");
+  assert.equal(result.criteria[0].status, "fail");
+});
+
+test("parseVerdictJson: totally broken JSON falls back to verdict=fail", () => {
+  const raw = `not json at all {{{`;
+  const result = parseVerdictJson(raw);
+  assert.equal(result.verdict, "fail");
+  assert.ok(result.criteria[0].evidence.includes("未找到 JSON 对象"));
 });
 
 console.log("✅ All tests defined");
