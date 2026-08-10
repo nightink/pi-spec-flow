@@ -6,7 +6,7 @@ import yaml from "js-yaml";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import crypto from "node:crypto";
 
@@ -65,6 +65,57 @@ export async function runArgv(
       code: typeof e.code === "number" ? e.code : 1,
     };
   }
+}
+
+// Spawn a shebang script / executable directly with manual pipe reading.
+// DO NOT use execFile for pi: Node's execFile hangs on shebang scripts —
+// 实测 execFile 跑 `pi` 无回调挂起（probe: 30s+），spawn 489ms 正常退出。
+// execFile 对 `#!/usr/bin/env node` 文件的异步管道收集永不 settle。
+export function runSpawn(
+  file,
+  args,
+  {
+    cwd,
+    timeout = 180000,
+    maxBuffer = 32 * 1024 * 1024,
+    signal,
+    env,
+    stdio = ["ignore", "pipe", "pipe"],
+  } = {}
+) {
+  return new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = spawn(file, args, { cwd, env, stdio, signal, windowsHide: true });
+    } catch (e) {
+      reject(e);
+      return;
+    }
+    let stdout = "";
+    let stderr = "";
+    let tooBig = false;
+    const timer = timeout
+      ? setTimeout(() => child.kill("SIGTERM"), timeout)
+      : null;
+    child.stdout?.on("data", (d) => {
+      stdout += d;
+      if (stdout.length > maxBuffer) {
+        tooBig = true;
+        child.kill("SIGTERM");
+      }
+    });
+    child.stderr?.on("data", (d) => {
+      stderr += d;
+    });
+    child.on("error", (e) => {
+      if (timer) clearTimeout(timer);
+      reject(e); // ENOENT / AbortError
+    });
+    child.on("close", (code) => {
+      if (timer) clearTimeout(timer);
+      resolve({ stdout, stderr, code: code ?? 1, tooBig });
+    });
+  });
 }
 
 // ─── Status mapping ──────────────────────────────────────────────────────────
@@ -661,7 +712,7 @@ export function parseVerdictJson(raw) {
 }
 
 // ─── audit ───────────────────────────────────────────────────────────────────
-export async function audit(cwd, id, { signal } = {}) {
+export async function audit(cwd, id, { signal, onProgress } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
@@ -678,8 +729,32 @@ export async function audit(cwd, id, { signal } = {}) {
 
   const repo = fm.impl?.repo || cwd;
   const scope = fm.scope || null;
-  const diff = await getDiff(repo, baseSha, "HEAD", scope, signal);
+
+  onProgress?.("读取 HEAD…");
   const currentSha = await getHeadSha(repo, signal);
+
+  // Fast path: same base+HEAD and previous verdict pass → reuse (no LLM call)
+  const prev = fm.audit;
+  if (
+    prev?.verdict === "pass" &&
+    prev.sha === currentSha &&
+    prev.base_sha === baseSha
+  ) {
+    const summary = [
+      `Spec ${id} 审计结果: ✅ PASS（缓存复用 — base/HEAD 未变 ${currentSha.slice(0, 8)}）`,
+      `  sha: ${currentSha}`,
+      `  criteria:`,
+    ];
+    for (const f of prev.criteria || []) {
+      const mark = f.status === "pass" ? "✓" : f.status === "fail" ? "✗" : "?";
+      summary.push(`    [${mark}] ${f.criterion}`);
+      if (f.evidence) summary.push(`      ${f.evidence.slice(0, 200)}`);
+    }
+    return summary.join("\n");
+  }
+
+  onProgress?.("获取实施 diff…");
+  const diff = await getDiff(repo, baseSha, "HEAD", scope, signal);
 
   // Build auditor prompt
   const auditorModel = process.env.SPECFLOW_AUDIT_MODEL || "";
@@ -716,31 +791,35 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
 - 不要编造 diff 中不存在的内容
 - scope_deviations 列出方案声明但未实现的部分`;
 
+  onProgress?.("启动独立审计子进程（LLM 审计中，可 Esc 中断）…");
   let auditResult;
   try {
     const { args, cleanup } = buildAuditorArgs(prompt, auditorModel);
     // Override for hermetic tests / custom auditor CLIs (default: pi)
     const auditorBin = process.env.SPECFLOW_AUDIT_BIN || "pi";
-    // 用 execFileSync：实测 execFileP（异步管道）spawn pi 会挂起/秒退，spawnSync 稳定
-    // （差异在 async execFile 的管道 EOF 等待；审计本就是阻塞长操作，同步可接受）
-    let stdout = "";
+    const auditTimeout = parseInt(
+      process.env.SPECFLOW_AUDIT_TIMEOUT || "180000",
+      10
+    );
+    // runSpawn（非 execFile）：execFile 对 shebang 脚本挂起；spawn 稳定。
+    let res;
     try {
-      stdout = execFileSync(auditorBin, args, {
+      res = await runSpawn(auditorBin, args, {
         cwd,
-        timeout: 300000,
+        timeout: auditTimeout,
         maxBuffer: 32 * 1024 * 1024,
-        stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env, NO_COLOR: "1" },
-      }).toString();
-    } catch (e) {
-      const out = (e.stdout?.toString() || "") + (e.stderr?.toString() || "");
-      throw new Error(
-        `pi 子进程失败: ${(out || e.message || "未知错误").slice(0, 300)}`
-      );
+        signal,
+      });
     } finally {
       cleanup();
     }
-    auditResult = parseVerdictJson(stdout);
+    if (res.code !== 0) {
+      throw new Error(
+        `pi 子进程退出 code=${res.code}: ${(res.stderr || res.stdout || "").slice(0, 500)}`
+      );
+    }
+    auditResult = parseVerdictJson(res.stdout);
   } catch (e) {
     if (e?.name === "AbortError") throw e; // cancellation: don't write fake fail
     auditResult = {
@@ -760,6 +839,7 @@ e2e: ${JSON.stringify(fm.impl?.e2e || {}, null, 2)}
   fm.audit = {
     at: new Date().toISOString(),
     sha: currentSha,
+    base_sha: baseSha,
     verdict: auditResult.verdict,
     criteria: auditResult.criteria || [],
   };
@@ -1181,7 +1261,11 @@ async function main() {
         break;
       case "audit":
         if (!args[0]) throw new Error("audit requires <id>");
-        console.log(await audit(cwd, args[0]));
+        console.log(
+          await audit(cwd, args[0], {
+            onProgress: (t) => console.error(`⏳ ${t}`),
+          })
+        );
         break;
       case "attest":
         if (!args[0] || !args[1] || !args[2])

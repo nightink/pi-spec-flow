@@ -82,5 +82,9 @@ cd ~/.pi/agent/extensions/spec-flow && node --test core.test.mjs
 ## 实现细节
 
 - 所有子进程（门禁 / e2e / `pi` 审计子进程）均为异步执行，不阻塞 TUI 事件循环；Esc 中止会杀掉子进程（AbortSignal 透传）。
+- **审计子进程必须用 `spawn` 而非 `execFile`**：实测 Node 的 `execFile` 对 shebang 脚本（`#!/usr/bin/env node` 的 `pi`）异步管道永不 settle（挂起无回调），`spawn` + 手动收集稳定。
+- **审计缓存**：base/HEAD 未变且上次 verdict=pass → 直接复用，不重复跑 LLM。
+- 工具执行期间（审计等长操作）TUI 输入会排队，按 **Esc** 可中断；`spec_audit` 每 5s 推送进度心跳，避免“像死机”。
 - `SPECFLOW_AUDIT_MODEL`：指定审计子进程模型（默认同主会话）。
 - `SPECFLOW_AUDIT_BIN`：覆盖审计 CLI 可执行文件（默认 `pi`），测试或自定义审计器用。
+- `SPECFLOW_AUDIT_TIMEOUT`：审计超时毫秒数（默认 180000）。

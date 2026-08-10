@@ -102,14 +102,30 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
     }),
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
       try {
         ctx.ui.notify(
-          "🔍 spec-flow: 独立审计子进程运行中（最长 5 分钟，TUI 不受阻塞）…",
+          "🔍 spec-flow: 独立审计运行中（可 Esc 中断，输入会排队到结束后处理）…",
           "info"
         );
-        const output = await audit(ctx.cwd, params.id, { signal });
-        return { content: [{ type: "text", text: output }], details: {} };
+        // Heartbeat: keep the tool view alive so it never looks frozen
+        const started = Date.now();
+        const heartbeat = setInterval(() => {
+          const secs = Math.round((Date.now() - started) / 1000);
+          onUpdate?.({
+            content: [{ type: "text", text: `⏳ 审计运行中 ${secs}s…（Esc 可中断）` }],
+          });
+        }, 5000);
+        try {
+          const output = await audit(ctx.cwd, params.id, {
+            signal,
+            onProgress: (text) =>
+              onUpdate?.({ content: [{ type: "text", text }] }),
+          });
+          return { content: [{ type: "text", text: output }], details: {} };
+        } finally {
+          clearInterval(heartbeat);
+        }
       } catch (e: any) {
         return {
           content: [{ type: "text", text: `Error: ${e.message}` }],

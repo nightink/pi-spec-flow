@@ -567,6 +567,91 @@ evidence:
   assert.ok(output.includes("✗"), "non-zero exit should fail");
 });
 
+test("audit: pass result cached when base/HEAD unchanged (no re-spawn)", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  base_sha: abc123
+---
+
+- 状态：进行中`,
+  });
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dir,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  const fakeAuditor = path.join(dir, "fake-auditor.mjs");
+  const writeAuditor = (body) => {
+    fs.writeFileSync(fakeAuditor, `#!/usr/bin/env node\n${body}\n`);
+    fs.chmodSync(fakeAuditor, 0o755);
+  };
+  writeAuditor(
+    `console.log(JSON.stringify({ verdict: "pass", criteria: [{ criterion: "c1", status: "pass", evidence: "e" }], scope_deviations: [] })); process.exit(0);`
+  );
+  const savedBin = process.env.SPECFLOW_AUDIT_BIN;
+  process.env.SPECFLOW_AUDIT_BIN = fakeAuditor;
+  try {
+    const first = await audit(dir, "S1.0");
+    assert.ok(first.includes("✅ PASS"));
+    assert.ok(!first.includes("缓存复用"), "first audit is a real run");
+
+    // Now make the auditor fail — cache should prevent it from being called
+    writeAuditor(`console.error("should not be called"); process.exit(1);`);
+    const second = await audit(dir, "S1.0");
+    assert.ok(second.includes("缓存复用"), "second audit reuses cache");
+    assert.ok(second.includes("✅ PASS"));
+  } finally {
+    if (savedBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
+    else process.env.SPECFLOW_AUDIT_BIN = savedBin;
+  }
+});
+
+test("audit: fail verdict is not cached (re-runs auditor)", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  base_sha: abc123
+---
+
+- 状态：进行中`,
+  });
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dir,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  const fakeAuditor = path.join(dir, "fake-auditor.mjs");
+  fs.writeFileSync(
+    fakeAuditor,
+    `#!/usr/bin/env node\nconsole.log(JSON.stringify({ verdict: "fail", criteria: [{ criterion: "c1", status: "fail", evidence: "x" }], scope_deviations: [] })); process.exit(0);\n`
+  );
+  fs.chmodSync(fakeAuditor, 0o755);
+  const savedBin = process.env.SPECFLOW_AUDIT_BIN;
+  process.env.SPECFLOW_AUDIT_BIN = fakeAuditor;
+  try {
+    const first = await audit(dir, "S1.0");
+    assert.ok(first.includes("❌ FAIL"));
+    // fail verdict → no cache → second run calls auditor again (still fail)
+    const second = await audit(dir, "S1.0");
+    assert.ok(second.includes("❌ FAIL"));
+    assert.ok(!second.includes("缓存复用"), "fail verdict must not be cached");
+  } finally {
+    if (savedBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
+    else process.env.SPECFLOW_AUDIT_BIN = savedBin;
+  }
+});
+
 // ─── Audit criteria naming ──────────────────────────────────────────────────
 test("audit: fallback uses spec-contract field names (criteria/status)", async () => {
   const dir = mkProject({
