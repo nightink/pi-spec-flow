@@ -715,7 +715,34 @@ export function done(cwd, id) {
   newContent = updateStatusLine(newContent, "done");
   fs.writeFileSync(spec.path, newContent);
 
-  appendLedger(cwd, { type: "done", spec: id });
+  // Build impl summary for ledger
+  const gatesSummary = {};
+  const gates = fm.impl?.gates || {};
+  for (const [name, result] of Object.entries(gates)) {
+    gatesSummary[name] = result.pass ? "pass" : "fail";
+  }
+  const e2eSummary = {};
+  const e2e = fm.impl?.e2e || {};
+  for (const [name, result] of Object.entries(e2e)) {
+    e2eSummary[name] = {
+      pass: result.pass ? "PASS" : "FAIL",
+      passCount: result.passCount ?? 0,
+      failCount: result.failCount ?? 0,
+    };
+  }
+
+  appendLedger(cwd, {
+    type: "done",
+    spec: id,
+    impl_summary: {
+      gates: gatesSummary,
+      e2e: e2eSummary,
+    },
+    audit: {
+      verdict: fm.audit?.verdict,
+      sha: fm.audit?.sha?.slice(0, 8),
+    },
+  });
 
   return `Spec ${id} → 已完成 ✅\n  impl: ✓ | audit: ✓ | human: ✓`;
 }

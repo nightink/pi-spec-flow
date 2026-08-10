@@ -341,6 +341,72 @@ audit:
   );
 });
 
+test("done: ledger includes impl summary and audit info", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  at: "2026-08-10T00:00:00Z"
+  gates:
+    typecheck:
+      pass: true
+      tail: ""
+    biome:
+      pass: true
+      tail: ""
+  e2e:
+    e2e-01:
+      pass: true
+      passCount: 3
+      failCount: 0
+    e2e-02:
+      pass: true
+      passCount: 5
+      failCount: 0
+audit:
+  verdict: pass
+  sha: SHA_PLACEHOLDER
+evidence:
+  human: []
+---
+
+- 状态：进行中`,
+  });
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dir,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  const realSha = getHeadSha(dir);
+  let content = fs.readFileSync(path.join(dir, "docs/specs/S1.0.md"), "utf8");
+  content = content.replace("SHA_PLACEHOLDER", realSha);
+  fs.writeFileSync(path.join(dir, "docs/specs/S1.0.md"), content);
+
+  const output = done(dir, "S1.0");
+  assert.ok(output.includes("已完成"));
+
+  // Read ledger and verify structure
+  const ledger = fs.readFileSync(path.join(dir, ".spec-flow-ledger.jsonl"), "utf8");
+  const doneLine = ledger.split("\n").filter(Boolean).find((l) => JSON.parse(l).type === "done");
+  assert.ok(doneLine, "done ledger entry should exist");
+  const entry = JSON.parse(doneLine);
+
+  // gates summary
+  assert.deepEqual(entry.impl_summary.gates, { typecheck: "pass", biome: "pass" });
+
+  // e2e summary
+  assert.deepEqual(entry.impl_summary.e2e["e2e-01"], { pass: "PASS", passCount: 3, failCount: 0 });
+  assert.deepEqual(entry.impl_summary.e2e["e2e-02"], { pass: "PASS", passCount: 5, failCount: 0 });
+
+  // audit summary
+  assert.equal(entry.audit.verdict, "pass");
+  assert.equal(entry.audit.sha, realSha.slice(0, 8));
+});
+
 // ─── board ───────────────────────────────────────────────────────────────────
 test("board: show managed and unmanaged specs", () => {
   const dir = mkProject({
