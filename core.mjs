@@ -260,6 +260,16 @@ export function runGates(cwd, gates) {
   return results;
 }
 
+// ─── Bypass detection ────────────────────────────────────────────────────────
+// Only match SPECFLOW_BYPASS=1 as a prefix env assignment to git commit,
+// not as a substring in commit messages or other arguments.
+export function shouldBypass(command) {
+  // Match SPECFLOW_BYPASS=1 as env prefix: at start of command or after ;/&/|,
+  // followed by whitespace and then git commit somewhere after
+  const re = /(?:^|[;&|]\s*)SPECFLOW_BYPASS=1\s+(?:.*\s)?git\s+commit/;
+  return re.test(command);
+}
+
 // ─── Ledger ──────────────────────────────────────────────────────────────────
 export function appendLedger(cwd, event) {
   const ledgerPath = path.join(cwd, ".spec-flow-ledger.jsonl");

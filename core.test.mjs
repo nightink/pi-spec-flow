@@ -19,6 +19,7 @@ import {
   board,
   checkCI,
   audit,
+  shouldBypass,
 } from "./core.mjs";
 
 // Helper: create temp project
@@ -323,6 +324,34 @@ evidence:
   const result = checkCI(dir);
   assert.equal(result.pass, false);
   assert.ok(result.output.includes("e2e-99.mjs"));
+});
+
+// ─── shouldBypass ────────────────────────────────────────────────────────────
+test("bypass: env prefix to git commit is recognized", () => {
+  assert.equal(shouldBypass("SPECFLOW_BYPASS=1 git commit -m 'fix'"), true);
+  assert.equal(shouldBypass("SPECFLOW_BYPASS=1 git commit --allow-empty"), true);
+});
+
+test("bypass: after separator is recognized", () => {
+  assert.equal(shouldBypass("echo ok; SPECFLOW_BYPASS=1 git commit -m 'x'"), true);
+  assert.equal(shouldBypass("true && SPECFLOW_BYPASS=1 git commit -m 'x'"), true);
+  assert.equal(shouldBypass("false || SPECFLOW_BYPASS=1 git commit -m 'x'"), true);
+});
+
+test("bypass: substring in commit message is NOT recognized", () => {
+  assert.equal(
+    shouldBypass('git commit -m "document SPECFLOW_BYPASS=1 behavior"'),
+    false
+  );
+  assert.equal(
+    shouldBypass('git commit -m "fix: SPECFLOW_BYPASS=1 now works"'),
+    false
+  );
+});
+
+test("bypass: no bypass var is not recognized", () => {
+  assert.equal(shouldBypass("git commit -m 'normal'"), false);
+  assert.equal(shouldBypass("OTHER_VAR=1 git commit -m 'x'"), false);
 });
 
 // ─── Audit criteria naming ──────────────────────────────────────────────────

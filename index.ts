@@ -16,6 +16,7 @@ import {
   runGates,
   detectProjectConfig,
   parseFrontmatter,
+  shouldBypass,
 } from "./core.mjs";
 
 export default function (pi: ExtensionAPI) {
@@ -157,8 +158,8 @@ export default function (pi: ExtensionAPI) {
     const commitMatch = /(^|[;&|]\s*)(?:\S+=\S+\s+)*git\s+commit/.exec(command);
     if (!commitMatch) return;
 
-    // Check bypass
-    const hasBypass = command.includes("SPECFLOW_BYPASS=1");
+    // Check bypass — only match env prefix, not substrings in messages
+    const hasBypass = shouldBypass(command);
 
     // Run gates (prefer cache)
     const config = detectProjectConfig(ctx.cwd);
