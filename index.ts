@@ -1,169 +1,220 @@
-// spec-flow index.ts — pi extension adapter (thin wrapper over core.mjs)
+// spec-flow index.ts — pi extension adapter
+// Thin wrapper: registerTool ×6 + tool_call intercept + session_start summary
+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import { execSync } from "node:child_process";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const CORE = join(__dirname, "core.mjs");
-
-function runCore(args: string, cwd: string): string {
-  try {
-    return execSync(`node ${CORE} ${args}`, {
-      cwd,
-      encoding: "utf-8",
-      timeout: 300000,
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env },
-    }).trim();
-  } catch (err: any) {
-    const out = (err.stdout || "") + (err.stderr || "");
-    return out || err.message;
-  }
-}
+import {
+  board,
+  begin,
+  impl,
+  audit,
+  attest,
+  done,
+  migrateAlloc,
+  checkCI,
+  loadSpecs,
+  runGates,
+  detectProjectConfig,
+  parseFrontmatter,
+} from "./core.mjs";
 
 export default function (pi: ExtensionAPI) {
-  // ─── Tools ──────────────────────────────────────────────────────────────
+  // ─── Register tools ──────────────────────────────────────────────────────
   pi.registerTool({
     name: "spec_board",
     label: "Spec Board",
-    description: "Show all specs with status, drift detection, and evidence validation",
+    description: "Show all specs with status and drift detection",
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const out = runCore("board", ctx.cwd);
-      return { content: [{ type: "text", text: out }], details: {} };
+      try {
+        const output = board(ctx.cwd);
+        return { content: [{ type: "text", text: output }], details: {} };
+      } catch (e: any) {
+        return {
+          content: [{ type: "text", text: `Error: ${e.message}` }],
+          details: {},
+          isError: true,
+        };
+      }
     },
   });
 
   pi.registerTool({
     name: "spec_begin",
     label: "Spec Begin",
-    description: "Start a spec (requires approved review + deps done). Sets status=in-progress, records base_sha.",
+    description: "Start a spec (set status=in-progress, record base_sha)",
     parameters: Type.Object({
-      id: Type.String({ description: "Spec ID, e.g. S3.13" }),
+      id: Type.String({ description: "Spec ID (e.g., S3.13)" }),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const out = runCore(`begin ${params.id}`, ctx.cwd);
-      return { content: [{ type: "text", text: out }], details: {} };
+      try {
+        const output = begin(ctx.cwd, params.id);
+        return { content: [{ type: "text", text: output }], details: {} };
+      } catch (e: any) {
+        return {
+          content: [{ type: "text", text: `Error: ${e.message}` }],
+          details: {},
+          isError: true,
+        };
+      }
     },
   });
 
   pi.registerTool({
     name: "spec_impl",
     label: "Spec Impl",
-    description: "Run gates + e2e for a spec. Records impl{at,gates,e2e} on success.",
+    description: "Run gates and e2e for a spec, record results",
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const out = runCore(`impl ${params.id}`, ctx.cwd);
-      return { content: [{ type: "text", text: out }], details: {} };
+      try {
+        const output = impl(ctx.cwd, params.id);
+        return { content: [{ type: "text", text: output }], details: {} };
+      } catch (e: any) {
+        return {
+          content: [{ type: "text", text: `Error: ${e.message}` }],
+          details: {},
+          isError: true,
+        };
+      }
     },
   });
 
   pi.registerTool({
     name: "spec_audit",
     label: "Spec Audit",
-    description: "Independent LLM audit of spec vs diff. Writes audit{at,sha,verdict,findings}.",
+    description: "Independent LLM audit of spec vs diff",
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const out = runCore(`audit ${params.id}`, ctx.cwd);
-      return { content: [{ type: "text", text: out }], details: {} };
+      try {
+        const output = await audit(ctx.cwd, params.id);
+        return { content: [{ type: "text", text: output }], details: {} };
+      } catch (e: any) {
+        return {
+          content: [{ type: "text", text: `Error: ${e.message}` }],
+          details: {},
+          isError: true,
+        };
+      }
     },
   });
 
   pi.registerTool({
     name: "spec_attest",
     label: "Spec Attest",
-    description: "Register human verification for a spec evidence item. Note must be ≥20 chars with audit trail.",
+    description: "Register human verification for a spec",
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
-      item: Type.String({ description: "Evidence item identifier, e.g. R1" }),
-      note: Type.String({ description: "Verification note (≥20 chars): what you checked, sample, method" }),
+      item: Type.String({ description: "Human evidence item (e.g., R1)" }),
+      note: Type.String({
+        description: "Verification note (≥20 chars, describe path and sample)",
+      }),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const out = runCore(`attest ${params.id} ${params.item} ${params.note}`, ctx.cwd);
-      return { content: [{ type: "text", text: out }], details: {} };
+      try {
+        const output = attest(ctx.cwd, params.id, params.item, params.note);
+        return { content: [{ type: "text", text: output }], details: {} };
+      } catch (e: any) {
+        return {
+          content: [{ type: "text", text: `Error: ${e.message}` }],
+          details: {},
+          isError: true,
+        };
+      }
     },
   });
 
   pi.registerTool({
     name: "spec_done",
     label: "Spec Done",
-    description: "Final gate: checks impl pass + audit pass + sha fresh + human attested. Sets status=done.",
+    description: "Finalize a spec (check impl+audit+human, set status=done)",
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const out = runCore(`done ${params.id}`, ctx.cwd);
-      return { content: [{ type: "text", text: out }], details: {} };
+      try {
+        const output = done(ctx.cwd, params.id);
+        return { content: [{ type: "text", text: output }], details: {} };
+      } catch (e: any) {
+        return {
+          content: [{ type: "text", text: `Error: ${e.message}` }],
+          details: {},
+          isError: true,
+        };
+      }
     },
   });
 
-  // ─── Commit interception ─────────────────────────────────────────────────
+  // ─── tool_call intercept: git commit → gate check ────────────────────────
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName !== "bash") return;
-    const input = event.input as { command?: string };
-    if (!input.command) return;
+    const command = (event.input as any).command || "";
 
-    // Check for git commit
-    if (!/(^|[;&|]\s*)git\s+commit/.test(input.command)) return;
+    // Match git commit (with optional env vars like SPECFLOW_BYPASS=1)
+    const commitMatch = /(^|[;&|]\s*)(?:\S+=\S+\s+)*git\s+commit/.exec(command);
+    if (!commitMatch) return;
 
-    // Check for bypass
-    if (input.command.includes("SPECFLOW_BYPASS=1")) {
-      ctx.ui.notify("spec-flow: commit bypassed via SPECFLOW_BYPASS=1", "warning");
-      // Log bypass to ledger
-      const ledgerPath = join(ctx.cwd, ".spec-flow-ledger.jsonl");
-      const { appendFileSync } = await import("node:fs");
-      appendFileSync(
-        ledgerPath,
-        JSON.stringify({ event: "bypass", ts: new Date().toISOString(), command: input.command }) + "\n"
+    // Check bypass
+    const hasBypass = command.includes("SPECFLOW_BYPASS=1");
+
+    // Run gates (prefer cache)
+    const config = detectProjectConfig(ctx.cwd);
+    if (config.gates.length === 0) return; // no gates, allow
+
+    const gateResults = runGates(ctx.cwd, config.gates);
+    const allPass = Object.values(gateResults).every((r) => r.pass);
+
+    if (allPass) return; // gates green, allow
+
+    // Gates red
+    if (hasBypass) {
+      ctx.ui.notify(
+        "⚠️ spec-flow: SPECFLOW_BYPASS=1 detected, allowing commit despite gate failures",
+        "warning"
       );
+      // Log bypass to ledger
+      const { appendLedger } = await import("./core.mjs");
+      appendLedger(ctx.cwd, {
+        type: "bypass",
+        gates: gateResults,
+        command: command.slice(0, 200),
+      });
       return; // allow
     }
 
-    // Run gates (prefer cache)
-    const gateOut = runCore("check --ci", ctx.cwd);
-    let parsed: { ok: boolean; issues?: string[] };
-    try {
-      parsed = JSON.parse(gateOut);
-    } catch {
-      parsed = { ok: false, issues: [`Failed to parse gate output: ${gateOut.slice(0, 200)}`] };
-    }
+    // Block
+    const failedGates = Object.entries(gateResults)
+      .filter(([_, v]) => !v.pass)
+      .map(([name, v]) => `${name}:\n${v.tail}`);
 
-    if (!parsed.ok) {
-      const failedGates = (parsed.issues || [])
-        .filter((i) => i.startsWith("GATE "))
-        .map((i) => i.split("\n")[0])
-        .join("; ");
-      const tail = (parsed.issues || []).join("\n").split("\n").slice(-10).join("\n");
-      return {
-        block: true,
-        reason: `spec-flow: gates red — ${failedGates}\n\nLast output:\n${tail}`,
-      };
-    }
+    return {
+      block: true,
+      reason: `spec-flow: 门禁未通过，禁止 commit\n\n${failedGates.join("\n\n")}`,
+    };
   });
 
-  // ─── Session start summary ───────────────────────────────────────────────
+  // ─── session_start: notify active specs ──────────────────────────────────
   pi.on("session_start", async (_event, ctx) => {
-    const out = runCore("board", ctx.cwd);
-    let rows: Array<{ id: string; status: string }>;
     try {
-      rows = JSON.parse(out);
+      const specs = loadSpecs(ctx.cwd);
+      const active = specs.filter(
+        (s) => s.hasFrontmatter && s.frontmatter?.status === "in-progress"
+      );
+      if (active.length === 0) return; // silent
+
+      const lines = [`📋 spec-flow: ${active.length} 个进行中 spec`];
+      for (const spec of active) {
+        const fm = spec.frontmatter!;
+        const id = fm.id || spec.file;
+        const baseSha = fm.impl?.base_sha?.slice(0, 8) || "?";
+        lines.push(`  • ${id} (base=${baseSha})`);
+      }
+      ctx.ui.notify(lines.join("\n"), "info");
     } catch {
-      return; // silent
+      // silent on error
     }
-
-    const inProgress = rows.filter((r) => r.status === "进行中");
-    if (inProgress.length === 0) return; // silent
-
-    const summary = inProgress
-      .map((r) => `  • ${r.id}: ${r.status}`)
-      .join("\n");
-    ctx.ui.notify(`spec-flow: ${inProgress.length} spec(s) in progress:\n${summary}`, "info");
   });
 }
