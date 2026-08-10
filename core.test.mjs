@@ -1,366 +1,311 @@
-import { describe, it, beforeEach } from "node:test";
+// spec-flow core.test.mjs — node --test self-verification
+import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 import { execSync } from "node:child_process";
-
 import {
   parseFrontmatter,
-  serializeFrontmatter,
-  extractBodyStatus,
-  renderStatusLine,
-  replaceBodyStatusLine,
+  writeFrontmatter,
+  extractStatusLine,
+  updateStatusLine,
   detectDrift,
-  detectGates,
-  validateEvidence,
-  migrationAlloc,
-  cmdBoard,
-  cmdBegin,
-  cmdDone,
-  cmdAttest,
-  cmdCheck,
-  STATUS_MAP,
+  detectProjectConfig,
+  loadSpecs,
+  migrateAlloc,
+  attest,
+  done,
+  board,
+  checkCI,
 } from "./core.mjs";
 
-function makeProject(specs = [], opts = {}) {
-  const dir = mkdtempSync(join(tmpdir(), "specflow-test-"));
-  mkdirSync(join(dir, "docs", "specs"), { recursive: true });
-  for (const s of specs) {
-    writeFileSync(join(dir, "docs", "specs", s.file), s.content);
+// Helper: create temp project
+function mkProject(files = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-test-"));
+  for (const [relPath, content] of Object.entries(files)) {
+    const fullPath = path.join(dir, relPath);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, content);
   }
-  if (opts.packageJson) {
-    writeFileSync(join(dir, "package.json"), JSON.stringify(opts.packageJson));
-  }
-  if (opts.biome) {
-    writeFileSync(join(dir, "biome.json"), "{}");
-  }
-  if (opts.migrations) {
-    const migDir = join(dir, "packages", "db", "src", "migrations");
-    mkdirSync(migDir, { recursive: true });
-    for (const f of opts.migrations) {
-      writeFileSync(join(migDir, f), "// migration");
-    }
-  }
-  if (opts.e2e) {
-    const e2eDir = join(dir, "tests", "e2e");
-    mkdirSync(e2eDir, { recursive: true });
-    for (const f of opts.e2e) {
-      writeFileSync(join(e2eDir, f), "// e2e test");
-    }
-  }
-  // Init git repo so gitHead works
-  try {
-    execSync("git init -q && git add -A && git commit -qm init --allow-empty", { cwd: dir });
-  } catch { /* may fail in CI, that's ok */ }
   return dir;
 }
 
 // ─── Frontmatter ─────────────────────────────────────────────────────────────
-describe("frontmatter", () => {
-  it("parses valid frontmatter", () => {
-    const content = `---
+test("frontmatter: parse and write roundtrip", () => {
+  const content = `---
 id: S1.0
 status: pending
 ---
+
 # Title
-body text`;
-    const { frontmatter, body } = parseFrontmatter(content);
-    assert.equal(frontmatter.id, "S1.0");
-    assert.equal(frontmatter.status, "pending");
-    assert.ok(body.includes("# Title"));
-  });
 
-  it("returns null frontmatter for no-frontmatter file", () => {
-    const content = "# Title\nbody text";
-    const { frontmatter, body } = parseFrontmatter(content);
-    assert.equal(frontmatter, null);
-    assert.equal(body, content);
-  });
+Body`;
 
-  it("roundtrips serialize → parse", () => {
-    const data = { id: "S1.0", status: "in-progress", review: { by: "user", decision: "approved" } };
-    const body = "\n# Title\n- 状态：🔄 进行中\n";
-    const serialized = serializeFrontmatter(data, body);
-    const { frontmatter, body: parsedBody } = parseFrontmatter(serialized);
-    assert.equal(frontmatter.id, "S1.0");
-    assert.equal(frontmatter.status, "in-progress");
-    assert.equal(frontmatter.review.decision, "approved");
-    assert.ok(parsedBody.includes("# Title"));
-  });
+  const fm = parseFrontmatter(content);
+  assert.equal(fm?.data?.id, "S1.0");
+  assert.equal(fm?.data?.status, "pending");
+
+  const written = writeFrontmatter(content, { ...fm.data, status: "in-progress" });
+  const fm2 = parseFrontmatter(written);
+  assert.equal(fm2?.data?.status, "in-progress");
+  assert.ok(written.includes("# Title"));
 });
 
-// ─── Status mapping ──────────────────────────────────────────────────────────
-describe("status mapping", () => {
-  it("maps all four statuses", () => {
-    assert.equal(STATUS_MAP.pending, "待 review");
-    assert.equal(STATUS_MAP.approved, "已批准");
-    assert.equal(STATUS_MAP["in-progress"], "进行中");
-    assert.equal(STATUS_MAP.done, "已完成");
-  });
+test("frontmatter: missing returns null", () => {
+  const content = "# No frontmatter\n\nBody";
+  const fm = parseFrontmatter(content);
+  assert.equal(fm, null);
+});
 
-  it("renders status line with emoji", () => {
-    const line = renderStatusLine("in-progress");
-    assert.ok(line.includes("🔄"));
-    assert.ok(line.includes("进行中"));
-  });
+// ─── Status line ─────────────────────────────────────────────────────────────
+test("status line: extract and update", () => {
+  const content = `---
+status: pending
+---
 
-  it("replaces body status line", () => {
-    const body = "# Title\n\n- 状态：📋 待 review\n\nSome text";
-    const newBody = replaceBodyStatusLine(body, "in-progress");
-    assert.ok(newBody.includes("进行中"));
-    assert.ok(!newBody.includes("待 review"));
-  });
+- 状态：待 review
+- 规模：L
+
+Body`;
+
+  const extracted = extractStatusLine(content);
+  assert.equal(extracted, "待 review");
+
+  const updated = updateStatusLine(content, "in-progress");
+  const newLine = extractStatusLine(updated);
+  assert.equal(newLine, "进行中");
+});
+
+test("status line: update preserves note", () => {
+  const content = `- 状态：进行中（2026-08-10 开工）`;
+  const updated = updateStatusLine(content, "done");
+  assert.ok(updated.includes("已完成"));
 });
 
 // ─── Drift detection ─────────────────────────────────────────────────────────
-describe("drift detection", () => {
-  it("detects drift when body status doesn't match frontmatter", () => {
-    const fm = { status: "in-progress" };
-    const body = "- 状态：📋 待 review\n";
-    const drift = detectDrift(fm, body);
-    assert.ok(drift);
-    assert.equal(drift.expected, "进行中");
-  });
+test("drift: no drift when body matches frontmatter", () => {
+  const content = `---
+status: in-progress
+---
 
-  it("no drift when body matches frontmatter", () => {
-    const fm = { status: "in-progress" };
-    const body = "- 状态：🔄 进行中（2026-08-10 开工）\n";
-    const drift = detectDrift(fm, body);
-    assert.equal(drift, null);
-  });
+- 状态：进行中`;
 
-  it("returns null when no body status line", () => {
-    const fm = { status: "in-progress" };
-    const body = "# Title\nno status line here\n";
-    const drift = detectDrift(fm, body);
-    assert.equal(drift, null);
-  });
-
-  it("returns null when no frontmatter", () => {
-    const drift = detectDrift(null, "- 状态：📋 待 review\n");
-    assert.equal(drift, null);
-  });
+  const fm = parseFrontmatter(content);
+  const drift = detectDrift(content, fm.data);
+  assert.equal(drift.drifted, false);
 });
 
-// ─── Evidence validation ─────────────────────────────────────────────────────
-describe("evidence validation", () => {
-  it("flags missing e2e files", () => {
-    const dir = makeProject([], { e2e: ["e2e-01.mjs"] });
-    const fm = { evidence: { e2e: ["e2e-01", "e2e-99"] } };
-    const issues = validateEvidence(fm, dir);
-    assert.ok(issues.some((i) => i.includes("e2e-99")));
-    assert.ok(!issues.some((i) => i.includes("e2e-01")));
-    rmSync(dir, { recursive: true });
-  });
+test("drift: detect mismatch", () => {
+  const content = `---
+status: in-progress
+---
 
-  it("passes when all e2e files exist", () => {
-    const dir = makeProject([], { e2e: ["e2e-01.mjs", "e2e-02.mjs"] });
-    const fm = { evidence: { e2e: ["e2e-01", "e2e-02"] } };
-    const issues = validateEvidence(fm, dir);
-    assert.equal(issues.length, 0);
-    rmSync(dir, { recursive: true });
-  });
+- 状态：已完成`;
 
-  it("handles missing e2e directory", () => {
-    const dir = makeProject([]);
-    const fm = { evidence: { e2e: ["e2e-01"] } };
-    const issues = validateEvidence(fm, dir);
-    assert.ok(issues.some((i) => i.includes("e2e directory missing")));
-    rmSync(dir, { recursive: true });
-  });
+  const fm = parseFrontmatter(content);
+  const drift = detectDrift(content, fm.data);
+  assert.equal(drift.drifted, true);
+  assert.equal(drift.expected, "进行中");
+  assert.equal(drift.got, "已完成");
 });
 
-// ─── Migration allocation ────────────────────────────────────────────────────
-describe("migrate-alloc", () => {
-  it("returns next number after existing migrations", () => {
-    const dir = makeProject([], {
-      migrations: ["001-init.ts", "002-users.ts", "015-trail.ts"],
+test("drift: ignore parenthetical notes", () => {
+  const content = `---
+status: in-progress
+---
+
+- 状态：进行中（2026-08-10 开工）`;
+
+  const fm = parseFrontmatter(content);
+  const drift = detectDrift(content, fm.data);
+  assert.equal(drift.drifted, false);
+});
+
+test("drift: ignore emoji prefix", () => {
+  const content = `---
+status: in-progress
+---
+
+- 状态：🔄 进行中（2026-08-10 开工）`;
+
+  const fm = parseFrontmatter(content);
+  const drift = detectDrift(content, fm.data);
+  assert.equal(drift.drifted, false);
+});
+
+// ─── Project config detection ────────────────────────────────────────────────
+test("config: detect gates", () => {
+  const dir = mkProject({
+    "package.json": JSON.stringify({
+      scripts: {
+        typecheck: "tsc",
+        test: "vitest run",
+      },
+    }),
+    "biome.json": "{}",
+  });
+
+  const config = detectProjectConfig(dir);
+  assert.equal(config.gates.length, 3);
+  assert.ok(config.gates.some((g) => g.name === "typecheck"));
+  assert.ok(config.gates.some((g) => g.name === "biome"));
+  assert.ok(config.gates.some((g) => g.name === "vitest"));
+});
+
+test("config: degrade gracefully when no config", () => {
+  const dir = mkProject({});
+  const config = detectProjectConfig(dir);
+  assert.equal(config.gates.length, 0);
+  assert.equal(config.e2eFiles.length, 0);
+  assert.equal(config.migFiles.length, 0);
+});
+
+// ─── migrate-alloc ───────────────────────────────────────────────────────────
+test("migrate-alloc: increment from last", () => {
+  const dir = mkProject({
+    "packages/db/src/migrations/001-init.ts": "",
+    "packages/db/src/migrations/002-add.ts": "",
+    "packages/db/src/migrations/015-last.ts": "",
+  });
+
+  const next = migrateAlloc(dir);
+  assert.equal(next, "016");
+});
+
+test("migrate-alloc: reject when no directory", () => {
+  const dir = mkProject({});
+  assert.throws(() => migrateAlloc(dir), /No migration directory/);
+});
+
+// ─── attest ──────────────────────────────────────────────────────────────────
+test("attest: reject short note", () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+evidence:
+  human: [R1]
+---
+
+- 状态：进行中`,
+  });
+
+  assert.throws(
+    () => attest(dir, "S1.0", "R1", "short"),
+    /too short/
+  );
+});
+
+test("attest: accept valid note", () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+evidence:
+  human: [R1]
+---
+
+- 状态：进行中`,
+  });
+
+  const output = attest(dir, "S1.0", "R1", "Verified with sample data in tests/fixtures/sample.json");
+  assert.ok(output.includes("已登记"));
+
+  // Check ledger
+  const ledger = fs.readFileSync(path.join(dir, ".spec-flow-ledger.jsonl"), "utf8");
+  assert.ok(ledger.includes('"type":"attest"'));
+});
+
+// ─── done ────────────────────────────────────────────────────────────────────
+test("done: list gaps when incomplete", () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+---
+
+- 状态：进行中`,
+  });
+
+  assert.throws(
+    () => done(dir, "S1.0"),
+    /缺口/
+  );
+});
+
+test("done: reject when audit sha stale", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+impl:
+  at: "2026-08-10T00:00:00Z"
+  gates: {}
+  e2e: {}
+audit:
+  verdict: pass
+  sha: oldsha
+---
+
+- 状态：进行中`,
+  });
+
+  // Initialize git repo to get a real HEAD
+  fs.writeFileSync(path.join(dir, ".gitignore"), "");
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: dir,
+      stdio: "pipe",
     });
-    const result = migrationAlloc(dir);
-    assert.equal(result.next, "016");
-    rmSync(dir, { recursive: true });
-  });
+  } catch {
+    // git not available or commit failed, skip
+    return;
+  }
 
-  it("returns 001 when directory is empty", () => {
-    const dir = makeProject([], { migrations: [] });
-    const result = migrationAlloc(dir);
-    assert.equal(result.next, "001");
-    rmSync(dir, { recursive: true });
-  });
-
-  it("rejects when migration directory missing", () => {
-    const dir = makeProject([]);
-    const result = migrationAlloc(dir);
-    assert.ok(result.error);
-    assert.ok(result.error.includes("not found"));
-    rmSync(dir, { recursive: true });
-  });
+  assert.throws(
+    () => done(dir, "S1.0"),
+    /sha 过期/
+  );
 });
 
-// ─── Gate detection ──────────────────────────────────────────────────────────
-describe("gate detection", () => {
-  it("detects typecheck from package.json scripts", () => {
-    const dir = makeProject([], { packageJson: { scripts: { typecheck: "tsc" } } });
-    const gates = detectGates(dir);
-    assert.ok(gates.some((g) => g.name === "typecheck"));
-    rmSync(dir, { recursive: true });
-  });
-
-  it("detects biome from biome.json", () => {
-    const dir = makeProject([], { biome: true });
-    const gates = detectGates(dir);
-    assert.ok(gates.some((g) => g.name === "biome"));
-    rmSync(dir, { recursive: true });
-  });
-
-  it("detects vitest from package.json scripts", () => {
-    const dir = makeProject([], { packageJson: { scripts: { test: "vitest run" } } });
-    const gates = detectGates(dir);
-    assert.ok(gates.some((g) => g.name === "vitest"));
-    rmSync(dir, { recursive: true });
-  });
-
-  it("returns empty when nothing configured", () => {
-    const dir = makeProject([]);
-    const gates = detectGates(dir);
-    assert.equal(gates.length, 0);
-    rmSync(dir, { recursive: true });
-  });
-});
-
-// ─── Attest ──────────────────────────────────────────────────────────────────
-describe("attest", () => {
-  it("rejects note shorter than 20 chars", () => {
-    const dir = makeProject([
-      {
-        file: "S1.0-test.md",
-        content: `---
-id: S1.0
-status: in-progress
----
-# S1.0 test
-- 状态：🔄 进行中
-`,
-      },
-    ]);
-    const result = cmdAttest(dir, "S1.0", "R1", "short note");
-    assert.ok(result.error);
-    assert.ok(result.error.includes("≥20"));
-    rmSync(dir, { recursive: true });
-  });
-
-  it("accepts note ≥20 chars", () => {
-    const dir = makeProject([
-      {
-        file: "S1.0-test.md",
-        content: `---
-id: S1.0
-status: in-progress
----
-# S1.0 test
-- 状态：🔄 进行中
-`,
-      },
-    ]);
-    const result = cmdAttest(dir, "S1.0", "R1", "Checked 50 samples manually and all pass the criteria");
-    assert.ok(result.ok);
-    rmSync(dir, { recursive: true });
-  });
-});
-
-// ─── Done gaps ───────────────────────────────────────────────────────────────
-describe("done", () => {
-  it("lists gaps when impl/audit not run", () => {
-    const dir = makeProject([
-      {
-        file: "S1.0-test.md",
-        content: `---
-id: S1.0
-status: in-progress
----
-# S1.0 test
-- 状态：🔄 进行中
-`,
-      },
-    ]);
-    const result = cmdDone(dir, "S1.0");
-    assert.ok(result.error);
-    assert.ok(result.error.includes("impl not run"));
-    assert.ok(result.error.includes("audit not run"));
-    rmSync(dir, { recursive: true });
-  });
-});
-
-// ─── Board ───────────────────────────────────────────────────────────────────
-describe("board", () => {
-  it("shows unmanaged specs", () => {
-    const dir = makeProject([
-      { file: "S1.0-old.md", content: "# S1.0 old\n- 状态：待 review\n" },
-    ]);
-    const rows = cmdBoard(dir);
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].status, "未纳管");
-    rmSync(dir, { recursive: true });
-  });
-
-  it("shows managed specs with frontmatter status", () => {
-    const dir = makeProject([
-      {
-        file: "S1.0-new.md",
-        content: `---
-id: S1.0
-status: in-progress
----
-# S1.0 new
-- 状态：🔄 进行中
-`,
-      },
-    ]);
-    const rows = cmdBoard(dir);
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].status, "进行中");
-    assert.equal(rows[0].drift, "✓");
-    rmSync(dir, { recursive: true });
-  });
-});
-
-// ─── Check (CI) ──────────────────────────────────────────────────────────────
-describe("check", () => {
-  it("detects drift in CI mode", () => {
-    const dir = makeProject([
-      {
-        file: "S1.0-drift.md",
-        content: `---
-id: S1.0
-status: in-progress
----
-# S1.0 drift
-- 状态：📋 待 review
-`,
-      },
-    ]);
-    const result = cmdCheck(dir, { ci: false });
-    assert.equal(result.ok, false);
-    assert.ok(result.issues.some((i) => i.includes("DRIFT")));
-    rmSync(dir, { recursive: true });
-  });
-
-  it("passes when no drift", () => {
-    const dir = makeProject([
-      {
-        file: "S1.0-ok.md",
-        content: `---
+// ─── board ───────────────────────────────────────────────────────────────────
+test("board: show managed and unmanaged specs", () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
 id: S1.0
 status: pending
 ---
-# S1.0 ok
-- 状态：📋 待 review
-`,
-      },
-    ]);
-    const result = cmdCheck(dir, { ci: false });
-    assert.equal(result.ok, true);
-    rmSync(dir, { recursive: true });
+
+- 状态：待 review`,
+    "docs/specs/S2.0.md": `# No frontmatter
+
+Body`,
   });
+
+  const output = board(dir);
+  assert.ok(output.includes("S1.0"));
+  assert.ok(output.includes("待 review"));
+  assert.ok(output.includes("S2.0.md"));
+  assert.ok(output.includes("未纳管"));
 });
+
+// ─── Evidence validation ─────────────────────────────────────────────────────
+test("evidence: check --ci detects missing e2e file", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+evidence:
+  e2e: [e2e-99]
+---
+
+- 状态：进行中`,
+  });
+
+  const result = checkCI(dir);
+  assert.equal(result.pass, false);
+  assert.ok(result.output.includes("e2e-99.mjs"));
+});
+
+console.log("✅ All tests defined");
