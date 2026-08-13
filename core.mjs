@@ -408,14 +408,96 @@ export function shouldBypass(command) {
   return re.test(command);
 }
 
+// ─── Commit command detection ────────────────────────────────────────────────
+// Matches `git commit` where git starts at command start, after ;/&/|, or in a
+// subshell — with optional env prefixes, `cd` chains, and git options like
+// `git -C <dir> commit` / `git -a -m "x" commit`.
+const COMMIT_RE =
+  /(?:^|[;&|(]\s*)(?:\S+=\S+\s+)*(?:cd\s+\S+\s*(?:&&|\|\||;)\s*)*git(?:(?:\s+-\S+(?:\s+[^\s&|;]+)?)+\s+commit|\s+commit)/;
+
+export function isCommitCommand(command) {
+  return COMMIT_RE.test(command);
+}
+
+// ─── Commit target repo parsing ──────────────────────────────────────────────
+// Resolve the directory the commit command actually targets:
+// last `cd <dir>` chain + trailing `git -C <dir>`, only from the part of the
+// command BEFORE the first `git commit` (a `cd` after commit is irrelevant).
+// Returns absolute path, or null when no cd/-C present (session cwd applies).
+export function parseCommitTargetRepo(command, cwd) {
+  const m = COMMIT_RE.exec(command);
+  if (!m) return null;
+  const prefix = command.slice(0, m.index + m[0].length);
+
+  const cdDirs = [];
+  const cdRe = /(?:^|[;&|(]\s*)(?:\S+=\S+\s+)*cd\s+(\S+)/g;
+  let cm;
+  while ((cm = cdRe.exec(prefix))) cdDirs.push(cm[1]);
+
+  const cDirs = [];
+  const cRe = /git(?:\s+-\S+(?:\s+[^\s&|;]+)?)*\s+-C\s+(\S+)|git\s+-C(\S+)/g;
+  while ((cm = cRe.exec(prefix))) cDirs.push(cm[1] ?? cm[2]);
+
+  if (cdDirs.length === 0 && cDirs.length === 0) return null;
+
+  let target = cwd;
+  for (const d of cdDirs) target = path.resolve(target, d);
+  if (cDirs.length > 0) target = path.resolve(target, cDirs[cDirs.length - 1]);
+  return target;
+}
+
+// ─── Resolve actual commit repo (async, git-confirmed) ──────────────────────
+// Best effort: parse cd/-C from the command, then confirm with
+// `git rev-parse --show-toplevel` in that directory (handles relative paths,
+// symlinks, nested repos). Falls back to session cwd when unparseable.
+export async function resolveCommitRepo(cwd, command, signal) {
+  const parsed = parseCommitTargetRepo(command, cwd);
+  if (!parsed) return { repo: cwd, confidence: "session" };
+  try {
+    const { stdout, code } = await runCmd("git rev-parse --show-toplevel", {
+      cwd: parsed,
+      timeout: 10000,
+      signal,
+    });
+    if (code === 0 && stdout.trim()) {
+      return { repo: stdout.trim(), confidence: "resolved" };
+    }
+  } catch (e) {
+    if (e?.name === "AbortError") throw e;
+  }
+  return { repo: parsed, confidence: "unresolved" };
+}
+
+// ─── Commit gate decision (async orchestration) ─────────────────────────────
+// Runs the full gate decision against the ACTUAL target repo, not the session
+// cwd. Returns { action, repo, confidence, gateResults, reason? }.
+export async function commitGateDecision(cwd, command, { signal, onGate } = {}) {
+  const { repo, confidence } = await resolveCommitRepo(cwd, command, signal);
+  const config = detectProjectConfig(repo);
+
+  // Target repo has no gates → allow (no session-project gate spillover)
+  if (config.gates.length === 0) {
+    return {
+      action: "allow",
+      repo,
+      confidence,
+      gateResults: {},
+      external: repo !== cwd,
+    };
+  }
+
+  // Run gates in the target repo
+  const gateResults = await runGates(repo, config.gates, { signal, onGate });
+  const decision = commitGateAction(command, gateResults);
+  return { ...decision, repo, confidence, gateResults };
+}
+
 // ─── Commit gate action (pure) ──────────────────────────────────────────────
 // Pure function: decide whether to allow, block, or bypass a git commit.
 // Returns { action: "allow" | "block" | "bypass", reason?: string }
-const COMMIT_RE = /(^|[;&|]\s*)(?:\S+=\S+\s+)*git\s+commit/;
-
 export function commitGateAction(command, gateResults) {
   // 1. Not a commit command → allow
-  if (!COMMIT_RE.test(command)) {
+  if (!isCommitCommand(command)) {
     return { action: "allow" };
   }
 

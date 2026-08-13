@@ -15,10 +15,9 @@ import {
   migrateAlloc,
   checkCI,
   loadSpecs,
-  runGates,
-  detectProjectConfig,
   parseFrontmatter,
-  commitGateAction,
+  commitGateDecision,
+  isCommitCommand,
   nextStep,
   appendLedger,
   renderBoard,
@@ -226,41 +225,59 @@ export default function (pi: ExtensionAPI) {
     const command = (event.input as any).command || "";
 
     // Quick exit: not a git commit command (avoid unnecessary gate IO)
-    if (!/(?:^|[;&|]\s*)(?:\S+=\S+\s+)*git\s+commit/.test(command)) return;
+    if (!isCommitCommand(command)) return;
 
-    // IO: detect and run gates (async — TUI stays responsive while waiting)
-    const config = detectProjectConfig(ctx.cwd);
-    if (config.gates.length === 0) return;
-    ctx.ui.notify(
-      `⏳ spec-flow: 运行 ${config.gates.length} 个门禁（git commit 等待中）…`,
-      "info"
-    );
-    const gateResults = await runGates(ctx.cwd, config.gates, {
+    // IO: resolve the ACTUAL target repo (cd / git -C), then run ITS gates
+    // (async — TUI stays responsive while waiting)
+    const decision = await commitGateDecision(ctx.cwd, command, {
       signal: ctx.signal,
-      onGate: (name) =>
+      onGate: (name: string) =>
         ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
     });
 
-    // Pure decision
-    const decision = commitGateAction(command, gateResults);
+    // Ledger write helper: write to the target repo, fall back to session cwd
+    const writeLedger = (event: any) => {
+      try {
+        appendLedger(decision.repo, {
+          ...event,
+          targetRepo: decision.repo,
+          sessionCwd: ctx.cwd,
+        });
+      } catch {
+        appendLedger(ctx.cwd, {
+          ...event,
+          targetRepo: decision.repo,
+          sessionCwd: ctx.cwd,
+          ledgerFallback: true,
+        });
+      }
+    };
 
-    if (decision.action === "allow") return;
+    if (decision.action === "allow") {
+      // External repo with no gates → record, then allow silently
+      if (decision.external) {
+        writeLedger({
+          type: "allow-external",
+          command: command.slice(0, 200),
+        });
+      }
+      return;
+    }
 
     if (decision.action === "bypass") {
       ctx.ui.notify(
         "⚠️ spec-flow: SPECFLOW_BYPASS=1 detected, allowing commit despite gate failures",
         "warning"
       );
-      const { appendLedger } = await import("./core.mjs");
-      appendLedger(ctx.cwd, {
+      writeLedger({
         type: "bypass",
-        gates: gateResults,
+        gates: decision.gateResults,
         command: command.slice(0, 200),
       });
       return;
     }
 
-    // block
+    // block — reason already includes failed gate names + tail summaries
     return { block: true, reason: decision.reason };
   });
 

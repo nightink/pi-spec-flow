@@ -22,6 +22,10 @@ import {
   audit,
   shouldBypass,
   commitGateAction,
+  isCommitCommand,
+  parseCommitTargetRepo,
+  resolveCommitRepo,
+  commitGateDecision,
   parseE2eOutput,
   impl,
   buildAuditorArgs,
@@ -443,6 +447,126 @@ evidence:
   const result = await checkCI(dir);
   assert.equal(result.pass, false);
   assert.ok(result.output.includes("e2e-99.mjs"));
+});
+
+// ─── S1.1: commit gate targets the ACTUAL repo, not session cwd ─────────────
+test("isCommitCommand: git -C and subshell forms match (S1.1)", () => {
+  assert.equal(isCommitCommand("git commit -m 'x'"), true);
+  assert.equal(isCommitCommand("git -C /tmp/x commit"), true);
+  assert.equal(isCommitCommand("cd /tmp/x && git commit"), true);
+  assert.equal(isCommitCommand("(cd /tmp/x && git commit)"), true);
+  assert.equal(isCommitCommand("SPECFLOW_BYPASS=1 git commit"), true);
+  // non-commit must not match
+  assert.equal(isCommitCommand("echo git commit"), false);
+  assert.equal(isCommitCommand("git log commit"), false);
+  assert.equal(isCommitCommand('git commit -m "document git commit"'), true);
+});
+
+test("parseCommitTargetRepo: cd / -C chains resolve to target dir (S1.1)", () => {
+  const cwd = "/sess";
+  assert.equal(parseCommitTargetRepo("cd /tmp/no-pkg && git commit -m x", cwd), "/tmp/no-pkg");
+  assert.equal(parseCommitTargetRepo("git -C /tmp/no-pkg commit", cwd), "/tmp/no-pkg");
+  assert.equal(parseCommitTargetRepo("cd a && cd b && git commit", cwd), "/sess/a/b");
+  assert.equal(parseCommitTargetRepo("cd a && git -C ../x commit", cwd), "/sess/x");
+  assert.equal(parseCommitTargetRepo("(cd /x && git commit)", cwd), "/x");
+  assert.equal(parseCommitTargetRepo("SPECFLOW_BYPASS=1 cd /x && git commit", cwd), "/x");
+  assert.equal(parseCommitTargetRepo("cd ../pages && git commit", "/sess"), "/pages");
+  // no cd/-C → null (session cwd applies); cd AFTER commit is ignored
+  assert.equal(parseCommitTargetRepo("git commit -m 'cd /fake'", cwd), null);
+  assert.equal(parseCommitTargetRepo("git commit && cd /x", cwd), null);
+  // echo cd is not a real cd
+  assert.equal(parseCommitTargetRepo("echo cd /x && git commit", cwd), null);
+});
+
+test("resolveCommitRepo: confirms via git rev-parse --show-toplevel (S1.1)", async () => {
+  const session = mkProject({ "package.json": "{}" });
+  const target = mkProject({}); // no package.json → no gates
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: target,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+
+  const r1 = await resolveCommitRepo(session, `cd ${target} && git commit -m x`);
+  assert.equal(r1.confidence, "resolved");
+  assert.equal(r1.repo, fs.realpathSync(target));
+
+  // plain commit → session repo
+  const r2 = await resolveCommitRepo(session, "git commit -m x");
+  assert.equal(r2.confidence, "session");
+  assert.equal(r2.repo, session);
+});
+
+test("commitGateDecision: external repo without gates → allow (S1.1)", async () => {
+  const session = mkProject({
+    "package.json": JSON.stringify({ scripts: { typecheck: "echo ok" } }),
+  });
+  const target = mkProject({}); // no package.json → no gates
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: target,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+
+  // Session has failing gates (bad cmd), but target has none → must allow
+  const decision = await commitGateDecision(
+    session,
+    `cd ${target} && git commit -m x`
+  );
+  assert.equal(decision.action, "allow");
+  assert.equal(decision.external, true);
+  assert.equal(decision.repo, fs.realpathSync(target));
+});
+
+test("commitGateDecision: external repo WITH gates runs ITS gates (S1.1)", async () => {
+  const session = mkProject({ "package.json": "{}" });
+  const target = mkProject({
+    "package.json": JSON.stringify({
+      scripts: { typecheck: "echo target-typecheck-ok" },
+    }),
+  });
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: target,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+
+  const decision = await commitGateDecision(session, `git -C ${target} commit -m x`);
+  // gate ran against target repo (its typecheck passes) → allow
+  assert.equal(decision.action, "allow");
+  assert.equal(decision.repo, fs.realpathSync(target));
+  assert.equal(decision.gateResults.typecheck.pass, true);
+});
+
+test("commitGateDecision: external repo gates red → block with repo context (S1.1)", async () => {
+  const session = mkProject({ "package.json": "{}" });
+  const target = mkProject({
+    "package.json": JSON.stringify({
+      scripts: { typecheck: "node -e \"process.exit(1)\"" },
+    }),
+  });
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: target,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+
+  const decision = await commitGateDecision(session, `cd ${target} && git commit -m x`);
+  assert.equal(decision.action, "block");
+  assert.equal(decision.repo, fs.realpathSync(target));
+  assert.ok(decision.reason.includes("typecheck"));
 });
 
 // ─── shouldBypass ────────────────────────────────────────────────────────────
