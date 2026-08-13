@@ -26,6 +26,7 @@ import {
   parseCommitTargetRepo,
   resolveCommitRepo,
   commitGateDecision,
+  appendCommitLedger,
   parseE2eOutput,
   impl,
   buildAuditorArgs,
@@ -570,6 +571,39 @@ test("commitGateDecision: unresolved target falls back to session gating (S1.1 a
   assert.equal(decision.confidence, "unresolved");
   assert.equal(decision.targetRepo, "unknown");
   assert.equal(decision.repo, session);
+});
+
+test("appendCommitLedger: writes to target repo with targetRepo field (S1.1 audit)", async () => {
+  const session = mkProject({});
+  const target = mkProject({});
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: target,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+  const decision = { repo: target, targetRepo: target, action: "allow" };
+  const landed = appendCommitLedger(decision, { type: "allow-external" }, session);
+  assert.equal(landed.fallback, false);
+  const ledger = fs.readFileSync(path.join(target, ".spec-flow-ledger.jsonl"), "utf8");
+  const entry = JSON.parse(ledger.trim().split("\n").at(-1));
+  assert.equal(entry.type, "allow-external");
+  assert.equal(entry.targetRepo, target);
+  assert.equal(entry.sessionCwd, session);
+  assert.ok(!fs.existsSync(path.join(session, ".spec-flow-ledger.jsonl")));
+});
+
+test("appendCommitLedger: unresolved target → session fallback with ledgerFallback (S1.1 audit)", () => {
+  const session = mkProject({});
+  const decision = { repo: session, targetRepo: "unknown", action: "block" };
+  const landed = appendCommitLedger(decision, { type: "bypass" }, session);
+  assert.equal(landed.fallback, true);
+  const ledger = fs.readFileSync(path.join(session, ".spec-flow-ledger.jsonl"), "utf8");
+  const entry = JSON.parse(ledger.trim().split("\n").at(-1));
+  assert.equal(entry.targetRepo, "unknown");
+  assert.equal(entry.ledgerFallback, true);
 });
 
 test("commitGateDecision: external repo WITH gates runs ITS gates (S1.1)", async () => {

@@ -17,9 +17,9 @@ import {
   loadSpecs,
   parseFrontmatter,
   commitGateDecision,
+  appendCommitLedger,
   isCommitCommand,
   nextStep,
-  appendLedger,
   renderBoard,
   renderSpecDetail,
 } from "./core.mjs";
@@ -238,21 +238,7 @@ export default function (pi: ExtensionAPI) {
     // Ledger write helper: write to the target repo, fall back to session cwd.
     // targetRepo is "unknown" when the target could not be resolved (S1.1).
     const writeLedger = (event: any) => {
-      const targetRepo = decision.targetRepo || decision.repo;
-      try {
-        appendLedger(targetRepo, {
-          ...event,
-          targetRepo,
-          sessionCwd: ctx.cwd,
-        });
-      } catch {
-        appendLedger(ctx.cwd, {
-          ...event,
-          targetRepo,
-          sessionCwd: ctx.cwd,
-          ledgerFallback: true,
-        });
-      }
+      appendCommitLedger(decision, event, ctx.cwd);
     };
 
     if (decision.action === "allow") {

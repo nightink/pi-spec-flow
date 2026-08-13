@@ -569,6 +569,25 @@ export function appendLedger(cwd, event) {
   fs.appendFileSync(ledgerPath, line);
 }
 
+// ─── Commit ledger (S1.1): write to the ACTUAL target repo, fall back to
+// session cwd when the target is unwritable. targetRepo is "unknown" when
+// the target could not be resolved. Returns where the entry landed.
+export function appendCommitLedger(decision, event, sessionCwd) {
+  const targetRepo = decision.targetRepo || decision.repo;
+  try {
+    appendLedger(targetRepo, { ...event, targetRepo, sessionCwd });
+    return { path: targetRepo, fallback: false };
+  } catch {
+    appendLedger(sessionCwd, {
+      ...event,
+      targetRepo,
+      sessionCwd,
+      ledgerFallback: true,
+    });
+    return { path: sessionCwd, fallback: true };
+  }
+}
+
 // ─── migrate-alloc ───────────────────────────────────────────────────────────
 export function migrateAlloc(cwd) {
   const config = detectProjectConfig(cwd);
