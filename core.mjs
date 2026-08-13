@@ -401,10 +401,10 @@ export function parseE2eOutput(output) {
 // ─── Bypass detection ────────────────────────────────────────────────────────
 // Only match SPECFLOW_BYPASS=1 as a prefix env assignment to git commit,
 // not as a substring in commit messages or other arguments.
+// Supports all commit forms: cd chains, git -C, subshells (S1.1).
 export function shouldBypass(command) {
-  // Match SPECFLOW_BYPASS=1 as env prefix: at start of command or after ;/&/|,
-  // followed by whitespace and then git commit somewhere after
-  const re = /(?:^|[;&|]\s*)SPECFLOW_BYPASS=1\s+(?:.*\s)?git\s+commit/;
+  const re =
+    /(?:^|[;&|(]\s*)SPECFLOW_BYPASS=1\s+(?:cd\s+\S+\s*(?:&&|\|\||;)\s+)*git(?:(?:\s+-\S+(?:\s+[^\s&|;]+)?)+\s+commit|\s+commit)/;
   return re.test(command);
 }
 
@@ -412,8 +412,16 @@ export function shouldBypass(command) {
 // Matches `git commit` where git starts at command start, after ;/&/|, or in a
 // subshell — with optional env prefixes, `cd` chains, and git options like
 // `git -C <dir> commit` / `git -a -m "x" commit`.
-const COMMIT_RE =
-  /(?:^|[;&|(]\s*)(?:\S+=\S+\s+)*(?:cd\s+\S+\s*(?:&&|\|\||;)\s*)*git(?:(?:\s+-\S+(?:\s+[^\s&|;]+)?)+\s+commit|\s+commit)/;
+const Q = `(?:"[^"]*"|'[^']*'|\\S+)`; // quoted or bare token
+// Detection regex: cd chains may precede git commit (used for gating decision)
+const COMMIT_RE = new RegExp(
+  `(?:^|[;&|(]\\s*)(?:\\S+=\\S+\\s+)*(?:cd\\s+${Q}\\s*(?:&&|\\|\\||;)\\s+)*git(?:(?:\\s+-\\S+(?:\\s+${Q})?)+\\s+commit|\\s+commit)`
+);
+// Locator regex: WITHOUT cd chains, so m.index points at `git` itself —
+// the cd prefix stays visible for parseCommitTargetRepo.
+const GIT_COMMIT_RE = new RegExp(
+  `(?:^|[;&|(]\\s*)(?:\\S+=\\S+\\s+)*git(?:(?:\\s+-\\S+(?:\\s+${Q})?)+\\s+commit|\\s+commit)`
+);
 
 export function isCommitCommand(command) {
   return COMMIT_RE.test(command);
@@ -421,28 +429,39 @@ export function isCommitCommand(command) {
 
 // ─── Commit target repo parsing ──────────────────────────────────────────────
 // Resolve the directory the commit command actually targets:
-// last `cd <dir>` chain + trailing `git -C <dir>`, only from the part of the
-// command BEFORE the first `git commit` (a `cd` after commit is irrelevant).
+// - `cd` chains are collected from the whole prefix BEFORE the commit command
+//   (a cd changes the shell cwd for everything after it)
+// - `git -C` is only read INSIDE the matched commit command segment
+//   (`git -C /a status && git commit` must NOT count /a)
+// Supports quoted dirs (`git -C "/tmp/my dir"`) and `~` expansion.
 // Returns absolute path, or null when no cd/-C present (session cwd applies).
 export function parseCommitTargetRepo(command, cwd) {
-  const m = COMMIT_RE.exec(command);
+  const m = GIT_COMMIT_RE.exec(command);
   if (!m) return null;
-  const prefix = command.slice(0, m.index + m[0].length);
+  const prefix = command.slice(0, m.index);
+  const seg = command.slice(m.index, m.index + m[0].length);
 
+  const dirRe = new RegExp(
+    `(?:^|[;&|(]\\s*)(?:\\S+=\\S+\\s+)*cd\\s+(${Q})`,
+    "g"
+  );
   const cdDirs = [];
-  const cdRe = /(?:^|[;&|(]\s*)(?:\S+=\S+\s+)*cd\s+(\S+)/g;
   let cm;
-  while ((cm = cdRe.exec(prefix))) cdDirs.push(cm[1]);
+  while ((cm = dirRe.exec(prefix))) cdDirs.push(cm[1].replace(/^["']|["']$/g, ""));
 
+  const cRe = new RegExp(
+    `git(?:\\s+-\\S+(?:\\s+${Q})?)*\\s+-C\\s+(${Q})|git\\s+-C(${Q})`,
+    "g"
+  );
   const cDirs = [];
-  const cRe = /git(?:\s+-\S+(?:\s+[^\s&|;]+)?)*\s+-C\s+(\S+)|git\s+-C(\S+)/g;
-  while ((cm = cRe.exec(prefix))) cDirs.push(cm[1] ?? cm[2]);
+  while ((cm = cRe.exec(seg))) cDirs.push((cm[1] ?? cm[2]).replace(/^["']|["']$/g, ""));
 
   if (cdDirs.length === 0 && cDirs.length === 0) return null;
 
+  const expand = (d) => (d.startsWith("~") ? path.join(os.homedir(), d.slice(1)) : d);
   let target = cwd;
-  for (const d of cdDirs) target = path.resolve(target, d);
-  if (cDirs.length > 0) target = path.resolve(target, cDirs[cDirs.length - 1]);
+  for (const d of cdDirs) target = path.resolve(target, expand(d));
+  if (cDirs.length > 0) target = path.resolve(target, expand(cDirs[cDirs.length - 1]));
   return target;
 }
 
@@ -470,26 +489,46 @@ export async function resolveCommitRepo(cwd, command, signal) {
 
 // ─── Commit gate decision (async orchestration) ─────────────────────────────
 // Runs the full gate decision against the ACTUAL target repo, not the session
-// cwd. Returns { action, repo, confidence, gateResults, reason? }.
+// cwd. Returns { action, repo, targetRepo, confidence, gateResults, reason? }.
 export async function commitGateDecision(cwd, command, { signal, onGate } = {}) {
   const { repo, confidence } = await resolveCommitRepo(cwd, command, signal);
-  const config = detectProjectConfig(repo);
+  // Unresolved target (rev-parse failed): conservative fallback to session
+  // project gating, ledger marks targetRepo=unknown (S1.1 review note ⑤).
+  const gatesRepo = confidence === "unresolved" ? cwd : repo;
+  const targetRepo = confidence === "unresolved" ? "unknown" : repo;
+  const config = detectProjectConfig(gatesRepo);
 
-  // Target repo has no gates → allow (no session-project gate spillover)
+  // Target repo has no gates → allow (no session-project gate spillover).
+  // Explicit bypass still wins and is recorded as bypass (S1.1 goal 4).
   if (config.gates.length === 0) {
+    if (shouldBypass(command)) {
+      return {
+        action: "bypass",
+        repo: gatesRepo,
+        targetRepo,
+        confidence,
+        gateResults: {},
+        external: gatesRepo !== cwd,
+      };
+    }
     return {
       action: "allow",
-      repo,
+      repo: gatesRepo,
+      targetRepo,
       confidence,
       gateResults: {},
-      external: repo !== cwd,
+      external: gatesRepo !== cwd,
     };
   }
 
   // Run gates in the target repo
-  const gateResults = await runGates(repo, config.gates, { signal, onGate });
+  const gateResults = await runGates(gatesRepo, config.gates, { signal, onGate });
   const decision = commitGateAction(command, gateResults);
-  return { ...decision, repo, confidence, gateResults };
+  if (decision.action === "block") {
+    // Tell the user WHICH repo's gates failed (S1.1 expectation)
+    decision.reason = `spec-flow: 门禁未通过（仓库: ${gatesRepo}），禁止 commit\n\n${decision.reason.replace(/^spec-flow: 门禁未通过，禁止 commit\n\n?/, "")}`;
+  }
+  return { ...decision, repo: gatesRepo, targetRepo, confidence, gateResults };
 }
 
 // ─── Commit gate action (pure) ──────────────────────────────────────────────

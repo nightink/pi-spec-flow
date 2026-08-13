@@ -476,6 +476,11 @@ test("parseCommitTargetRepo: cd / -C chains resolve to target dir (S1.1)", () =>
   assert.equal(parseCommitTargetRepo("git commit && cd /x", cwd), null);
   // echo cd is not a real cd
   assert.equal(parseCommitTargetRepo("echo cd /x && git commit", cwd), null);
+  // S1.1 audit findings: quoted dirs, ~ expansion, -C in other segment
+  assert.equal(parseCommitTargetRepo('git -C "/tmp/my dir" commit', cwd), "/tmp/my dir");
+  assert.equal(parseCommitTargetRepo('cd "/tmp/my dir" && git commit', cwd), "/tmp/my dir");
+  assert.equal(parseCommitTargetRepo("cd ~/pages && git commit", cwd), path.join(os.homedir(), "pages"));
+  assert.equal(parseCommitTargetRepo("git -C /a status && git commit", cwd), null);
 });
 
 test("resolveCommitRepo: confirms via git rev-parse --show-toplevel (S1.1)", async () => {
@@ -501,8 +506,12 @@ test("resolveCommitRepo: confirms via git rev-parse --show-toplevel (S1.1)", asy
 });
 
 test("commitGateDecision: external repo without gates → allow (S1.1)", async () => {
+  // Session project has a REAL failing gate; target repo has none.
+  // The commit must be allowed — session gates must not spill over (S1.1 case).
   const session = mkProject({
-    "package.json": JSON.stringify({ scripts: { typecheck: "echo ok" } }),
+    "package.json": JSON.stringify({
+      scripts: { typecheck: "node -e \"process.exit(1)\"" },
+    }),
   });
   const target = mkProject({}); // no package.json → no gates
   try {
@@ -514,7 +523,6 @@ test("commitGateDecision: external repo without gates → allow (S1.1)", async (
     return; // skip if git unavailable
   }
 
-  // Session has failing gates (bad cmd), but target has none → must allow
   const decision = await commitGateDecision(
     session,
     `cd ${target} && git commit -m x`
@@ -522,6 +530,46 @@ test("commitGateDecision: external repo without gates → allow (S1.1)", async (
   assert.equal(decision.action, "allow");
   assert.equal(decision.external, true);
   assert.equal(decision.repo, fs.realpathSync(target));
+});
+
+test("commitGateDecision: block reason includes the repo path (S1.1 audit)", async () => {
+  const session = mkProject({ "package.json": "{}" });
+  const target = mkProject({
+    "package.json": JSON.stringify({
+      scripts: { typecheck: "node -e \"process.exit(1)\"" },
+    }),
+  });
+  try {
+    execSync("git init && git add . && git commit -m init --allow-empty", {
+      cwd: target,
+      stdio: "pipe",
+    });
+  } catch {
+    return; // skip if git unavailable
+  }
+
+  const decision = await commitGateDecision(session, `cd ${target} && git commit -m x`);
+  assert.equal(decision.action, "block");
+  assert.ok(decision.reason.includes("仓库: "));
+  assert.ok(decision.reason.includes(target), "reason names the failing repo");
+  assert.ok(decision.reason.includes("typecheck"));
+});
+
+test("commitGateDecision: unresolved target falls back to session gating (S1.1 audit)", async () => {
+  // cd to a non-git dir (rev-parse fails) → conservative fallback: session gating,
+  // targetRepo marked unknown.
+  const session = mkProject({
+    "package.json": JSON.stringify({
+      scripts: { typecheck: "node -e \"process.exit(1)\"" },
+    }),
+  });
+  const noGit = mkProject({});
+
+  const decision = await commitGateDecision(session, `cd ${noGit} && git commit -m x`);
+  assert.equal(decision.action, "block"); // session gates apply (conservative)
+  assert.equal(decision.confidence, "unresolved");
+  assert.equal(decision.targetRepo, "unknown");
+  assert.equal(decision.repo, session);
 });
 
 test("commitGateDecision: external repo WITH gates runs ITS gates (S1.1)", async () => {
@@ -570,6 +618,14 @@ test("commitGateDecision: external repo gates red → block with repo context (S
 });
 
 // ─── shouldBypass ────────────────────────────────────────────────────────────
+test("bypass: -C form recognized (S1.1)", () => {
+  assert.equal(shouldBypass("SPECFLOW_BYPASS=1 git -C /tmp/x commit"), true);
+  assert.equal(shouldBypass("SPECFLOW_BYPASS=1 cd /tmp/x && git commit"), true);
+  assert.equal(shouldBypass("(SPECFLOW_BYPASS=1 git commit)"), true);
+  assert.equal(shouldBypass("SPECFLOW_BYPASS=1 git log commit"), false);
+  assert.equal(shouldBypass("SPECFLOW_BYPASS=1 git commit -m 'x'"), true);
+});
+
 test("bypass: env prefix to git commit is recognized", () => {
   assert.equal(shouldBypass("SPECFLOW_BYPASS=1 git commit -m 'fix'"), true);
   assert.equal(shouldBypass("SPECFLOW_BYPASS=1 git commit --allow-empty"), true);

@@ -235,18 +235,20 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
     });
 
-    // Ledger write helper: write to the target repo, fall back to session cwd
+    // Ledger write helper: write to the target repo, fall back to session cwd.
+    // targetRepo is "unknown" when the target could not be resolved (S1.1).
     const writeLedger = (event: any) => {
+      const targetRepo = decision.targetRepo || decision.repo;
       try {
-        appendLedger(decision.repo, {
+        appendLedger(targetRepo, {
           ...event,
-          targetRepo: decision.repo,
+          targetRepo,
           sessionCwd: ctx.cwd,
         });
       } catch {
         appendLedger(ctx.cwd, {
           ...event,
-          targetRepo: decision.repo,
+          targetRepo,
           sessionCwd: ctx.cwd,
           ledgerFallback: true,
         });
