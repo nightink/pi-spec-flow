@@ -221,52 +221,64 @@ export default function (pi: ExtensionAPI) {
 
   // ─── tool_call intercept: git commit → gate check ────────────────────────
   pi.on("tool_call", async (event, ctx) => {
-    if (event.toolName !== "bash") return;
-    const command = (event.input as any).command || "";
+    // 防御（2026-08-14 事故复盘）：拦截器自身故障必须 fail-open 放行 + 告警，
+    // 不能拖死全局 bash 工具——门禁是减速带不是安全边界（spec 7 §9）。
+    // 事故形态：热重载中间态导致 _core.isCommitCommand undefined，
+    // TypeError 被 pi 当作工具错误返回，所有 bash 调用（含 echo）瘫痪 2 小时。
+    try {
+      if (event.toolName !== "bash") return;
+      const command = (event.input as any).command || "";
 
-    // Quick exit: not a git commit command (avoid unnecessary gate IO)
-    if (!isCommitCommand(command)) return;
+      // Quick exit: not a git commit command (avoid unnecessary gate IO)
+      if (typeof isCommitCommand !== "function" || !isCommitCommand(command)) return;
 
-    // IO: resolve the ACTUAL target repo (cd / git -C), then run ITS gates
-    // (async — TUI stays responsive while waiting)
-    const decision = await commitGateDecision(ctx.cwd, command, {
-      signal: ctx.signal,
-      onGate: (name: string) =>
-        ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
-    });
+      // IO: resolve the ACTUAL target repo (cd / git -C), then run ITS gates
+      // (async — TUI stays responsive while waiting)
+      const decision = await commitGateDecision(ctx.cwd, command, {
+        signal: ctx.signal,
+        onGate: (name: string) =>
+          ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
+      });
 
-    // Ledger write helper: write to the target repo, fall back to session cwd.
-    // targetRepo is "unknown" when the target could not be resolved (S1.1).
-    const writeLedger = (event: any) => {
-      appendCommitLedger(decision, event, ctx.cwd);
-    };
+      // Ledger write helper: write to the target repo, fall back to session cwd.
+      // targetRepo is "unknown" when the target could not be resolved (S1.1).
+      const writeLedger = (event: any) => {
+        appendCommitLedger(decision, event, ctx.cwd);
+      };
 
-    if (decision.action === "allow") {
-      // External repo with no gates → record, then allow silently
-      if (decision.external) {
+      if (decision.action === "allow") {
+        // External repo with no gates → record, then allow silently
+        if (decision.external) {
+          writeLedger({
+            type: "allow-external",
+            command: command.slice(0, 200),
+          });
+        }
+        return;
+      }
+
+      if (decision.action === "bypass") {
+        ctx.ui.notify(
+          "⚠️ spec-flow: SPECFLOW_BYPASS=1 detected, allowing commit despite gate failures",
+          "warning"
+        );
         writeLedger({
-          type: "allow-external",
+          type: "bypass",
+          gates: decision.gateResults,
           command: command.slice(0, 200),
         });
+        return;
       }
-      return;
-    }
 
-    if (decision.action === "bypass") {
-      ctx.ui.notify(
-        "⚠️ spec-flow: SPECFLOW_BYPASS=1 detected, allowing commit despite gate failures",
+      // block — reason already includes failed gate names + tail summaries
+      return { block: true, reason: decision.reason };
+    } catch (e: any) {
+      ctx.ui.notify?.(
+        `⚠️ spec-flow 拦截器故障（已放行本次 bash）：${e?.message ?? e}`,
         "warning"
       );
-      writeLedger({
-        type: "bypass",
-        gates: decision.gateResults,
-        command: command.slice(0, 200),
-      });
-      return;
+      return; // fail-open：不返回 block
     }
-
-    // block — reason already includes failed gate names + tail summaries
-    return { block: true, reason: decision.reason };
   });
 
   // ─── session_start: notify active specs ──────────────────────────────────
