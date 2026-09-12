@@ -336,7 +336,18 @@ function treeHash(cwd) {
   try {
     const head = execSync("git rev-parse HEAD", { cwd, stdio: ["pipe", "pipe", "pipe"] }).toString().trim();
     const dirty = execSync("git status --porcelain", { cwd, stdio: ["pipe", "pipe", "pipe"] }).toString();
-    return crypto.createHash("md5").update(head + "|" + dirty).digest("hex").slice(0, 12);
+    // 内容感知：status 只反映状态字符（M/??），同一文件**改了内容**状态串不变 →
+    // 旧的门禁失败结果会被缓存复用（实测：修好失败用例后重提交仍报旧错误）。
+    // 把 staged+unstaged 的 diff 摘要并入指纹；失败时退回状态串（不影响非 git 仓）。
+    let diff = "";
+    try {
+      diff = execSync("git diff HEAD --no-color --no-ext-diff", {
+        cwd,
+        stdio: ["pipe", "pipe", "pipe"],
+        maxBuffer: 64 * 1024 * 1024,
+      }).toString();
+    } catch { /* 截断/超限：只用状态串 */ }
+    return crypto.createHash("md5").update(head + "|" + dirty + "|" + diff).digest("hex").slice(0, 12);
   } catch {
     return null; // 非 git 仓：指纹不可用
   }
