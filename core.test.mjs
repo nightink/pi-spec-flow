@@ -15,6 +15,7 @@ import {
   runGates,
   loadSpecs,
   migrateAlloc,
+  begin,
   attest,
   done,
   board,
@@ -35,6 +36,11 @@ import {
   parseVerdictJson,
   renderBoard,
   renderSpecDetail,
+  repositorySnapshotHash,
+  specContractHash,
+  buildAuditDiff,
+  normalizeAuditResult,
+  recordConsistencyGaps,
 } from "./core.mjs";
 
 // Helper: create temp project
@@ -46,6 +52,93 @@ function mkProject(files = {}) {
     fs.writeFileSync(fullPath, content);
   }
   return dir;
+}
+
+function gitInit(dir) {
+  execSync(
+    "git init -q && git config user.email spec-flow@example.invalid && git config user.name spec-flow && git add . && git commit -qm init --allow-empty",
+    { cwd: dir, stdio: "pipe" }
+  );
+}
+
+function approvedSpec({ id = "S1.0", repo, evidence = {}, body = "## 验收标准\n\n- works" } = {}) {
+  return writeFrontmatter(
+    `# ${id}\n\n- 状态：已批准\n\n${body}\n`,
+    {
+      id,
+      status: "approved",
+      review: { decision: "approved" },
+      evidence: { human: [], ...evidence },
+      ...(repo ? { impl: { repo } } : {}),
+    }
+  );
+}
+
+function fakeAuditor(verdict = "pass", criteria) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-auditor-"));
+  const bin = path.join(dir, "auditor");
+  const result = {
+    verdict,
+    criteria: criteria || [
+      {
+        criterion: "implementation matches contract",
+        status: verdict,
+        evidence: "diff --git a/implementation.txt b/implementation.txt",
+      },
+    ],
+    scope_deviations: [],
+  };
+  fs.writeFileSync(
+    bin,
+    `#!/bin/sh\nprintf '%s\\n' '${JSON.stringify(result).replaceAll("'", "'\\''")}'\n`,
+    { mode: 0o755 }
+  );
+  return { bin, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
+}
+
+async function implementedLifecycle({
+  externalRepo = false,
+  evidence = {},
+  gatesPackage,
+  implementationFiles = {},
+} = {}) {
+  const project = mkProject({});
+  const repo = externalRepo ? mkProject({}) : project;
+  fs.mkdirSync(path.join(project, "docs/specs"), { recursive: true });
+  if (gatesPackage) fs.writeFileSync(path.join(repo, "package.json"), JSON.stringify(gatesPackage));
+  for (const [relative, content] of Object.entries(implementationFiles)) {
+    const file = path.join(repo, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, content);
+  }
+  fs.writeFileSync(
+    path.join(project, "docs/specs/S1.0.md"),
+    approvedSpec({ repo: externalRepo ? repo : undefined, evidence })
+  );
+  gitInit(repo);
+  if (externalRepo) gitInit(project);
+
+  await begin(project, "S1.0");
+  fs.writeFileSync(path.join(repo, "implementation.txt"), "implemented\n");
+  const implOutput = await impl(project, "S1.0");
+  assert.match(implOutput, /PASS/);
+  return { project, repo };
+}
+
+async function passingLifecycle(options = {}) {
+  const lifecycle = await implementedLifecycle(options);
+  const auditor = fakeAuditor();
+  const oldBin = process.env.SPECFLOW_AUDIT_BIN;
+  try {
+    process.env.SPECFLOW_AUDIT_BIN = auditor.bin;
+    const auditOutput = await audit(lifecycle.project, "S1.0");
+    assert.match(auditOutput, /PASS/);
+  } finally {
+    if (oldBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
+    else process.env.SPECFLOW_AUDIT_BIN = oldBin;
+    auditor.cleanup();
+  }
+  return lifecycle;
 }
 
 // ─── Frontmatter ─────────────────────────────────────────────────────────────
@@ -230,23 +323,20 @@ evidence:
   );
 });
 
-test("attest: accept valid note", () => {
-  const dir = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-evidence:
-  human: [R1]
----
-
-- 状态：进行中`,
-  });
-
-  const output = attest(dir, "S1.0", "R1", "Verified with sample data in tests/fixtures/sample.json");
+test("attest: accept valid note and bind both hashes", async () => {
+  const { project } = await passingLifecycle({ evidence: { human: ["R1"] } });
+  const output = attest(
+    project,
+    "S1.0",
+    "R1",
+    "Verified settings save and reload with fixture account qa-17"
+  );
   assert.ok(output.includes("已登记"));
 
-  // Check ledger
-  const ledger = fs.readFileSync(path.join(dir, ".spec-flow-ledger.jsonl"), "utf8");
+  const spec = loadSpecs(project)[0].frontmatter;
+  assert.equal(spec.attestations.R1.impl_hash, spec.impl.snapshot_hash);
+  assert.equal(spec.attestations.R1.contract_hash, spec.audit.contract_hash);
+  const ledger = fs.readFileSync(path.join(project, ".spec-flow-ledger.jsonl"), "utf8");
   assert.ok(ledger.includes('"type":"attest"'));
 });
 
@@ -264,151 +354,67 @@ status: in-progress
   await assert.rejects(done(dir, "S1.0"), /缺口/);
 });
 
-test("done: accepts audit sha from impl.repo (external repo)", async () => {
-  // Project A: spec project
-  const dirA = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  repo: DIR_B_PLACEHOLDER
-  at: "2026-08-10T00:00:00Z"
-  gates: {}
-  e2e: {}
-audit:
-  verdict: pass
-  sha: SHA_B_PLACEHOLDER
-evidence:
-  human: []
----
-
-- 状态：进行中`,
-  });
-  // Project B: separate implementation repo
-  const dirB = mkProject({});
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dirB,
-      stdio: "pipe",
-    });
-  } catch {
-    return; // skip if git unavailable
-  }
-  const shaB = execSync("git rev-parse HEAD", { cwd: dirB, stdio: "pipe" }).toString().trim();
-
-  // Also init dirA as git repo (but its HEAD will differ from dirB)
-  execSync("git init && git add . && git commit -m init --allow-empty", {
-    cwd: dirA,
-    stdio: "pipe",
-  });
-
-  // Patch the spec to use actual dirB path and shaB
-  let specContent = fs.readFileSync(path.join(dirA, "docs/specs/S1.0.md"), "utf8");
-  specContent = specContent.replace("DIR_B_PLACEHOLDER", dirB);
-  specContent = specContent.replace("SHA_B_PLACEHOLDER", shaB);
-  fs.writeFileSync(path.join(dirA, "docs/specs/S1.0.md"), specContent);
-
-  // done() should succeed — audit.sha matches dirB HEAD even though dirA HEAD differs
-  const output = await done(dirA, "S1.0");
+test("done: accepts hash-bound evidence from impl.repo (external repo)", async () => {
+  const { project } = await passingLifecycle({ externalRepo: true });
+  const output = await done(project, "S1.0");
   assert.ok(output.includes("已完成"));
 });
 
-test("done: reject when audit sha stale", async () => {
-  const dir = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  at: "2026-08-10T00:00:00Z"
-  gates: {}
-  e2e: {}
-audit:
-  verdict: pass
-  sha: oldsha
----
+test("done: reject when tracked or untracked implementation changes after audit", async () => {
+  const tracked = await passingLifecycle();
+  fs.writeFileSync(path.join(tracked.repo, "implementation.txt"), "changed\n");
+  await assert.rejects(done(tracked.project, "S1.0"), /实现快照已变化/);
 
-- 状态：进行中`,
-  });
-
-  // Initialize git repo to get a real HEAD
-  fs.writeFileSync(path.join(dir, ".gitignore"), "");
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dir,
-      stdio: "pipe",
-    });
-  } catch {
-    // git not available or commit failed, skip
-    return;
-  }
-
-  await assert.rejects(done(dir, "S1.0"), /sha 过期/);
+  const untracked = await passingLifecycle();
+  fs.writeFileSync(path.join(untracked.repo, "new-untracked.txt"), "new\n");
+  await assert.rejects(done(untracked.project, "S1.0"), /实现快照已变化/);
 });
 
-test("done: ledger includes impl summary and audit info", async () => {
-  const dir = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  at: "2026-08-10T00:00:00Z"
-  gates:
-    typecheck:
-      pass: true
-      tail: ""
-    biome:
-      pass: true
-      tail: ""
-  e2e:
-    e2e-01:
-      pass: true
-      passCount: 3
-      failCount: 0
-    e2e-02:
-      pass: true
-      passCount: 5
-      failCount: 0
-audit:
-  verdict: pass
-  sha: SHA_PLACEHOLDER
-evidence:
-  human: []
----
-
-- 状态：进行中`,
+test("check --ci keeps v2 done historical: no live snapshot or current evidence-file recheck", async () => {
+  const { project, repo } = await passingLifecycle({
+    evidence: { e2e: ["e2e-history"] },
+    implementationFiles: {
+      "tests/e2e/e2e-history.mjs": 'console.log("PASS historical evidence");\n',
+    },
   });
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dir,
-      stdio: "pipe",
-    });
-  } catch {
-    return; // skip if git unavailable
-  }
-  const realSha = await getHeadSha(dir);
-  let content = fs.readFileSync(path.join(dir, "docs/specs/S1.0.md"), "utf8");
-  content = content.replace("SHA_PLACEHOLDER", realSha);
-  fs.writeFileSync(path.join(dir, "docs/specs/S1.0.md"), content);
+  await done(project, "S1.0");
+  fs.rmSync(path.join(repo, "tests/e2e/e2e-history.mjs"));
+  fs.writeFileSync(path.join(repo, "new-current-file.txt"), "today\n");
+  const result = await checkCI(project);
+  assert.equal(result.pass, true, result.output);
+});
 
-  const output = await done(dir, "S1.0");
+test("done: ledger includes bound impl and audit summary", async () => {
+  const { project } = await passingLifecycle({
+    gatesPackage: { scripts: { typecheck: "node -e \"process.exit(0)\"" } },
+  });
+  const output = await done(project, "S1.0");
   assert.ok(output.includes("已完成"));
 
-  // Read ledger and verify structure
-  const ledger = fs.readFileSync(path.join(dir, ".spec-flow-ledger.jsonl"), "utf8");
-  const doneLine = ledger.split("\n").filter(Boolean).find((l) => JSON.parse(l).type === "done");
-  assert.ok(doneLine, "done ledger entry should exist");
-  const entry = JSON.parse(doneLine);
-
-  // gates summary
-  assert.deepEqual(entry.impl_summary.gates, { typecheck: "pass", biome: "pass" });
-
-  // e2e summary
-  assert.deepEqual(entry.impl_summary.e2e["e2e-01"], { pass: "PASS", passCount: 3, failCount: 0 });
-  assert.deepEqual(entry.impl_summary.e2e["e2e-02"], { pass: "PASS", passCount: 5, failCount: 0 });
-
-  // audit summary
+  const ledger = fs.readFileSync(path.join(project, ".spec-flow-ledger.jsonl"), "utf8");
+  const entry = ledger
+    .split("\n")
+    .filter(Boolean)
+    .map(JSON.parse)
+    .find((event) => event.type === "done");
+  assert.ok(entry);
+  assert.deepEqual(entry.impl_summary.gates, { typecheck: "pass" });
+  assert.deepEqual(entry.impl_summary.e2e, {});
+  assert.equal(entry.impl_summary.migrations.pass, true);
   assert.equal(entry.audit.verdict, "pass");
-  assert.equal(entry.audit.sha, realSha.slice(0, 8));
+  assert.equal(entry.audit.prompt_version, 2);
+  assert.match(entry.impl_hash, /^[0-9a-f]{64}$/);
+  assert.match(entry.contract_hash, /^[0-9a-f]{64}$/);
+});
+
+test("done: verdict=pass with a failing criterion is rejected", async () => {
+  const { project } = await passingLifecycle();
+  const file = path.join(project, "docs/specs/S1.0.md");
+  const content = fs.readFileSync(file, "utf8");
+  const parsed = parseFrontmatter(content);
+  parsed.data.audit.criteria[0].status = "fail";
+  fs.writeFileSync(file, writeFrontmatter(content, parsed.data));
+  await assert.rejects(done(project, "S1.0"), /criteria 未全绿/);
 });
 
 // ─── board ───────────────────────────────────────────────────────────────────
@@ -728,190 +734,125 @@ test("e2e parse: PASS must be at line start", () => {
   assert.equal(result.passCount, 1);
 });
 
-test("impl: e2e with FAIL lines in output is detected as failure", async () => {
+async function implE2eFixture(source, evidence = ["e2e-01"]) {
   const dir = mkProject({
     "package.json": JSON.stringify({ scripts: {} }),
-    "tests/e2e/e2e-01.mjs": `console.log("PASS x"); console.log("FAIL y"); process.exit(0);`,
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-evidence:
-  e2e: [e2e-01]
----
-
-- 状态：进行中`,
+    "tests/e2e/e2e-01.mjs": source,
+    "docs/specs/S1.0.md": approvedSpec({ evidence: { e2e: evidence } }),
   });
-  const output = await impl(dir, "S1.0");
-  // The e2e should be detected as failed because of FAIL line
-  assert.ok(output.includes("✗") || output.includes("FAIL"), "e2e with FAIL line should not pass");
+  gitInit(dir);
+  await begin(dir, "S1.0");
+  return { dir, output: await impl(dir, "S1.0") };
+}
+
+test("impl: e2e with FAIL lines in output is detected as failure", async () => {
+  const { output } = await implE2eFixture(
+    `console.log("PASS x"); console.error("FAIL y"); process.exit(0);`
+  );
+  assert.match(output, /❌ FAIL/);
+  assert.match(output, /e2e-01: ✗/);
 });
 
 test("impl: e2e with all PASS lines passes", async () => {
-  const dir = mkProject({
-    "package.json": JSON.stringify({ scripts: {} }),
-    "tests/e2e/e2e-01.mjs": `console.log("PASS a"); console.log("PASS b");`,
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-evidence:
-  e2e: [e2e-01]
----
-
-- 状态：进行中`,
-  });
-  const output = await impl(dir, "S1.0");
-  assert.ok(output.includes("✓") || output.includes("PASS"), "all PASS should succeed");
-  assert.ok(output.includes("2 PASS"), "should show count");
+  const { output } = await implE2eFixture(
+    `console.log("PASS a"); console.log("PASS b");`
+  );
+  assert.match(output, /✅ PASS/);
+  assert.match(output, /2 PASS/);
 });
 
 test("impl: e2e with non-zero exit is failure", async () => {
-  const dir = mkProject({
-    "package.json": JSON.stringify({ scripts: {} }),
-    "tests/e2e/e2e-01.mjs": `console.log("PASS x"); process.exit(1);`,
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-evidence:
-  e2e: [e2e-01]
----
-
-- 状态：进行中`,
-  });
-  const output = await impl(dir, "S1.0");
-  assert.ok(output.includes("✗"), "non-zero exit should fail");
+  const { output } = await implE2eFixture(
+    `console.log("PASS x"); process.exit(1);`
+  );
+  assert.match(output, /❌ FAIL/);
 });
 
-test("audit: pass result cached when base/HEAD unchanged (no re-spawn)", async () => {
-  const dir = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  base_sha: abc123
----
+test("impl: missing and path-traversal e2e evidence fail closed", async () => {
+  const missing = await implE2eFixture(`console.log("PASS unused")`, ["e2e-missing"]);
+  assert.match(missing.output, /File not found/);
 
-- 状态：进行中`,
-  });
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dir,
-      stdio: "pipe",
-    });
-  } catch {
-    return; // skip if git unavailable
-  }
-  const fakeAuditor = path.join(dir, "fake-auditor.mjs");
-  const writeAuditor = (body) => {
-    fs.writeFileSync(fakeAuditor, `#!/usr/bin/env node\n${body}\n`);
-    fs.chmodSync(fakeAuditor, 0o755);
-  };
-  writeAuditor(
-    `console.log(JSON.stringify({ verdict: "pass", criteria: [{ criterion: "c1", status: "pass", evidence: "e" }], scope_deviations: [] })); process.exit(0);`
-  );
+  const traversal = await implE2eFixture(`console.log("PASS unused")`, ["../escape"]);
+  assert.match(traversal.output, /Invalid e2e evidence id/);
+});
+
+test("audit: pass result caches only on unchanged implementation and contract hashes", async () => {
+  const { project } = await passingLifecycle();
   const savedBin = process.env.SPECFLOW_AUDIT_BIN;
-  process.env.SPECFLOW_AUDIT_BIN = fakeAuditor;
+  process.env.SPECFLOW_AUDIT_BIN = "/definitely/not/an/auditor";
   try {
-    const first = await audit(dir, "S1.0");
-    assert.ok(first.includes("✅ PASS"));
-    assert.ok(!first.includes("缓存复用"), "first audit is a real run");
-
-    // Now make the auditor fail — cache should prevent it from being called
-    writeAuditor(`console.error("should not be called"); process.exit(1);`);
-    const second = await audit(dir, "S1.0");
-    assert.ok(second.includes("缓存复用"), "second audit reuses cache");
-    assert.ok(second.includes("✅ PASS"));
+    const second = await audit(project, "S1.0");
+    assert.match(second, /缓存复用/);
+    assert.match(second, /✅ PASS/);
   } finally {
     if (savedBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
     else process.env.SPECFLOW_AUDIT_BIN = savedBin;
   }
+
+  const file = path.join(project, "docs/specs/S1.0.md");
+  fs.appendFileSync(file, "\nChanged acceptance contract.\n");
+  await assert.rejects(audit(project, "S1.0"), /contract changed/);
 });
 
-test("audit: fail verdict is not cached (re-runs auditor)", async () => {
-  const dir = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  base_sha: abc123
----
-
-- 状态：进行中`,
-  });
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dir,
-      stdio: "pipe",
-    });
-  } catch {
-    return; // skip if git unavailable
-  }
-  const fakeAuditor = path.join(dir, "fake-auditor.mjs");
-  fs.writeFileSync(
-    fakeAuditor,
-    `#!/usr/bin/env node\nconsole.log(JSON.stringify({ verdict: "fail", criteria: [{ criterion: "c1", status: "fail", evidence: "x" }], scope_deviations: [] })); process.exit(0);\n`
-  );
-  fs.chmodSync(fakeAuditor, 0o755);
+test("audit: fail verdict is not cached and re-runs auditor", async () => {
+  const { project } = await implementedLifecycle();
+  const counter = path.join(os.tmpdir(), `specflow-audit-count-${process.pid}-${Date.now()}`);
+  const auditor = fakeAuditor("fail", [
+    { criterion: "c1", status: "fail", evidence: "missing implementation" },
+  ]);
+  const original = fs.readFileSync(auditor.bin, "utf8");
+  fs.writeFileSync(auditor.bin, original.replace("printf", `echo x >> '${counter}'\nprintf`), { mode: 0o755 });
   const savedBin = process.env.SPECFLOW_AUDIT_BIN;
-  process.env.SPECFLOW_AUDIT_BIN = fakeAuditor;
+  process.env.SPECFLOW_AUDIT_BIN = auditor.bin;
   try {
-    const first = await audit(dir, "S1.0");
-    assert.ok(first.includes("❌ FAIL"));
-    // fail verdict → no cache → second run calls auditor again (still fail)
-    const second = await audit(dir, "S1.0");
-    assert.ok(second.includes("❌ FAIL"));
-    assert.ok(!second.includes("缓存复用"), "fail verdict must not be cached");
+    assert.match(await audit(project, "S1.0"), /❌ FAIL/);
+    const second = await audit(project, "S1.0");
+    assert.match(second, /❌ FAIL/);
+    assert.doesNotMatch(second, /缓存复用/);
+    assert.equal(fs.readFileSync(counter, "utf8").trim().split("\n").length, 2);
   } finally {
     if (savedBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
     else process.env.SPECFLOW_AUDIT_BIN = savedBin;
+    auditor.cleanup();
+    fs.rmSync(counter, { force: true });
   }
 });
 
 // ─── Audit criteria naming ──────────────────────────────────────────────────
-test("audit: fallback uses spec-contract field names (criteria/status)", async () => {
-  const dir = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  base_sha: abc123
----
-
-- 状态：进行中`,
-  });
-  // Init git so getHeadSha works
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dir,
-      stdio: "pipe",
-    });
-  } catch {
-    return; // skip if git unavailable
-  }
-  // Point the auditor at a fake CLI that fails fast (hermetic — no real pi subprocess)
-  const fakeAuditor = path.join(dir, "fake-auditor.mjs");
-  fs.writeFileSync(
-    fakeAuditor,
-    `#!/usr/bin/env node\nconsole.error("fake auditor failure");\nprocess.exit(1);\n`
-  );
-  fs.chmodSync(fakeAuditor, 0o755);
+test("audit: subprocess failure persists fail/unverifiable criteria", async () => {
+  const { project } = await implementedLifecycle();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-audit-fail-"));
+  const bin = path.join(dir, "auditor");
+  fs.writeFileSync(bin, "#!/bin/sh\necho fake auditor failure >&2\nexit 1\n", { mode: 0o755 });
   const savedBin = process.env.SPECFLOW_AUDIT_BIN;
-  process.env.SPECFLOW_AUDIT_BIN = fakeAuditor;
+  process.env.SPECFLOW_AUDIT_BIN = bin;
   try {
-    // Fake auditor exits non-zero, triggering fallback path
-    const output = await audit(dir, "S1.0");
-    // The summary should use "criteria" not "findings"
-    assert.ok(output.includes("criteria:"), "summary should say 'criteria:' not 'findings:'");
-    assert.ok(!output.includes("findings:"), "should not contain old field name 'findings:'");
+    const output = await audit(project, "S1.0");
+    assert.match(output, /criteria:/);
+    assert.doesNotMatch(output, /findings:/);
+    const stored = loadSpecs(project)[0].frontmatter.audit;
+    assert.equal(stored.verdict, "fail");
+    assert.equal(stored.criteria[0].status, "unverifiable");
   } finally {
     if (savedBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
     else process.env.SPECFLOW_AUDIT_BIN = savedBin;
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
 // ─── buildAuditorArgs ──────────────────────────────────────────────────────
 test("buildAuditorArgs: returns @file arg, file contains prompt, cleanup works", () => {
   const { args, cleanup } = buildAuditorArgs("hello");
-  assert.deepStrictEqual(args.slice(0, 4), ["-p", "--no-extensions", "--no-skills", "--no-context-files"]);
+  assert.deepStrictEqual(args.slice(0, 7), [
+    "-p",
+    "--no-session",
+    "--no-tools",
+    "--no-extensions",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-context-files",
+  ]);
+  assert.deepEqual(args.slice(7, 9), ["--thinking", "off"]);
   assert.ok(args[args.length - 1].startsWith("@"));
   const file = args[args.length - 1].slice(1);
   assert.ok(fs.existsSync(file));
@@ -922,7 +863,18 @@ test("buildAuditorArgs: returns @file arg, file contains prompt, cleanup works",
 
 test("buildAuditorArgs: includes --model when model is provided", () => {
   const { args, cleanup } = buildAuditorArgs("hello", "gpt-4");
-  assert.deepStrictEqual(args.slice(0, 6), ["-p", "--no-extensions", "--no-skills", "--no-context-files", "--model", "gpt-4"]);
+  assert.deepStrictEqual(args.slice(0, 9), [
+    "-p",
+    "--no-session",
+    "--no-tools",
+    "--no-extensions",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-context-files",
+    "--model",
+    "gpt-4",
+  ]);
+  assert.deepEqual(args.slice(9, 11), ["--thinking", "off"]);
   assert.ok(args[args.length - 1].startsWith("@"));
   cleanup();
 });
@@ -961,6 +913,7 @@ test("nextStep: impl.at empty → spec_impl", async () => {
     "docs/specs/S1.0.md": `---
 id: S1.0
 status: in-progress
+workflow_version: 2
 ---
 
 - 状态：进行中`,
@@ -975,8 +928,10 @@ test("nextStep: impl pass, no audit → spec_audit", async () => {
     "docs/specs/S1.0.md": `---
 id: S1.0
 status: in-progress
+workflow_version: 2
 impl:
   at: '2026-08-10T00:00:00Z'
+  pass: true
   gates:
     typecheck:
       pass: true
@@ -1000,8 +955,10 @@ test("nextStep: impl has gate failure → fix impl", async () => {
     "docs/specs/S1.0.md": `---
 id: S1.0
 status: in-progress
+workflow_version: 2
 impl:
   at: '2026-08-10T00:00:00Z'
+  pass: false
   gates:
     typecheck:
       pass: false
@@ -1021,8 +978,10 @@ test("nextStep: audit verdict fail → fix findings", async () => {
     "docs/specs/S1.0.md": `---
 id: S1.0
 status: in-progress
+workflow_version: 2
 impl:
   at: '2026-08-10T00:00:00Z'
+  pass: true
   gates:
     typecheck:
       pass: true
@@ -1040,123 +999,32 @@ audit:
   assert.equal(step, "下一步：修复审计 findings 后重跑 spec_audit S1.0");
 });
 
-test("nextStep: audit pass but sha stale → rerun audit", async () => {
-  const dir = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  at: '2026-08-10T00:00:00Z'
-  gates:
-    typecheck:
-      pass: true
-      tail: ''
-  e2e: {}
-audit:
-  verdict: pass
-  sha: stale_sha
----
-
-- 状态：进行中`,
-  });
-  // Init git to get a real HEAD
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dir,
-      stdio: "pipe",
-    });
-  } catch {
-    return; // skip if git unavailable
-  }
-  const specs = loadSpecs(dir);
-  const step = await nextStep(dir, specs[0]);
-  assert.equal(step, "下一步：重跑 spec_audit S1.0（sha 失配）");
+test("nextStep: stale audit binding → rerun audit", async () => {
+  const { project } = await passingLifecycle();
+  const file = path.join(project, "docs/specs/S1.0.md");
+  const content = fs.readFileSync(file, "utf8");
+  const parsed = parseFrontmatter(content);
+  parsed.data.audit.impl_hash = "0".repeat(64);
+  fs.writeFileSync(file, writeFrontmatter(content, parsed.data));
+  const step = await nextStep(project, loadSpecs(project)[0]);
+  assert.equal(step, "下一步：重跑 spec_audit S1.0（证据绑定已过期）");
 });
 
-test("nextStep: all green → spec_done", async () => {
-  const dir = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  at: '2026-08-10T00:00:00Z'
-  gates:
-    typecheck:
-      pass: true
-      tail: ''
-  e2e:
-    e2e-01:
-      pass: true
-      passCount: 2
-      failCount: 0
-audit:
-  verdict: pass
-  sha: PLACEHOLDER
----
-
-- 状态：进行中`,
-  });
-  // Init git to get a real HEAD
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dir,
-      stdio: "pipe",
-    });
-  } catch {
-    return; // skip if git unavailable
-  }
-  const realSha = await getHeadSha(dir);
-  // Patch the spec to use real sha
-  let content = fs.readFileSync(path.join(dir, "docs/specs/S1.0.md"), "utf8");
-  content = content.replace("PLACEHOLDER", realSha);
-  fs.writeFileSync(path.join(dir, "docs/specs/S1.0.md"), content);
-
-  const specs = loadSpecs(dir);
-  const step = await nextStep(dir, specs[0]);
+test("nextStep: all bound evidence green → spec_done", async () => {
+  const { project } = await passingLifecycle();
+  const step = await nextStep(project, loadSpecs(project)[0]);
   assert.equal(step, "下一步：spec_done S1.0");
 });
 
-test("nextStep: uses impl.repo for sha comparison when set", async () => {
-  const dirA = mkProject({
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  repo: DIR_B_PLACEHOLDER
-  at: '2026-08-10T00:00:00Z'
-  gates: {}
-  e2e: {}
-audit:
-  verdict: pass
-  sha: SHA_B_PLACEHOLDER
----
-
-- 状态：进行中`,
-  });
-  const dirB = mkProject({});
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dirB,
-      stdio: "pipe",
-    });
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dirA,
-      stdio: "pipe",
-    });
-  } catch {
-    return; // skip if git unavailable
-  }
-  const shaB = execSync("git rev-parse HEAD", { cwd: dirB, stdio: "pipe" }).toString().trim();
-
-  let content = fs.readFileSync(path.join(dirA, "docs/specs/S1.0.md"), "utf8");
-  content = content.replace("DIR_B_PLACEHOLDER", dirB);
-  content = content.replace("SHA_B_PLACEHOLDER", shaB);
-  fs.writeFileSync(path.join(dirA, "docs/specs/S1.0.md"), content);
-
-  const specs = loadSpecs(dirA);
-  const step = await nextStep(dirA, specs[0]);
-  // sha matches dirB HEAD → all green
-  assert.equal(step, "下一步：spec_done S1.0");
+test("nextStep: board stays record-only; done owns live snapshot validation", async () => {
+  const { project, repo } = await passingLifecycle({ externalRepo: true });
+  assert.equal(await nextStep(project, loadSpecs(project)[0]), "下一步：spec_done S1.0");
+  fs.writeFileSync(path.join(repo, "external-change.txt"), "changed\n");
+  assert.equal(
+    await nextStep(project, loadSpecs(project)[0]),
+    "下一步：spec_done S1.0"
+  );
+  await assert.rejects(done(project, "S1.0"), /实现快照已变化/);
 });
 
 // ─── renderBoard / renderSpecDetail (for /spec command) ───────────────────
@@ -1165,59 +1033,26 @@ test("renderBoard: empty project → empty string", async () => {
   assert.equal(await renderBoard(dir), "");
 });
 
-test("renderBoard: shows status, drift, impl/audit/attest, next step", async () => {
-  const dir = mkProject({
-    "package.json": JSON.stringify({ scripts: { typecheck: "tsc" } }),
-    "docs/specs/S1.0.md": `---
-id: S1.0
-status: in-progress
-impl:
-  at: "2026-08-10T12:00:00Z"
-  gates:
-    typecheck:
-      pass: true
-      tail: ""
-  e2e: {}
-audit:
-  verdict: pass
-  sha: abc12345
-evidence:
-  human: [R1, R2]
-attestations:
-  R1:
-    at: "2026-08-10T13:00:00Z"
-    note: "verified sample data"
----
-
-- 状态：进行中`,
-    "docs/specs/S2.0.md": `# No frontmatter
-
-Body`,
+test("renderBoard: shows status, impl/audit/attest, and accurate next step", async () => {
+  const { project } = await passingLifecycle({
+    externalRepo: true,
+    evidence: { human: ["R1", "R2"] },
   });
-  try {
-    execSync("git init && git add . && git commit -m init --allow-empty", {
-      cwd: dir,
-      stdio: "pipe",
-    });
-  } catch {
-    return; // skip if git unavailable
-  }
-  const realSha = execSync("git rev-parse HEAD", { cwd: dir, stdio: "pipe" })
-    .toString()
-    .trim();
-  // Patch the audit sha to the real HEAD so nextStep says spec_done
-  let specContent = fs.readFileSync(path.join(dir, "docs/specs/S1.0.md"), "utf8");
-  specContent = specContent.replace("abc12345", realSha);
-  fs.writeFileSync(path.join(dir, "docs/specs/S1.0.md"), specContent);
+  attest(project, "S1.0", "R1", "Verified settings save and reload with fixture account qa-17");
+  fs.writeFileSync(
+    path.join(project, "package.json"),
+    JSON.stringify({ scripts: { typecheck: "node -e \"\"" } })
+  );
+  fs.writeFileSync(path.join(project, "docs/specs/S2.0.md"), "# No frontmatter\n\nBody\n");
 
-  const output = await renderBoard(dir);
+  const output = await renderBoard(project);
   assert.ok(output.includes("spec-flow board — 2 个 spec"));
   assert.ok(output.includes("门禁: typecheck"));
   assert.ok(output.includes("• S1.0 [S1.0.md] 进行中"));
   assert.ok(output.includes("impl ✓"));
   assert.ok(output.includes("audit ✓"));
   assert.ok(output.includes("attest 1/2"));
-  assert.ok(output.includes("下一步：spec_done S1.0"));
+  assert.ok(output.includes("人工核验 R2"));
   assert.ok(output.includes("S2.0.md ⚠️ 未纳管"));
 });
 
@@ -1311,7 +1146,7 @@ attestations:
   assert.ok(output.includes("audit: pass @"), "audit line shows verdict+sha");
   assert.ok(output.includes("attest: R1 ✓"));
   assert.ok(output.includes("evidence.migrations: 001"));
-  assert.ok(output.includes("下一步：spec_done S1.0"));
+  assert.ok(output.includes("下一步：spec_begin S1.0（迁移到 workflow v2）"));
 });
 
 // ─── parseVerdictJson ─────────────────────────────────────────────────────

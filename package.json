@@ -1,9 +1,39 @@
 {
   "name": "pi-spec-flow",
-  "version": "0.1.0",
+  "version": "0.2.0",
+  "description": "Evidence-bound spec workflow gates for the pi coding agent",
   "type": "module",
   "private": true,
+  "keywords": [
+    "pi-package"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "typecheck": "node --check core.mjs && node --check index.ts && node --check adapter-core.mjs",
+    "test": "node --test core.test.mjs trustworthy.test.mjs adapter-core.test.mjs",
+    "smoke:pi": "node tests/smoke/pi-rpc-load.mjs",
+    "check": "npm run typecheck && npm test && node tests/e2e/e2e-commit-gate.mjs && node tests/e2e/e2e-trustworthy-closure.mjs && node core.mjs check --ci"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
   "dependencies": {
-    "js-yaml": "^4"
+    "js-yaml": "^4.3.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
   }
 }

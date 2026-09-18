@@ -2,9 +2,14 @@
 // Thin wrapper: registerTool ×6 + tool_call intercept + session_start summary
 // All long-running work (gates, e2e, pi audit subprocess) is async — the
 // event loop stays free so the TUI never freezes while waiting.
+// Lifecycle tools (begin/impl/audit/attest/done) resolve the real spec path and
+// hold the per-file mutation queue for the whole read-modify-write window;
+// failures are thrown — Pi turns a thrown execute() into a real error result.
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { resolve } from "node:path";
 import {
   board,
   begin,
@@ -12,10 +17,8 @@ import {
   audit,
   attest,
   done,
-  migrateAlloc,
-  checkCI,
+  findSpec,
   loadSpecs,
-  parseFrontmatter,
   commitGateDecision,
   appendCommitLedger,
   isCommitCommand,
@@ -23,9 +26,31 @@ import {
   renderBoard,
   renderSpecDetail,
 } from "./core.mjs";
+import { attestationGate, truncateToolText } from "./adapter-core.mjs";
 
 // Track latest session cwd — command completions have no ctx
 let lastCwd = process.cwd();
+
+// Resolve the REAL spec file first, then run the whole read-modify-write window
+// under the same per-file queue as built-in edit/write. The returned promise is
+// awaited by withFileMutationQueue, so the queue is held until the mutation
+// (and its writes) finish. Tool failures propagate to Pi.
+async function runSpecMutation<T>(
+  cwd: string,
+  id: string,
+  fn: () => T | Promise<T>
+): Promise<T> {
+  const spec = findSpec(cwd, id);
+  if (!spec) throw new Error(`Spec ${id} not found`);
+  return withFileMutationQueue(resolve(spec.path), async () => fn());
+}
+
+function toolResult(text: string) {
+  return {
+    content: [{ type: "text" as const, text: truncateToolText(text) }],
+    details: {},
+  };
+}
 
 export default function (pi: ExtensionAPI) {
   // ─── Register tools ──────────────────────────────────────────────────────
@@ -35,16 +60,7 @@ export default function (pi: ExtensionAPI) {
     description: "Show all specs with status and drift detection",
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      try {
-        const output = board(ctx.cwd);
-        return { content: [{ type: "text", text: output }], details: {} };
-      } catch (e: any) {
-        return {
-          content: [{ type: "text", text: `Error: ${e.message}` }],
-          details: {},
-          isError: true,
-        };
-      }
+      return toolResult(board(ctx.cwd));
     },
   });
 
@@ -56,16 +72,10 @@ export default function (pi: ExtensionAPI) {
       id: Type.String({ description: "Spec ID (e.g., S3.13)" }),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      try {
-        const output = await begin(ctx.cwd, params.id, { signal });
-        return { content: [{ type: "text", text: output }], details: {} };
-      } catch (e: any) {
-        return {
-          content: [{ type: "text", text: `Error: ${e.message}` }],
-          details: {},
-          isError: true,
-        };
-      }
+      const output = await runSpecMutation(ctx.cwd, params.id, () =>
+        begin(ctx.cwd, params.id, { signal })
+      );
+      return toolResult(output);
     },
   });
 
@@ -77,20 +87,20 @@ export default function (pi: ExtensionAPI) {
       id: Type.String({ description: "Spec ID" }),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      try {
-        const output = await impl(ctx.cwd, params.id, {
+      const output = await runSpecMutation(ctx.cwd, params.id, () =>
+        impl(ctx.cwd, params.id, {
           signal,
-          onGate: (name) =>
-            ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
-        });
-        return { content: [{ type: "text", text: output }], details: {} };
-      } catch (e: any) {
-        return {
-          content: [{ type: "text", text: `Error: ${e.message}` }],
-          details: {},
-          isError: true,
-        };
-      }
+          onGate: (name) => {
+            if (ctx.hasUI) {
+              ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info");
+            }
+          },
+          onDiagnostic: (message: string) => {
+            if (ctx.hasUI) ctx.ui.notify(`⚠️ spec-flow: ${message}`, "warning");
+          },
+        })
+      );
+      return toolResult(output);
     },
   });
 
@@ -102,35 +112,33 @@ export default function (pi: ExtensionAPI) {
       id: Type.String({ description: "Spec ID" }),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      try {
+      if (ctx.hasUI) {
         ctx.ui.notify(
           "🔍 spec-flow: 独立审计运行中（可 Esc 中断，输入会排队到结束后处理）…",
           "info"
         );
-        // Heartbeat: keep the tool view alive so it never looks frozen
-        const started = Date.now();
-        const heartbeat = setInterval(() => {
-          const secs = Math.round((Date.now() - started) / 1000);
-          onUpdate?.({
-            content: [{ type: "text", text: `⏳ 审计运行中 ${secs}s…（Esc 可中断）` }],
-          });
-        }, 5000);
-        try {
-          const output = await audit(ctx.cwd, params.id, {
+      }
+      // Heartbeat: keep the tool view alive so it never looks frozen
+      const started = Date.now();
+      const heartbeat = setInterval(() => {
+        const secs = Math.round((Date.now() - started) / 1000);
+        onUpdate?.({
+          content: [{ type: "text", text: `⏳ 审计运行中 ${secs}s…（Esc 可中断）` }],
+        });
+      }, 5000);
+      try {
+        const output = await runSpecMutation(ctx.cwd, params.id, () =>
+          audit(ctx.cwd, params.id, {
             signal,
             onProgress: (text) =>
-              onUpdate?.({ content: [{ type: "text", text }] }),
-          });
-          return { content: [{ type: "text", text: output }], details: {} };
-        } finally {
-          clearInterval(heartbeat);
-        }
-      } catch (e: any) {
-        return {
-          content: [{ type: "text", text: `Error: ${e.message}` }],
-          details: {},
-          isError: true,
-        };
+              onUpdate?.({
+                content: [{ type: "text", text: truncateToolText(text) }],
+              }),
+          })
+        );
+        return toolResult(output);
+      } finally {
+        clearInterval(heartbeat);
       }
     },
   });
@@ -146,17 +154,40 @@ export default function (pi: ExtensionAPI) {
         description: "Verification note (≥20 chars, describe path and sample)",
       }),
     }),
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      try {
-        const output = attest(ctx.cwd, params.id, params.item, params.note);
-        return { content: [{ type: "text", text: output }], details: {} };
-      } catch (e: any) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      // Human gate: reject without a real UI; otherwise show item+note and ask.
+      // The dialog stays OUTSIDE the mutation queue (a user may take minutes).
+      const gate = await attestationGate({
+        hasUI: ctx.hasUI,
+        confirm: ctx.ui?.confirm?.bind(ctx.ui),
+        id: params.id,
+        item: params.item,
+        note: params.note,
+        signal,
+      });
+
+      if (gate.reason === "no-ui") {
+        throw new Error(
+          "spec_attest 需要交互式 UI 用户确认；当前模式无 UI，未写入。" +
+            "如需显式登记，请在 CLI 运行：node core.mjs attest <id> <item> <note>"
+        );
+      }
+      if (!gate.allowed) {
         return {
-          content: [{ type: "text", text: `Error: ${e.message}` }],
-          details: {},
-          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: `Spec ${params.id}: 用户未确认，人工核验未写入。`,
+            },
+          ],
+          details: { confirmed: false },
         };
       }
+
+      const output = await runSpecMutation(ctx.cwd, params.id, () =>
+        attest(ctx.cwd, params.id, params.item, params.note)
+      );
+      return toolResult(output);
     },
   });
 
@@ -168,16 +199,10 @@ export default function (pi: ExtensionAPI) {
       id: Type.String({ description: "Spec ID" }),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      try {
-        const output = await done(ctx.cwd, params.id, { signal });
-        return { content: [{ type: "text", text: output }], details: {} };
-      } catch (e: any) {
-        return {
-          content: [{ type: "text", text: `Error: ${e.message}` }],
-          details: {},
-          isError: true,
-        };
-      }
+      const output = await runSpecMutation(ctx.cwd, params.id, () =>
+        done(ctx.cwd, params.id, { signal })
+      );
+      return toolResult(output);
     },
   });
 
@@ -211,7 +236,7 @@ export default function (pi: ExtensionAPI) {
         } else if (text === "") {
           ctx.ui.notify("spec-flow: 当前项目无 docs/specs/ 目录", "warning");
         } else {
-          ctx.ui.notify(text, "info");
+          ctx.ui.notify(truncateToolText(text), "info");
         }
       } catch (e: any) {
         ctx.ui.notify(`spec-flow: ${e.message}`, "error");
@@ -239,6 +264,9 @@ export default function (pi: ExtensionAPI) {
         onGate: (name: string) =>
           ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
       });
+      for (const message of decision.diagnostics || []) {
+        ctx.ui.notify(`⚠️ spec-flow: ${message}`, "warning");
+      }
 
       // Ledger write helper: write to the target repo, fall back to session cwd.
       // targetRepo is "unknown" when the target could not be resolved (S1.1).
@@ -284,6 +312,7 @@ export default function (pi: ExtensionAPI) {
   // ─── session_start: notify active specs ──────────────────────────────────
   pi.on("session_start", async (_event, ctx) => {
     lastCwd = ctx.cwd;
+    if (!ctx.hasUI) return; // print/JSON mode: UI methods are no-ops
     try {
       const specs = loadSpecs(ctx.cwd);
       const active = specs.filter(
