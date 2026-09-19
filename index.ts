@@ -234,7 +234,7 @@ export default function (pi: ExtensionAPI) {
         if (text === null) {
           ctx.ui.notify(`spec-flow: 未找到 spec ${arg}`, "warning");
         } else if (text === "") {
-          ctx.ui.notify("spec-flow: 当前项目无 docs/specs/ 目录", "warning");
+          ctx.ui.notify("spec-flow: 当前项目无支持的 spec/ 目录（docs/spec(s)、spec(s)）", "warning");
         } else {
           ctx.ui.notify(truncateToolText(text), "info");
         }

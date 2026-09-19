@@ -24,7 +24,7 @@ npm run check
 
 | 路径/字段 | 行为 |
 |---|---|
-| `docs/specs/*.md` | 带 YAML frontmatter 的 spec |
+| `docs/specs/*.md`、`docs/spec/*.md`、`specs/*.md`、`spec/*.md` | 扫描这些显式目录中的 spec；目录可单复数，直接合并，不递归其他路径 |
 | `package.json#scripts.typecheck` | `npm run typecheck` 门禁 |
 | `package.json#scripts.test` | Vitest 或通用 `npm test` 门禁 |
 | `biome.json` | `npx --no-install biome check .` 门禁 |
@@ -35,6 +35,8 @@ npm run check
 E2E evidence 只能填写 `e2e-*.mjs` basename（可省略 `.mjs`），不能包含目录或符号链接。每个脚本必须退出 0、至少输出一行行首 `PASS `，且不能输出行首 `FAIL `。
 
 ## Workflow v2
+
+spec-flow 会扫描 `docs/specs/`、`docs/spec/`、`specs/`、`spec/` 四个显式目录；多个目录同时存在时按稳定路径顺序合并，重复 ID 会在 CI 和生命周期操作中 fail closed。
 
 `spec_begin` 会写入 `workflow_version: 2`，记录实现仓库的 `base_sha`，并清除旧 impl/audit/attestation。后续证据绑定两类 hash：
 
@@ -144,6 +146,7 @@ Legacy 行为：
 npm test                         # unit + adapter fake-Pi integration
 node tests/e2e/e2e-commit-gate.mjs
 node tests/e2e/e2e-trustworthy-closure.mjs
+node tests/e2e/e2e-spec-discovery.mjs
 npm run check                    # 权威本地门禁
 npm run smoke:pi                 # 已安装 Pi 时：真实 RPC 加载 + /spec，无模型调用
 ```

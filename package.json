@@ -14,7 +14,7 @@
     "typecheck": "node --check core.mjs && node --check index.ts && node --check adapter-core.mjs",
     "test": "node --test core.test.mjs trustworthy.test.mjs adapter-core.test.mjs",
     "smoke:pi": "node tests/smoke/pi-rpc-load.mjs",
-    "check": "npm run typecheck && npm test && node tests/e2e/e2e-commit-gate.mjs && node tests/e2e/e2e-trustworthy-closure.mjs && node core.mjs check --ci"
+    "check": "npm run typecheck && npm test && node tests/e2e/e2e-commit-gate.mjs && node tests/e2e/e2e-trustworthy-closure.mjs && node tests/e2e/e2e-spec-discovery.mjs && node core.mjs check --ci"
   },
   "pi": {
     "extensions": [

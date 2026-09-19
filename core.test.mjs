@@ -14,6 +14,8 @@ import {
   detectProjectConfig,
   runGates,
   loadSpecs,
+  getSpecDirectories,
+  findSpec,
   migrateAlloc,
   begin,
   attest,
@@ -415,6 +417,47 @@ test("done: verdict=pass with a failing criterion is rejected", async () => {
   parsed.data.audit.criteria[0].status = "fail";
   fs.writeFileSync(file, writeFrontmatter(content, parsed.data));
   await assert.rejects(done(project, "S1.0"), /criteria 未全绿/);
+});
+
+// ─── spec discovery ───────────────────────────────────────────────────────────
+test("spec discovery: scans docs/project singular and plural directories without recursion", () => {
+  const dir = mkProject({
+    "docs/specs/S1.md": approvedSpec({ id: "S1" }),
+    "docs/spec/S2.md": approvedSpec({ id: "S2" }),
+    "specs/S3.md": approvedSpec({ id: "S3" }),
+    "spec/S4.md": approvedSpec({ id: "S4" }),
+    "specs/nested/S5.md": approvedSpec({ id: "S5" }),
+  });
+
+  assert.deepEqual(
+    getSpecDirectories(dir).map((item) => item.relativePath),
+    ["docs/specs", "docs/spec", "specs", "spec"]
+  );
+  assert.deepEqual(
+    loadSpecs(dir).map((item) => item.relativePath),
+    ["docs/spec/S2.md", "docs/specs/S1.md", "spec/S4.md", "specs/S3.md"]
+  );
+  assert.equal(findSpec(dir, "S3").relativePath, "specs/S3.md");
+  assert.equal(loadSpecs(dir).some((item) => item.frontmatter?.id === "S5"), false);
+});
+
+test("spec discovery: ignores a candidate symlink that escapes the project", () => {
+  const outside = mkProject({ "S9.md": approvedSpec({ id: "S9" }) });
+  const dir = mkProject({});
+  fs.symlinkSync(outside, path.join(dir, "specs"), "dir");
+  assert.deepEqual(getSpecDirectories(dir), []);
+  assert.deepEqual(loadSpecs(dir), []);
+});
+
+test("spec discovery: duplicate IDs fail closed instead of selecting one directory", async () => {
+  const dir = mkProject({
+    "spec/S1.md": approvedSpec({ id: "S1" }),
+    "specs/S1-copy.md": approvedSpec({ id: "S1" }),
+  });
+  assert.throws(() => findSpec(dir, "S1"), /ambiguous/);
+  const result = await checkCI(dir);
+  assert.equal(result.pass, false);
+  assert.match(result.output, /spec id 重复/);
 });
 
 // ─── board ───────────────────────────────────────────────────────────────────

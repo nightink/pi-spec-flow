@@ -388,34 +388,124 @@ export function detectProjectConfig(cwd) {
 }
 
 // ─── Spec discovery ──────────────────────────────────────────────────────────
+// Keep discovery explicit and shallow: projects may use either singular or
+// plural naming, and may keep specs under docs, but arbitrary recursive scans
+// would make ownership and duplicate-ID behavior difficult to reason about.
+export const SPEC_DIRECTORY_CANDIDATES = Object.freeze([
+  "docs/specs",
+  "docs/spec",
+  "specs",
+  "spec",
+]);
+
+function normalizedRelativePath(filePath) {
+  return filePath.split(path.sep).join("/");
+}
+
+export function getSpecDirectories(cwd) {
+  const root = path.resolve(cwd);
+  let realRoot;
+  try {
+    realRoot = fs.realpathSync(root);
+  } catch {
+    return [];
+  }
+
+  const seenRealPaths = new Set();
+  const directories = [];
+  for (const relativePath of SPEC_DIRECTORY_CANDIDATES) {
+    const candidate = path.join(root, relativePath);
+    let stat;
+    let realPath;
+    try {
+      stat = fs.statSync(candidate);
+      realPath = fs.realpathSync(candidate);
+    } catch {
+      continue;
+    }
+    if (!stat.isDirectory() || !pathInside(realRoot, realPath)) continue;
+    if (seenRealPaths.has(realPath)) continue;
+    seenRealPaths.add(realPath);
+    directories.push({
+      path: candidate,
+      relativePath,
+      realPath,
+    });
+  }
+  return directories;
+}
+
+export function specDirectoryHint() {
+  return SPEC_DIRECTORY_CANDIDATES.map((directory) => `${directory}/`).join(", ");
+}
+
 export function loadSpecs(cwd) {
-  const specsDir = path.join(cwd, "docs/specs");
-  if (!fs.existsSync(specsDir)) return [];
-  const files = fs.readdirSync(specsDir).filter((f) => f.endsWith(".md")).sort();
-  return files.map((f) => {
-    const fullPath = path.join(specsDir, f);
-    const content = fs.readFileSync(fullPath, "utf8");
-    const fm = parseFrontmatter(content);
-    return {
-      file: f,
-      path: fullPath,
-      content,
-      frontmatter: fm?.data || null,
-      hasFrontmatter: !!fm,
-    };
-  });
+  const root = path.resolve(cwd);
+  let realRoot;
+  try {
+    realRoot = fs.realpathSync(root);
+  } catch {
+    return [];
+  }
+
+  const specs = [];
+  for (const directory of getSpecDirectories(root)) {
+    let files;
+    try {
+      files = fs
+        .readdirSync(directory.path)
+        .filter((file) => file.endsWith(".md"))
+        .sort();
+    } catch {
+      continue;
+    }
+
+    for (const file of files) {
+      const fullPath = path.join(directory.path, file);
+      let realPath;
+      try {
+        const stat = fs.statSync(fullPath);
+        realPath = fs.realpathSync(fullPath);
+        if (!stat.isFile() || !pathInside(realRoot, realPath)) continue;
+      } catch {
+        continue;
+      }
+      const content = fs.readFileSync(fullPath, "utf8");
+      const fm = parseFrontmatter(content);
+      specs.push({
+        file,
+        path: fullPath,
+        relativePath: normalizedRelativePath(path.relative(root, fullPath)),
+        directory: directory.relativePath,
+        content,
+        frontmatter: fm?.data || null,
+        hasFrontmatter: !!fm,
+      });
+    }
+  }
+
+  return specs.sort((a, b) =>
+    a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0
+  );
 }
 
 export function findSpec(cwd, id) {
   const specs = loadSpecs(cwd);
-  return specs.find(
+  const matches = specs.filter(
     (s) =>
       s.frontmatter?.id === id ||
       s.file === id ||
+      s.relativePath === id ||
       s.file === `${id}.md` ||
       s.file.startsWith(id + "-") ||
       s.file.startsWith(id + "_")
   );
+  if (matches.length > 1) {
+    throw new Error(
+      `Spec ${id} is ambiguous: ${matches.map((spec) => spec.relativePath).join(", ")}`
+    );
+  }
+  return matches[0];
 }
 
 // ─── Git helpers ─────────────────────────────────────────────────────────────
@@ -1232,7 +1322,7 @@ export function migrateAlloc(cwd) {
 // ─── board ───────────────────────────────────────────────────────────────────
 export function board(cwd) {
   const specs = loadSpecs(cwd);
-  if (specs.length === 0) return "(no specs found in docs/specs/)";
+  if (specs.length === 0) return `(no specs found in ${specDirectoryHint()})`;
   const lines = [];
   for (const spec of specs) {
     if (!spec.hasFrontmatter) {
@@ -2261,10 +2351,11 @@ export async function checkCI(cwd) {
     }
     const fm = spec.frontmatter;
     const id = fm.id || spec.file;
+    const specLabel = spec.relativePath || spec.file;
     if (seenIds.has(id)) {
-      errors.push(`${id}: spec id 重复（${seenIds.get(id)} / ${spec.file}）`);
+      errors.push(`${id}: spec id 重复（${seenIds.get(id)} / ${specLabel}）`);
     } else {
-      seenIds.set(id, spec.file);
+      seenIds.set(id, specLabel);
     }
     if (!Object.hasOwn(STATUS_MAP, fm.status)) {
       errors.push(`${id}: 未知 status=${fm.status || "(empty)"}`);
@@ -2402,7 +2493,7 @@ export async function nextStep(cwd, spec, signal) {
 }
 
 // ─── renderBoard: full project board (for /spec command) ────────────────────
-// Returns "" when the project has no docs/specs/ dir.
+// Returns "" when the project has no supported spec directory.
 export async function renderBoard(cwd, signal) {
   const specs = loadSpecs(cwd);
   if (specs.length === 0) return "";
