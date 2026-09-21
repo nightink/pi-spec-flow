@@ -20,12 +20,13 @@ npm run check
 
 ## 项目约定
 
-无需配置文件；当前实现**不读取 `specflow.json`**。
+默认无需配置文件。已有项目若使用不同的 spec metadata/status，可以显式提供严格的 `.spec-flow.json` project governance profile；不会读取 `specflow.json` 或执行动态配置代码。
 
 | 路径/字段 | 行为 |
 |---|---|
 | `docs/specs/*.md`、`docs/spec/*.md`、`specs/*.md`、`spec/*.md` | 扫描这些显式目录中的 spec；目录可单复数，直接合并，不递归其他路径 |
-| `package.json#scripts.typecheck` | `npm run typecheck` 门禁 |
+| `.spec-flow.json` | 可选的 v1 project governance profile；普通非 symlink 文件、严格 schema、非法时 fail closed |
+| `package.json#scripts.typecheck` | 默认 profile 下的 `npm run typecheck` 门禁 |
 | `package.json#scripts.test` | Vitest 或通用 `npm test` 门禁 |
 | `biome.json` | `npx --no-install biome check .` 门禁 |
 | `tests/e2e/e2e-*.mjs` | 可声明的 E2E evidence |
@@ -33,6 +34,44 @@ npm run check
 | `.spec-flow-ledger.jsonl` | 本地追加式生命周期/绕过记录 |
 
 E2E evidence 只能填写 `e2e-*.mjs` basename（可省略 `.mjs`），不能包含目录或符号链接。每个脚本必须退出 0、至少输出一行行首 `PASS `，且不能输出行首 `FAIL `。
+
+### Project governance profile（可选）
+
+Profile 用于渐进接入已有本地治理，不会把项目强制迁到 spec-flow 的默认字段。v1 示例：
+
+```json
+{
+  "version": 1,
+  "lifecycle": {
+    "preReview": ["draft", "in-review"],
+    "startable": ["approved"],
+    "active": "in-progress",
+    "done": "done",
+    "ignored": ["archived"],
+    "dependenciesField": "depends_on",
+    "updatedField": "updated",
+    "bodyStatusLine": false,
+    "legacyActive": "external-warning",
+    "externalActiveIds": ["7", "8"],
+    "approval": {
+      "reviewersField": "reviewers",
+      "reviewedAtField": "reviewed_at",
+      "minimumReviewers": 1,
+      "placeholderReviewers": ["pending"]
+    }
+  },
+  "gates": {
+    "mode": "replace",
+    "npmScripts": ["verify"]
+  }
+}
+```
+
+安全边界：配置只允许引用当前 `package.json#scripts` 中存在的 npm script，不接受 shell、可执行路径或 JS 插件；未知键、保留/冲突字段、状态角色重叠、脚本缺失、越界或 symlink 配置一律报错，不回退到较弱默认门禁。CLI 会非零退出，commit interceptor 会把配置错误作为红门禁（显式 `SPECFLOW_BYPASS=1` 仍可放行）。配置文件参与 implementation snapshot，验证后修改会使旧证据失效。
+
+`external-warning` 只适用于 `externalActiveIds` 明确列出的历史 active spec；未列出的 legacy active 仍报错，不能通过删除 `workflow_version` 绕过 CI。workflow v2 active spec 始终执行完整闭环。profile 声明的 `updated/reviewers/reviewed_at` 等 lifecycle metadata 不扰动 contract hash，但 proposal approval 在后续阶段持续重验；依赖、目标、验收和 evidence 仍受绑定。Frontmatter 仍必须是 `js-yaml` 可解析的合法 YAML，profile 不提供宽松解析兜底。
+
+v1 profile 只支持 spec 与 implementation 位于同一仓库；配置项目若声明外部 `impl.repo` 会 fail closed，避免 profile 语义落在 snapshot 之外。npm script 本身仍是项目代码，不是安全沙箱，只有在信任项目及检查脚本定义后才应执行。
 
 ## Workflow v2
 
@@ -147,6 +186,7 @@ npm test                         # unit + adapter fake-Pi integration
 node tests/e2e/e2e-commit-gate.mjs
 node tests/e2e/e2e-trustworthy-closure.mjs
 node tests/e2e/e2e-spec-discovery.mjs
+node tests/e2e/e2e-project-governance-profile.mjs
 npm run check                    # 权威本地门禁
 npm run smoke:pi                 # 已安装 Pi 时：真实 RPC 加载 + /spec，无模型调用
 ```

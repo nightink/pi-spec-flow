@@ -9,6 +9,16 @@ import os from "node:os";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import crypto from "node:crypto";
+import {
+  applyLifecycleWrite,
+  approvalProblems,
+  canonicalSpecId,
+  defaultProjectProfile,
+  dependencyIds,
+  isExternalLegacyActive,
+  loadProjectProfile,
+  statusRole,
+} from "./project-profile.mjs";
 
 const execFileP = promisify(execFile);
 const WORKFLOW_VERSION = 2;
@@ -278,11 +288,30 @@ export function updateStatusLine(content, status, note) {
   return newLine + "\n\n" + content;
 }
 
+function requireProposalApproval(profile, frontmatter, id) {
+  const problems = approvalProblems(profile, frontmatter);
+  if (problems.length > 0) {
+    throw new Error(`Spec ${id} not approved yet (${problems.join("; ")})`);
+  }
+}
+
+function writeSpecLifecycleFile(spec, frontmatter, profile, { status } = {}) {
+  applyLifecycleWrite(profile, frontmatter, { status });
+  let content = writeFrontmatter(spec.content, frontmatter);
+  if (status !== undefined && profile.lifecycle.bodyStatusLine) {
+    content = updateStatusLine(content, status);
+  }
+  atomicWriteFileSync(spec.path, content);
+}
+
 // ─── Drift detection ─────────────────────────────────────────────────────────
-export function detectDrift(content, fmData) {
+export function detectDrift(content, fmData, profile = defaultProjectProfile()) {
+  if (!profile.lifecycle.bodyStatusLine) {
+    return { drifted: false, reason: "body-status-disabled" };
+  }
   const bodyStatus = extractStatusLine(content);
   if (!bodyStatus) return { drifted: false, reason: "no-status-line" };
-  const expected = STATUS_MAP[fmData.status];
+  const expected = STATUS_MAP[fmData.status] || fmData.status;
   if (!expected) return { drifted: false, reason: "unknown-fm-status" };
   // Strip parenthetical notes and emoji prefixes for comparison
   const bodyBase = bodyStatus
@@ -294,7 +323,7 @@ export function detectDrift(content, fmData) {
 }
 
 // ─── Project config detection ────────────────────────────────────────────────
-export function detectProjectConfig(cwd) {
+export function detectProjectConfig(cwd, profile = loadProjectProfile(cwd)) {
   const pkgPath = path.join(cwd, "package.json");
   const biomePath = path.join(cwd, "biome.json");
   const vitestPatterns = [
@@ -308,10 +337,25 @@ export function detectProjectConfig(cwd) {
   const gates = [];
   let hasTypecheck = false;
   let hasVitest = false;
-
+  let pkg = null;
   if (fs.existsSync(pkgPath)) {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-    if (pkg.scripts?.typecheck) {
+    pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+  }
+
+  if (profile.gates?.mode === "replace") {
+    for (const script of profile.gates.npmScripts) {
+      if (typeof pkg?.scripts?.[script] !== "string" || !pkg.scripts[script].trim()) {
+        throw new Error(`Configured npm script does not exist: ${script}`);
+      }
+      gates.push({
+        name: script,
+        cmd: `npm run ${script}`,
+        file: process.platform === "win32" ? "npm.cmd" : "npm",
+        args: ["run", script],
+      });
+    }
+  } else {
+    if (pkg?.scripts?.typecheck) {
       gates.push({
         name: "typecheck",
         cmd: "npm run typecheck",
@@ -321,11 +365,11 @@ export function detectProjectConfig(cwd) {
       hasTypecheck = true;
     }
     if (
-      pkg.scripts?.test &&
+      pkg?.scripts?.test &&
       (pkg.scripts.test.includes("vitest") || pkg.scripts.test === "vitest run")
     ) {
       hasVitest = true;
-    } else if (pkg.scripts?.test) {
+    } else if (pkg?.scripts?.test) {
       gates.push({
         name: "test",
         cmd: "npm test",
@@ -333,35 +377,35 @@ export function detectProjectConfig(cwd) {
         args: ["test"],
       });
     }
-  }
-  if (fs.existsSync(biomePath)) {
-    gates.push({
-      name: "biome",
-      cmd: "npx --no-install biome check .",
-      file: process.platform === "win32" ? "npx.cmd" : "npx",
-      args: ["--no-install", "biome", "check", "."],
-    });
-  }
-  if (hasVitest) {
-    gates.push({
-      name: "vitest",
-      cmd: "npx --no-install vitest run",
-      file: process.platform === "win32" ? "npx.cmd" : "npx",
-      args: ["--no-install", "vitest", "run"],
-    });
-  }
+    if (fs.existsSync(biomePath)) {
+      gates.push({
+        name: "biome",
+        cmd: "npx --no-install biome check .",
+        file: process.platform === "win32" ? "npx.cmd" : "npx",
+        args: ["--no-install", "biome", "check", "."],
+      });
+    }
+    if (hasVitest) {
+      gates.push({
+        name: "vitest",
+        cmd: "npx --no-install vitest run",
+        file: process.platform === "win32" ? "npx.cmd" : "npx",
+        args: ["--no-install", "vitest", "run"],
+      });
+    }
 
-  // Check vitest config files as fallback
-  if (!hasVitest) {
-    for (const vf of vitestPatterns) {
-      if (fs.existsSync(path.join(cwd, vf))) {
-        gates.push({
-          name: "vitest",
-          cmd: "npx --no-install vitest run",
-          file: process.platform === "win32" ? "npx.cmd" : "npx",
-          args: ["--no-install", "vitest", "run"],
-        });
-        break;
+    // Check vitest config files as fallback
+    if (!hasVitest) {
+      for (const vf of vitestPatterns) {
+        if (fs.existsSync(path.join(cwd, vf))) {
+          gates.push({
+            name: "vitest",
+            cmd: "npx --no-install vitest run",
+            file: process.platform === "win32" ? "npx.cmd" : "npx",
+            args: ["--no-install", "vitest", "run"],
+          });
+          break;
+        }
       }
     }
   }
@@ -448,6 +492,7 @@ export function loadSpecs(cwd) {
     return [];
   }
 
+  const profile = loadProjectProfile(root);
   const specs = [];
   for (const directory of getSpecDirectories(root)) {
     let files;
@@ -480,6 +525,7 @@ export function loadSpecs(cwd) {
         content,
         frontmatter: fm?.data || null,
         hasFrontmatter: !!fm,
+        profile,
       });
     }
   }
@@ -491,14 +537,16 @@ export function loadSpecs(cwd) {
 
 export function findSpec(cwd, id) {
   const specs = loadSpecs(cwd);
+  const requested = canonicalSpecId(id);
   const matches = specs.filter(
     (s) =>
-      s.frontmatter?.id === id ||
-      s.file === id ||
-      s.relativePath === id ||
-      s.file === `${id}.md` ||
-      s.file.startsWith(id + "-") ||
-      s.file.startsWith(id + "_")
+      canonicalSpecId(s.frontmatter?.id) === requested ||
+      s.file === requested ||
+      s.relativePath === requested ||
+      s.file === `${requested}.md` ||
+      s.file.startsWith(`${requested}.`) ||
+      s.file.startsWith(`${requested}-`) ||
+      s.file.startsWith(`${requested}_`)
   );
   if (matches.length > 1) {
     throw new Error(
@@ -527,6 +575,17 @@ export async function getHeadSha(cwd, signal) {
 function implementationRepo(cwd, fm) {
   const configured = fm?.impl?.repo;
   return configured ? path.resolve(cwd, configured) : cwd;
+}
+
+function assertProfileRepoBoundary(profile, repo) {
+  if (!profile.configured) return;
+  const profileRoot = fs.realpathSync(path.dirname(profile.sourcePath));
+  const implementationRoot = fs.realpathSync(repo);
+  if (profileRoot !== implementationRoot) {
+    throw new Error(
+      "Configured project governance profiles do not support an external impl.repo; use a same-repository spec"
+    );
+  }
 }
 
 function snapshotLimit() {
@@ -716,7 +775,7 @@ export async function repositorySnapshotHash(
   };
 }
 
-function contractFrontmatter(data) {
+function contractFrontmatter(data, profile = defaultProjectProfile()) {
   const result = {};
   const excluded = new Set([
     "status",
@@ -724,6 +783,7 @@ function contractFrontmatter(data) {
     "impl",
     "audit",
     "attestations",
+    ...profile.contractMetadataFields,
   ]);
   for (const [key, value] of Object.entries(data || {})) {
     if (excluded.has(key)) continue;
@@ -749,11 +809,11 @@ function normalizedContractBody(content, frontmatterMatch) {
   return body.replace(/\r\n/g, "\n").trim();
 }
 
-export function specContractHash(content) {
+export function specContractHash(content, profile = defaultProjectProfile()) {
   const parsed = parseFrontmatter(content);
   if (!parsed) throw new Error("Cannot hash spec contract without valid frontmatter");
   return sha256(
-    `specflow-contract-v2\0${stableJson(contractFrontmatter(parsed.data))}\0${normalizedContractBody(
+    `specflow-contract-v2\0${stableJson(contractFrontmatter(parsed.data, profile))}\0${normalizedContractBody(
       content,
       parsed.fullMatch
     )}`
@@ -1202,7 +1262,30 @@ export async function commitGateDecision(cwd, command, { signal, onGate } = {}) 
   // project gating, ledger marks targetRepo=unknown (S1.1 review note ⑤).
   const gatesRepo = confidence === "unresolved" ? cwd : repo;
   const targetRepo = confidence === "unresolved" ? "unknown" : repo;
-  const config = detectProjectConfig(gatesRepo);
+  let config;
+  try {
+    config = detectProjectConfig(gatesRepo);
+  } catch (error) {
+    const gateResults = {
+      "project-profile": {
+        pass: false,
+        tail: `Invalid project governance profile: ${error?.message || error}`.slice(0, 4000),
+      },
+    };
+    const decision = commitGateAction(command, gateResults);
+    if (decision.action === "block") {
+      decision.reason = `spec-flow: 配置无效（仓库: ${gatesRepo}），禁止 commit\n\n${gateResults["project-profile"].tail}`;
+    }
+    return {
+      ...decision,
+      repo: gatesRepo,
+      targetRepo,
+      confidence,
+      gateResults,
+      diagnostics: [gateResults["project-profile"].tail],
+      external: gatesRepo !== cwd,
+    };
+  }
 
   // Target repo has no gates → allow (no session-project gate spillover).
   // Explicit bypass still wins and is recorded as bypass (S1.1 goal 4).
@@ -1330,10 +1413,11 @@ export function board(cwd) {
       continue;
     }
     const fm = spec.frontmatter;
+    const profile = spec.profile || defaultProjectProfile();
     const status = STATUS_MAP[fm.status] || fm.status || "(no status)";
-    const drift = detectDrift(spec.content, fm);
+    const drift = detectDrift(spec.content, fm, profile);
     const driftMark = drift.drifted ? " ⚠️ 漂移" : "";
-    const id = fm.id || "?";
+    const id = fm.id ?? "?";
     lines.push(`${id} [${spec.file}]: ${status}${driftMark}`);
   }
   return lines.join("\n");
@@ -1346,28 +1430,30 @@ export async function begin(cwd, id, { signal } = {}) {
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter (unmanaged)`);
 
   const fm = spec.frontmatter;
-  if (fm.status === "done") {
+  const profile = spec.profile || loadProjectProfile(cwd);
+  const role = statusRole(profile, fm.status);
+  if (role === "done") {
     throw new Error(`Spec ${id} is done and cannot be reopened by spec_begin`);
   }
-  if (!["pending", "approved", "in-progress"].includes(fm.status)) {
-    throw new Error(`Spec ${id} has unsupported status=${fm.status || "(empty)"}`);
-  }
-  if (fm.workflow_version === WORKFLOW_VERSION && fm.status === "in-progress") {
+  if (fm.workflow_version === WORKFLOW_VERSION && role === "active") {
     throw new Error(`Spec ${id} already uses workflow v2 and is in-progress`);
   }
-  if (fm.review?.decision !== "approved") {
-    throw new Error(
-      `Spec ${id} not approved yet (review.decision=${fm.review?.decision || "null"}, need "approved")`
-    );
+  if (role !== "startable" && !(role === "active" && fm.workflow_version !== WORKFLOW_VERSION)) {
+    throw new Error(`Spec ${id} has unsupported status=${fm.status || "(empty)"}`);
   }
+  requireProposalApproval(profile, fm, id);
   assertEvidenceShape(fm, id);
 
-  if (Array.isArray(fm.deps) && fm.deps.length > 0) {
+  const dependencies = dependencyIds(profile, fm);
+  if (dependencies.length > 0) {
     const allSpecs = loadSpecs(cwd);
-    for (const dep of fm.deps) {
-      const depSpec = allSpecs.find((s) => s.frontmatter?.id === dep);
+    for (const dep of dependencies) {
+      const depId = canonicalSpecId(dep);
+      const depSpec = allSpecs.find(
+        (candidate) => canonicalSpecId(candidate.frontmatter?.id) === depId
+      );
       if (!depSpec) throw new Error(`Dependency ${dep} not found`);
-      if (depSpec.frontmatter?.status !== "done") {
+      if (statusRole(profile, depSpec.frontmatter?.status) !== "done") {
         throw new Error(
           `Dependency ${dep} not done (status=${depSpec.frontmatter?.status})`
         );
@@ -1377,12 +1463,12 @@ export async function begin(cwd, id, { signal } = {}) {
 
   const configuredRepo = fm.impl?.repo;
   const repo = configuredRepo ? path.resolve(cwd, configuredRepo) : cwd;
+  assertProfileRepoBoundary(profile, repo);
   const baseSha = await getHeadSha(repo, signal);
   if (baseSha === "unknown") {
     throw new Error(`Spec ${id} requires a Git implementation repository with a valid HEAD`);
   }
 
-  fm.status = "in-progress";
   fm.workflow_version = WORKFLOW_VERSION;
   fm.impl = {
     ...(configuredRepo ? { repo: configuredRepo } : {}),
@@ -1398,9 +1484,7 @@ export async function begin(cwd, id, { signal } = {}) {
   delete fm.audit;
   delete fm.attestations;
 
-  let newContent = writeFrontmatter(spec.content, fm);
-  newContent = updateStatusLine(newContent, "in-progress");
-  atomicWriteFileSync(spec.path, newContent);
+  writeSpecLifecycleFile(spec, fm, profile, { status: profile.lifecycle.active });
 
   appendLedger(cwd, {
     type: "begin",
@@ -1410,7 +1494,7 @@ export async function begin(cwd, id, { signal } = {}) {
     repo,
   });
 
-  const branch = id.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const branch = canonicalSpecId(id).toLowerCase().replace(/[^a-z0-9]+/g, "-");
   return `Spec ${id} → 进行中\n  workflow: v${WORKFLOW_VERSION}\n  base_sha: ${baseSha}\n  建议分支: ${branch}/spec-flow\n  前置校验: review=approved ✓`;
 }
 
@@ -1511,19 +1595,24 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
 
   const fm = spec.frontmatter;
-  if (fm.status !== "in-progress") {
+  const profile = spec.profile || loadProjectProfile(cwd);
+  if (statusRole(profile, fm.status) !== "active") {
     throw new Error(`Spec ${id} not in-progress (status=${fm.status})`);
   }
   if (fm.workflow_version !== WORKFLOW_VERSION) {
     throw new Error(`Spec ${id} is legacy in-progress; rerun spec_begin to migrate to workflow v2`);
   }
+  requireProposalApproval(profile, fm, id);
   if (!fm.impl?.base_sha) {
     throw new Error(`Spec ${id} has no impl.base_sha; rerun spec_begin`);
   }
   assertEvidenceShape(fm, id);
 
   const repo = implementationRepo(cwd, fm);
-  const config = detectProjectConfig(repo);
+  assertProfileRepoBoundary(profile, repo);
+  const implementationProfile =
+    path.resolve(repo) === path.resolve(cwd) ? profile : loadProjectProfile(repo);
+  const config = detectProjectConfig(repo, implementationProfile);
   const diagnostics = [];
   const gateResults = await runGates(repo, config.gates, {
     signal,
@@ -1586,7 +1675,7 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
     }
     const owner = allSpecs.find(
       (candidate) =>
-        candidate.frontmatter?.id !== id &&
+        canonicalSpecId(candidate.frontmatter?.id) !== canonicalSpecId(fm.id ?? id) &&
         Array.isArray(candidate.frontmatter?.evidence?.migrations) &&
         candidate.frontmatter.evidence.migrations.some(
           (value) => String(value).padStart(3, "0") === padded
@@ -1614,7 +1703,7 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
     excludePaths: [spec.path],
     signal,
   });
-  const contractHash = specContractHash(spec.content);
+  const contractHash = specContractHash(spec.content, profile);
 
   fm.impl = {
     ...fm.impl,
@@ -1630,7 +1719,7 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
   delete fm.audit;
   delete fm.attestations;
 
-  atomicWriteFileSync(spec.path, writeFrontmatter(spec.content, fm));
+  writeSpecLifecycleFile(spec, fm, profile);
 
   appendLedger(cwd, {
     type: "impl",
@@ -1846,12 +1935,14 @@ export async function audit(cwd, id, { signal, onProgress } = {}) {
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
 
   const fm = spec.frontmatter;
-  if (fm.status !== "in-progress") {
+  const profile = spec.profile || loadProjectProfile(cwd);
+  if (statusRole(profile, fm.status) !== "active") {
     throw new Error(`Spec ${id} not in-progress (status=${fm.status})`);
   }
   if (fm.workflow_version !== WORKFLOW_VERSION) {
     throw new Error(`Spec ${id} is legacy in-progress; rerun spec_begin to migrate to workflow v2`);
   }
+  requireProposalApproval(profile, fm, id);
   if (fm.impl?.pass !== true || !fm.impl?.snapshot_hash) {
     throw new Error(`Spec ${id} impl is not explicitly passing; run spec_impl first`);
   }
@@ -1859,6 +1950,7 @@ export async function audit(cwd, id, { signal, onProgress } = {}) {
   const baseSha = fm.impl.base_sha;
   if (!baseSha) throw new Error(`Spec ${id} has no impl.base_sha; rerun spec_begin`);
   const repo = implementationRepo(cwd, fm);
+  assertProfileRepoBoundary(profile, repo);
   const scope = fm.scope || null;
 
   onProgress?.("校验实现快照…");
@@ -1871,7 +1963,7 @@ export async function audit(cwd, id, { signal, onProgress } = {}) {
       `Spec ${id} implementation changed after spec_impl (${fm.impl.snapshot_hash.slice(0, 12)} → ${snapshot.hash.slice(0, 12)}); rerun spec_impl`
     );
   }
-  const contractHash = specContractHash(spec.content);
+  const contractHash = specContractHash(spec.content, profile);
   if (fm.impl.contract_hash !== contractHash) {
     throw new Error(`Spec ${id} contract changed or is unbound after spec_impl; rerun spec_impl`);
   }
@@ -2036,7 +2128,7 @@ migrations: ${JSON.stringify(fm.impl?.migrations || {}, null, 2)}
     scope_deviations: auditResult.scope_deviations,
   };
 
-  atomicWriteFileSync(spec.path, writeFrontmatter(spec.content, fm));
+  writeSpecLifecycleFile(spec, fm, profile);
 
   appendLedger(cwd, {
     type: "audit",
@@ -2083,9 +2175,15 @@ export function attest(cwd, id, item, note) {
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
 
   const fm = spec.frontmatter;
-  if (fm.status !== "in-progress" || fm.workflow_version !== WORKFLOW_VERSION) {
+  const profile = spec.profile || loadProjectProfile(cwd);
+  if (
+    statusRole(profile, fm.status) !== "active" ||
+    fm.workflow_version !== WORKFLOW_VERSION
+  ) {
     throw new Error(`Spec ${id} must be an in-progress workflow v2 spec`);
   }
+  requireProposalApproval(profile, fm, id);
+  assertProfileRepoBoundary(profile, implementationRepo(cwd, fm));
   assertEvidenceShape(fm, id);
   if (fm.impl?.pass !== true || fm.audit?.verdict !== "pass") {
     throw new Error(`Spec ${id} requires passing impl and audit before human attestation`);
@@ -2094,7 +2192,7 @@ export function attest(cwd, id, item, note) {
   if (normalizedAudit.verdict !== "pass") {
     throw new Error(`Spec ${id} audit criteria are not consistently passing`);
   }
-  const contractHash = specContractHash(spec.content);
+  const contractHash = specContractHash(spec.content, profile);
   if (
     fm.audit.base_sha !== fm.impl.base_sha ||
     fm.audit.impl_hash !== fm.impl.snapshot_hash ||
@@ -2117,7 +2215,7 @@ export function attest(cwd, id, item, note) {
     contract_hash: contractHash,
   };
 
-  atomicWriteFileSync(spec.path, writeFrontmatter(spec.content, fm));
+  writeSpecLifecycleFile(spec, fm, profile);
 
   appendLedger(cwd, {
     type: "attest",
@@ -2131,13 +2229,16 @@ export function attest(cwd, id, item, note) {
   return `Spec ${id}: 人工核验 "${item}" 已登记\n  note: ${note}`;
 }
 
-export function recordConsistencyGaps(spec) {
+export function recordConsistencyGaps(spec, profile = spec.profile || defaultProjectProfile()) {
   const fm = spec.frontmatter || {};
   const id = fm.id || spec.file;
   const gaps = [];
   if (fm.workflow_version !== WORKFLOW_VERSION) {
     gaps.push(`workflow_version=${fm.workflow_version ?? "legacy"} (need ${WORKFLOW_VERSION}; rerun spec_begin)`);
     return gaps;
+  }
+  for (const problem of approvalProblems(profile, fm)) {
+    gaps.push(`proposal approval 已失效: ${problem}`);
   }
   for (const problem of evidenceShapeProblems(fm)) {
     gaps.push(`evidence schema 非法: ${problem}`);
@@ -2209,7 +2310,7 @@ export function recordConsistencyGaps(spec) {
 
   let contractHash = null;
   try {
-    contractHash = specContractHash(spec.content);
+    contractHash = specContractHash(spec.content, profile);
   } catch (error) {
     gaps.push(`spec contract 无法计算: ${error?.message || error}`);
   }
@@ -2240,10 +2341,12 @@ export function recordConsistencyGaps(spec) {
   return gaps;
 }
 
-function inProgressConsistencyGaps(spec) {
+function inProgressConsistencyGaps(spec, profile = spec.profile || defaultProjectProfile()) {
   const fm = spec.frontmatter || {};
   if (!fm.impl?.at) {
-    const gaps = [];
+    const gaps = approvalProblems(profile, fm).map(
+      (problem) => `proposal approval 已失效: ${problem}`
+    );
     if (fm.audit) gaps.push("impl 未执行但存在 audit 记录");
     if (fm.attestations && Object.keys(fm.attestations).length > 0) {
       gaps.push("impl 未执行但存在 attestation 记录");
@@ -2251,7 +2354,7 @@ function inProgressConsistencyGaps(spec) {
     return gaps;
   }
 
-  return recordConsistencyGaps(spec).filter((gap) => {
+  return recordConsistencyGaps(spec, profile).filter((gap) => {
     if (gap.startsWith("人工核验未完成:")) return false;
     if (fm.audit) return true;
     return !(
@@ -2269,12 +2372,14 @@ export async function done(cwd, id, { signal } = {}) {
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
 
   const fm = spec.frontmatter;
-  if (fm.status !== "in-progress") {
+  const profile = spec.profile || loadProjectProfile(cwd);
+  if (statusRole(profile, fm.status) !== "active") {
     throw new Error(`Spec ${id} not in-progress (status=${fm.status})`);
   }
 
-  const gaps = recordConsistencyGaps(spec);
+  const gaps = recordConsistencyGaps(spec, profile);
   const repo = implementationRepo(cwd, fm);
+  assertProfileRepoBoundary(profile, repo);
   if (gaps.length > 0) {
     throw new Error(`Spec ${id} 未完成，缺口：\n  ${gaps.join("\n  ")}`);
   }
@@ -2294,10 +2399,7 @@ export async function done(cwd, id, { signal } = {}) {
     throw new Error(`Spec ${id} 未完成，缺口：\n  ${error?.message || error}`);
   }
 
-  fm.status = "done";
-  let newContent = writeFrontmatter(spec.content, fm);
-  newContent = updateStatusLine(newContent, "done");
-  atomicWriteFileSync(spec.path, newContent);
+  writeSpecLifecycleFile(spec, fm, profile, { status: profile.lifecycle.done });
 
   // Build impl summary for ledger
   const gatesSummary = {};
@@ -2339,7 +2441,8 @@ export async function done(cwd, id, { signal } = {}) {
 // ─── check --ci ──────────────────────────────────────────────────────────────
 export async function checkCI(cwd) {
   const specs = loadSpecs(cwd);
-  const config = detectProjectConfig(cwd);
+  const profile = specs[0]?.profile || loadProjectProfile(cwd);
+  const config = detectProjectConfig(cwd, profile);
   const errors = [];
   const warnings = [];
 
@@ -2350,40 +2453,55 @@ export async function checkCI(cwd) {
       continue;
     }
     const fm = spec.frontmatter;
-    const id = fm.id || spec.file;
+    const id = canonicalSpecId(fm.id ?? spec.file);
     const specLabel = spec.relativePath || spec.file;
     if (seenIds.has(id)) {
       errors.push(`${id}: spec id 重复（${seenIds.get(id)} / ${specLabel}）`);
     } else {
       seenIds.set(id, specLabel);
     }
-    if (!Object.hasOwn(STATUS_MAP, fm.status)) {
+
+    const role = statusRole(profile, fm.status);
+    if (role === "unknown") {
       errors.push(`${id}: 未知 status=${fm.status || "(empty)"}`);
     }
+    if (role === "ignored") continue;
+    if (profile.configured && role === "startable") {
+      for (const problem of approvalProblems(profile, fm)) {
+        errors.push(`${id}: proposal approval 非法: ${problem}`);
+      }
+    }
 
-    const drift = detectDrift(spec.content, fm);
+    const drift = detectDrift(spec.content, fm, profile);
     if (drift.drifted) {
       errors.push(`${id}: 状态漂移 (frontmatter=${drift.expected}, body=${drift.got})`);
     }
 
     if (fm.workflow_version !== WORKFLOW_VERSION) {
-      if (fm.status === "done") {
+      if (role === "done") {
         warnings.push(`${id}: legacy done spec，仅做只读兼容`);
         continue;
-      } else if (fm.status === "in-progress") {
+      } else if (role === "active") {
+        if (
+          profile.lifecycle.legacyActive === "external-warning" &&
+          isExternalLegacyActive(profile, id)
+        ) {
+          warnings.push(`${id}: external legacy active spec，由项目本地治理继续管理`);
+          continue;
+        }
         errors.push(`${id}: legacy in-progress spec，需重跑 spec_begin 迁移到 v2`);
       }
     } else {
-      if (fm.status === "in-progress" && !fm.impl?.base_sha) {
+      if (role === "active" && !fm.impl?.base_sha) {
         errors.push(`${id}: workflow v2 缺少 impl.base_sha`);
       }
-      if (fm.status === "in-progress") {
-        for (const gap of inProgressConsistencyGaps(spec)) {
+      if (role === "active") {
+        for (const gap of inProgressConsistencyGaps(spec, profile)) {
           errors.push(`${id}: ${gap}`);
         }
       }
-      if (fm.status === "done") {
-        for (const gap of recordConsistencyGaps(spec)) {
+      if (role === "done") {
+        for (const gap of recordConsistencyGaps(spec, profile)) {
           errors.push(`${id}: ${gap}`);
         }
         continue;
@@ -2394,7 +2512,16 @@ export async function checkCI(cwd) {
       errors.push(`${id}: ${problem}`);
     }
 
-    const specConfig = detectProjectConfig(implementationRepo(cwd, fm));
+    const implRepo = implementationRepo(cwd, fm);
+    try {
+      assertProfileRepoBoundary(profile, implRepo);
+    } catch (error) {
+      errors.push(`${id}: ${error?.message || error}`);
+      continue;
+    }
+    const implProfile =
+      path.resolve(implRepo) === path.resolve(cwd) ? profile : loadProjectProfile(implRepo);
+    const specConfig = detectProjectConfig(implRepo, implProfile);
     const evidenceE2e = Array.isArray(fm.evidence?.e2e) ? fm.evidence.e2e : [];
     for (const e2eId of evidenceE2e) {
       const fileName = validE2eFileName(e2eId);
@@ -2403,7 +2530,7 @@ export async function checkCI(cwd) {
         continue;
       }
       const resolvedE2e = safeE2eFile(
-        implementationRepo(cwd, fm),
+        implRepo,
         specConfig.e2eDir,
         fileName
       );
@@ -2419,7 +2546,7 @@ export async function checkCI(cwd) {
       const padded = String(migNum).padStart(3, "0");
       const owner = specs.find(
         (candidate) =>
-          candidate.frontmatter?.id !== id &&
+          canonicalSpecId(candidate.frontmatter?.id) !== id &&
           Array.isArray(candidate.frontmatter?.evidence?.migrations) &&
           candidate.frontmatter.evidence.migrations.some(
             (value) => String(value).padStart(3, "0") === padded
@@ -2462,9 +2589,14 @@ export async function checkCI(cwd) {
 // ─── nextStep: suggest next action for an in-progress spec ──────────────────
 export async function nextStep(cwd, spec, signal) {
   const fm = spec.frontmatter;
-  const id = fm.id || spec.file;
+  const profile = spec.profile || loadProjectProfile(cwd);
+  const id = fm.id ?? spec.file;
   if (fm.workflow_version !== WORKFLOW_VERSION) {
     return `下一步：spec_begin ${id}（迁移到 workflow v2）`;
+  }
+  const reviewProblems = approvalProblems(profile, fm);
+  if (reviewProblems.length > 0) {
+    return `下一步：恢复 proposal approval（${reviewProblems[0]}）`;
   }
   if (!fm.impl?.at) return `下一步：spec_impl ${id}`;
   if (fm.impl.pass !== true) {
@@ -2476,7 +2608,7 @@ export async function nextStep(cwd, spec, signal) {
   }
   if (
     fm.audit.impl_hash !== fm.impl.snapshot_hash ||
-    fm.audit.contract_hash !== specContractHash(spec.content)
+    fm.audit.contract_hash !== specContractHash(spec.content, profile)
   ) {
     return `下一步：重跑 spec_audit ${id}（证据绑定已过期）`;
   }
@@ -2485,7 +2617,7 @@ export async function nextStep(cwd, spec, signal) {
   if (pending.length > 0) {
     return `下一步：人工核验 ${pending.join(", ")} 后运行 spec_attest`;
   }
-  const recordGaps = recordConsistencyGaps(spec);
+  const recordGaps = recordConsistencyGaps(spec, profile);
   if (recordGaps.length > 0) {
     return `下一步：修复证据记录后重跑相应阶段（${recordGaps[0]}）`;
   }
@@ -2498,7 +2630,8 @@ export async function renderBoard(cwd, signal) {
   const specs = loadSpecs(cwd);
   if (specs.length === 0) return "";
 
-  const config = detectProjectConfig(cwd);
+  const profile = specs[0]?.profile || loadProjectProfile(cwd);
+  const config = detectProjectConfig(cwd, profile);
   const gateNames = config.gates.map((g) => g.name).join(", ");
   const lines = [`📋 spec-flow board — ${specs.length} 个 spec`];
   lines.push(
@@ -2512,13 +2645,13 @@ export async function renderBoard(cwd, signal) {
       continue;
     }
     const fm = spec.frontmatter;
-    const id = fm.id || spec.file;
+    const id = fm.id ?? spec.file;
     const label = STATUS_MAP[fm.status] || fm.status || "?";
-    const drift = detectDrift(spec.content, fm);
+    const drift = detectDrift(spec.content, fm, profile);
     const driftMark = drift.drifted ? " ⚠️漂移" : "";
     lines.push(`• ${id} [${spec.file}] ${label}${driftMark}`);
 
-    if (fm.status === "in-progress") {
+    if (statusRole(profile, fm.status) === "active") {
       const parts = [];
       if (fm.impl?.at) {
         parts.push(`impl ${fm.impl.pass === true ? "✓" : "✗"} ${fm.impl.at.slice(0, 10)}`);
@@ -2549,13 +2682,19 @@ export async function renderSpecDetail(cwd, id, signal) {
   }
 
   const fm = spec.frontmatter;
+  const profile = spec.profile || loadProjectProfile(cwd);
   const lines = [
-    `📋 ${fm.id || spec.file} [${spec.file}] ${
+    `📋 ${fm.id ?? spec.file} [${spec.file}] ${
       STATUS_MAP[fm.status] || fm.status || "?"
     }`,
   ];
   if (fm.review?.decision) lines.push(`review: ${fm.review.decision}`);
-  if (fm.deps?.length) lines.push(`deps: ${fm.deps.join(", ")}`);
+  const reviewersField = profile.lifecycle.approval.reviewersField;
+  if (reviewersField && Array.isArray(fm[reviewersField])) {
+    lines.push(`reviewers: ${fm[reviewersField].join(", ")}`);
+  }
+  const dependencies = dependencyIds(profile, fm);
+  if (dependencies.length) lines.push(`deps: ${dependencies.join(", ")}`);
   if (fm.impl?.base_sha) lines.push(`base_sha: ${fm.impl.base_sha.slice(0, 12)}`);
   if (fm.impl?.at) {
     const gates = Object.entries(fm.impl.gates || {})
@@ -2585,7 +2724,7 @@ export async function renderSpecDetail(cwd, id, signal) {
       .join(", ");
     lines.push(`evidence.migrations: ${migs}`);
   }
-  if (fm.status === "in-progress") {
+  if (statusRole(profile, fm.status) === "active") {
     lines.push(await nextStep(cwd, spec, signal));
   }
 

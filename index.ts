@@ -212,8 +212,8 @@ export default function (pi: ExtensionAPI) {
     getArgumentCompletions: (prefix: string) => {
       try {
         const ids = loadSpecs(lastCwd).map((s) => ({
-          value: s.frontmatter?.id || s.file,
-          label: s.frontmatter?.id ? s.file : undefined,
+          value: String(s.frontmatter?.id ?? s.file),
+          label: s.frontmatter?.id !== undefined ? s.file : undefined,
         }));
         const items = [
           { value: "board", label: "看板" },
@@ -316,14 +316,16 @@ export default function (pi: ExtensionAPI) {
     try {
       const specs = loadSpecs(ctx.cwd);
       const active = specs.filter(
-        (s) => s.hasFrontmatter && s.frontmatter?.status === "in-progress"
+        (s) =>
+          s.hasFrontmatter &&
+          s.frontmatter?.status === s.profile?.lifecycle?.active
       );
       if (active.length === 0) return; // silent
 
       const lines = [`📋 spec-flow: ${active.length} 个进行中 spec`];
       for (const spec of active) {
         const fm = spec.frontmatter!;
-        const id = fm.id || spec.file;
+        const id = fm.id ?? spec.file;
         const baseSha = fm.impl?.base_sha?.slice(0, 8) || "?";
         const suggestion = await nextStep(ctx.cwd, spec, ctx.signal);
         lines.push(`  • ${id} (base=${baseSha}) — ${suggestion}`);

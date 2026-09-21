@@ -957,6 +957,8 @@ test("nextStep: impl.at empty → spec_impl", async () => {
 id: S1.0
 status: in-progress
 workflow_version: 2
+review:
+  decision: approved
 ---
 
 - 状态：进行中`,
@@ -966,12 +968,28 @@ workflow_version: 2
   assert.equal(step, "下一步：spec_impl S1.0");
 });
 
+test("nextStep: missing proposal approval is surfaced before implementation", async () => {
+  const dir = mkProject({
+    "docs/specs/S1.0.md": `---
+id: S1.0
+status: in-progress
+workflow_version: 2
+---
+
+- 状态：进行中`,
+  });
+  const step = await nextStep(dir, loadSpecs(dir)[0]);
+  assert.match(step, /恢复 proposal approval/);
+});
+
 test("nextStep: impl pass, no audit → spec_audit", async () => {
   const dir = mkProject({
     "docs/specs/S1.0.md": `---
 id: S1.0
 status: in-progress
 workflow_version: 2
+review:
+  decision: approved
 impl:
   at: '2026-08-10T00:00:00Z'
   pass: true
@@ -999,6 +1017,8 @@ test("nextStep: impl has gate failure → fix impl", async () => {
 id: S1.0
 status: in-progress
 workflow_version: 2
+review:
+  decision: approved
 impl:
   at: '2026-08-10T00:00:00Z'
   pass: false
@@ -1022,6 +1042,8 @@ test("nextStep: audit verdict fail → fix findings", async () => {
 id: S1.0
 status: in-progress
 workflow_version: 2
+review:
+  decision: approved
 impl:
   at: '2026-08-10T00:00:00Z'
   pass: true
