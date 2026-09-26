@@ -1,0 +1,19 @@
+name: Spec Flow governance and verify
+# For private same-account repositories: enable Settings → Actions → General → Access
+# on the spec-flow repository, and reference this action by a full commit SHA.
+description: Check caller Spec contracts and run its authoritative npm verify gate
+runs:
+  using: composite
+  steps:
+    - name: Install locked Spec Flow runtime dependencies
+      shell: bash
+      env:
+        ACTION_ROOT: ${{ github.action_path }}
+      run: cd "$ACTION_ROOT" && npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund
+    - name: Check caller contracts and run its authoritative verify
+      shell: bash
+      env:
+        SPECFLOW_CLI: ${{ github.action_path }}/core.mjs
+      run: |
+        node "$SPECFLOW_CLI" check --ci --contracts-only
+        npm run verify

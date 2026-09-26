@@ -71,6 +71,19 @@ Profile 用于渐进接入已有本地治理，不会把项目强制迁到 spec-
 
 `external-warning` 只适用于 `externalActiveIds` 明确列出的历史 active spec；未列出的 legacy active 仍报错，不能通过删除 `workflow_version` 绕过 CI。workflow v2 active spec 始终执行完整闭环。profile 声明的 `updated/reviewers/reviewed_at` 等 lifecycle metadata 不扰动 contract hash，但 proposal approval 在后续阶段持续重验；依赖、目标、验收和 evidence 仍受绑定。Frontmatter 仍必须是 `js-yaml` 可解析的合法 YAML，profile 不提供宽松解析兜底。
 
+可选 `validation`（仍为 v1 严格 schema）用于**替代**既有项目自己的元数据扫描器：
+
+```json
+"validation": {
+  "requiredFields": ["id", "title", "kind", "status", "created", "updated", "author", "depends_on"],
+  "kindField": "kind", "allowedKinds": ["spec", "plan", "analysis"],
+  "numericFileId": true, "checkDoneCheckboxes": true,
+  "forbidAddendumFilename": true, "dependencyIntegrity": true
+}
+```
+
+仅配置此对象时生效；要求字段非空、种类合法、`N.*.md` 文件名前缀对应非负安全整数 ID、`done` 正文不能有行首未勾选项，禁止 addendum 文件，依赖必须是存在的非负整数 ID 且不可成环。这些检查作用于**所有** spec（包括 archived 和历史 active/done），不会被 legacy warning 跳过。未知键/非法类型会拒绝整个 profile。
+
 v1 profile 只支持 spec 与 implementation 位于同一仓库；配置项目若声明外部 `impl.repo` 会 fail closed，避免 profile 语义落在 snapshot 之外。npm script 本身仍是项目代码，不是安全沙箱，只有在信任项目及检查脚本定义后才应执行。
 
 ## Workflow v2
@@ -124,6 +137,7 @@ node core.mjs attest S3.13 R1 "核验路径和样本（至少 20 字）"
 node core.mjs done S3.13
 node core.mjs migrate-alloc
 node core.mjs check --ci
+node core.mjs check --ci --contracts-only  # 仅做 Spec/证据检查，不运行 npm gates
 ```
 
 ## 审计边界
@@ -142,6 +156,14 @@ node core.mjs check --ci
 | `SPECFLOW_SNAPSHOT_MAX_BYTES` | `536870912` | snapshot 总读取上限 |
 
 通过的 audit 只有在 implementation hash 与 contract hash 均未变化时才可复用。
+
+### 与项目 `verify` / 跨仓 GitHub Action 组合
+
+项目的 `verify` 可以调用 `node core.mjs check --ci --contracts-only` 作为元数据门禁；`spec_impl` 仍运行 profile 的权威 `npm run verify`。**不要**在 `verify` 内调用完整 `check --ci`：它会再次执行 `verify`，产生递归。contracts-only 明示未运行 npm gates，不能单独冒充完整 CI；独立 `check --ci` 仍执行项目 gates 且缓存禁用。
+
+此仓库根目录提供 `action.yml` composite Action。对于**同一账号**下的两个私有仓库，在 spec-flow 仓库 Settings → Actions → General → Access 中选“Accessible from repositories owned by USERNAME user”；example-app 的 `uses: nightink/pi-spec-flow@<full-40-char-commit-SHA>` 使用真实已推送 SHA，不用 `main` 等可变引用。Action 用自己的 `package-lock.json` 安装运行时依赖，然后对 caller 运行 contracts-only 与 `npm run verify`，传递只在该 Action 路径下的 `SPECFLOW_CLI`；不需要跨仓 checkout 的 PAT。Caller 应使用 `permissions: contents: read`，先 checkout 并用 Node >=22.19.0 执行 `npm ci`。本地 CLI 仍需从可信安装的 Pi 扩展运行（Action 只提供 CI，不自动部署 Pi skill 或扩展）。
+
+**交付顺序**：本地提交 spec-flow → 用户 push 该 commit → 用户启用上述私有 Action Access → example-app CI 引用已推送的固定 SHA → 用户 push example-app、查看真实 CI。没有远端设置和 CI 运行前只能证明本地 Action 等价路径，不能宣称远端已接通；本工具不会自动 push/publish 或改 GitHub 设置。注意共享私有 Action 时，调用仓库的外部协作者可能通过 workflow 日志间接看到输出；不要在 Action 输出机密或授权不可信仓库。
 
 ## Gate cache
 

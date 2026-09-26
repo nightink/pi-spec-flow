@@ -2439,7 +2439,80 @@ export async function done(cwd, id, { signal } = {}) {
 }
 
 // ─── check --ci ──────────────────────────────────────────────────────────────
-export async function checkCI(cwd) {
+function projectContractProblems(spec, profile) {
+  const rules = profile.validation;
+  if (!rules) return [];
+  const fm = spec.frontmatter;
+  const problems = [];
+  for (const field of rules.requiredFields) {
+    const value = fm[field];
+    if (value === undefined || value === null || (typeof value === "string" && !value.trim())) {
+      problems.push(`缺字段 ${field}`);
+    }
+  }
+  if (!rules.allowedKinds.includes(fm[rules.kindField])) {
+    problems.push(`非法 ${rules.kindField}: ${String(fm[rules.kindField])}`);
+  }
+  if (rules.numericFileId) {
+    const basename = path.basename(spec.file);
+    const prefix = basename.match(/^([0-9]+)\.[^/]+\.md$/);
+    if (!prefix || !Number.isSafeInteger(fm.id) || fm.id < 0 ||
+        !Number.isSafeInteger(Number(prefix[1])) || Number(prefix[1]) !== fm.id) {
+      problems.push(`id=${String(fm.id)} 与文件名前缀不符: ${basename}`);
+    }
+  }
+  if (rules.checkDoneCheckboxes && statusRole(profile, fm.status) === "done" &&
+      /^- \[ \]/gm.test(spec.content.slice(parseFrontmatter(spec.content)?.fullMatch.length || 0))) {
+    problems.push("status=done 但仍有未勾验收项");
+  }
+  if (rules.forbidAddendumFilename && path.basename(spec.file).toLowerCase().includes("addendum")) {
+    problems.push("addendum 文件禁止");
+  }
+  if (rules.dependencyIntegrity) {
+    const deps = fm[profile.lifecycle.dependenciesField];
+    if (!Array.isArray(deps) || deps.some((value) => !Number.isSafeInteger(value) || value < 0)) {
+      problems.push(`${profile.lifecycle.dependenciesField} 必须是非负整数 ID 数组`);
+    }
+  }
+  return problems;
+}
+
+function projectDependencyProblems(specs, profile) {
+  if (!profile.validation?.dependencyIntegrity) return [];
+  const errors = [];
+  const byId = new Map();
+  for (const spec of specs) {
+    const id = spec.frontmatter?.id;
+    if (Number.isSafeInteger(id) && id >= 0) byId.set(id, spec);
+  }
+  const graph = new Map();
+  for (const [id, spec] of byId) {
+    const deps = spec.frontmatter[profile.lifecycle.dependenciesField];
+    if (!Array.isArray(deps)) continue;
+    const valid = deps.filter((dep) => Number.isSafeInteger(dep) && dep >= 0);
+    for (const dep of valid) {
+      if (!byId.has(dep)) errors.push(`${id}: ${profile.lifecycle.dependenciesField} 引用了不存在的 id ${dep}`);
+    }
+    graph.set(id, valid.filter((dep) => byId.has(dep)));
+  }
+  const visiting = new Set();
+  const visited = new Set();
+  const visit = (id, trail) => {
+    if (visiting.has(id)) {
+      errors.push(`依赖循环: ${[...trail, id].join(" → ")}`);
+      return;
+    }
+    if (visited.has(id)) return;
+    visiting.add(id);
+    for (const dep of graph.get(id) || []) visit(dep, [...trail, id]);
+    visiting.delete(id);
+    visited.add(id);
+  };
+  for (const id of graph.keys()) visit(id, []);
+  return errors;
+}
+
+export async function checkCI(cwd, { runProjectGates = true } = {}) {
   const specs = loadSpecs(cwd);
   const profile = specs[0]?.profile || loadProjectProfile(cwd);
   const config = detectProjectConfig(cwd, profile);
@@ -2464,6 +2537,9 @@ export async function checkCI(cwd) {
     const role = statusRole(profile, fm.status);
     if (role === "unknown") {
       errors.push(`${id}: 未知 status=${fm.status || "(empty)"}`);
+    }
+    for (const problem of projectContractProblems(spec, profile)) {
+      errors.push(`${id}: ${problem}`);
     }
     if (role === "ignored") continue;
     if (profile.configured && role === "startable") {
@@ -2558,8 +2634,13 @@ export async function checkCI(cwd) {
     }
   }
 
-  // Run gates
-  if (config.gates.length > 0) {
+  errors.push(...projectDependencyProblems(specs, profile));
+
+  // Contracts-only is for project verify scripts that are themselves the impl gate.
+  // It is NOT a full check --ci and must say so in the output.
+  if (!runProjectGates) {
+    warnings.push("仅校验 Spec 合同/证据；项目 npm 门禁未运行（contracts-only）");
+  } else if (config.gates.length > 0) {
     const gateResults = await runGates(cwd, config.gates, { cacheTtlMs: 0 });
     for (const [name, result] of Object.entries(gateResults)) {
       if (!result.pass) {
@@ -2580,7 +2661,9 @@ export async function checkCI(cwd) {
     for (const w of warnings) lines.push(`  ! ${w}`);
   }
   if (errors.length === 0) {
-    lines.push(`✅ check --ci 通过`);
+    lines.push(runProjectGates
+      ? "✅ check --ci 通过"
+      : "✅ check --ci --contracts-only 通过（项目 npm 门禁未运行）");
   }
 
   return { output: lines.join("\n"), pass: errors.length === 0 };
@@ -2778,7 +2861,11 @@ async function main() {
         break;
       case "check":
         if (args.includes("--ci")) {
-          const result = await checkCI(cwd);
+          if (args.length !== new Set(args).size ||
+              args.some((arg) => arg !== "--ci" && arg !== "--contracts-only")) {
+            throw new Error("check accepts only --ci and optional --contracts-only");
+          }
+          const result = await checkCI(cwd, { runProjectGates: !args.includes("--contracts-only") });
           console.log(result.output);
           process.exit(result.pass ? 0 : 1);
         } else {

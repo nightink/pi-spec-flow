@@ -35,6 +35,7 @@ const DEFAULT_PROFILE = Object.freeze({
     approval: Object.freeze({ mode: "decision" }),
   }),
   gates: null,
+  validation: null,
   contractMetadataFields: Object.freeze([]),
 });
 
@@ -196,6 +197,38 @@ function validateStatusRoles(lifecycle) {
   }
 }
 
+function parseValidation(value) {
+  if (value === undefined) return null;
+  assertExactKeys(
+    value,
+    [
+      "requiredFields", "kindField", "allowedKinds", "numericFileId",
+      "checkDoneCheckboxes", "forbidAddendumFilename", "dependencyIntegrity",
+    ],
+    "validation"
+  );
+  assertStringArray(value.requiredFields, "validation.requiredFields", { nonEmpty: true });
+  for (const field of value.requiredFields) {
+    if (!SAFE_FIELD.test(field) || FORBIDDEN_KEYS.has(field)) {
+      throw new Error(`validation.requiredFields contains unsafe field name: ${field}`);
+    }
+  }
+  assertField(value.kindField, "validation.kindField");
+  assertStringArray(value.allowedKinds, "validation.allowedKinds", { nonEmpty: true });
+  for (const key of ["numericFileId", "checkDoneCheckboxes", "forbidAddendumFilename", "dependencyIntegrity"]) {
+    if (typeof value[key] !== "boolean") throw new Error(`validation.${key} must be boolean`);
+  }
+  return {
+    requiredFields: [...value.requiredFields],
+    kindField: value.kindField,
+    allowedKinds: [...value.allowedKinds],
+    numericFileId: value.numericFileId,
+    checkDoneCheckboxes: value.checkDoneCheckboxes,
+    forbidAddendumFilename: value.forbidAddendumFilename,
+    dependencyIntegrity: value.dependencyIntegrity,
+  };
+}
+
 function parseConfiguredProfile(root, raw) {
   let data;
   try {
@@ -204,7 +237,7 @@ function parseConfiguredProfile(root, raw) {
     throw new Error(`Invalid ${PROJECT_PROFILE_FILE} JSON: ${error?.message || error}`);
   }
 
-  assertExactKeys(data, ["version", "lifecycle", "gates"], PROJECT_PROFILE_FILE);
+  assertExactKeys(data, ["version", "lifecycle", "gates", "validation"], PROJECT_PROFILE_FILE);
   if (data.version !== 1) throw new Error(`${PROJECT_PROFILE_FILE} version must be 1`);
 
   assertExactKeys(
@@ -285,9 +318,18 @@ function parseConfiguredProfile(root, raw) {
     }
   }
 
+  const validation = parseValidation(data.validation);
+  if (validation && new Set([
+    validation.kindField, lifecycle.dependenciesField, lifecycle.updatedField,
+    approval.reviewersField, approval.reviewedAtField,
+  ]).size !== 5) {
+    throw new Error("validation.kindField must be distinct from lifecycle metadata fields");
+  }
+
   return {
     configured: true,
     sourcePath: path.join(root, PROJECT_PROFILE_FILE),
+    validation,
     lifecycle: {
       preReview: [...lifecycle.preReview],
       startable: [...lifecycle.startable],
