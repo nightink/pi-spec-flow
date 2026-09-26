@@ -708,23 +708,26 @@ export async function repositorySnapshotHash(
     if (excluded.has(absolutePath)) continue;
 
     const normalized = normalizePathForHash(relativePath);
-    hash.update(`\0P\0${normalized}\0`);
     let stat;
     try {
       stat = fs.lstatSync(absolutePath);
     } catch (error) {
       if (error?.code === "ENOENT") {
         const indexedHead = gitlinks.get(relativePath);
+        // Deleted content is represented by absence, not a HEAD-only tombstone:
+        // after committing that same deletion HEAD no longer lists the path.
+        // An uninitialized/sparse gitlink is different: its indexed SHA is
+        // still the content identity, unless Git reports an actual deletion.
         if (indexedHead && !deletedPaths.has(relativePath)) {
+          hash.update(`\0P\0${normalized}\0`);
           hash.update(`G\0${indexedHead}\0`);
-        } else {
-          hash.update("D\0");
+          fileCount++;
         }
-        fileCount++;
         continue;
       }
       throw error;
     }
+    hash.update(`\0P\0${normalized}\0`);
 
     if (stat.isSymbolicLink()) {
       const target = fs.readlinkSync(absolutePath);

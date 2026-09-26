@@ -163,7 +163,7 @@ test("repository snapshot covers working content but excludes spec lifecycle and
 
   execFileSync("git", ["rm", "-q", "tracked.txt"], { cwd: root });
   const stagedDeletion = await repositorySnapshotHash(root, { excludePaths: [specPath] });
-  assert.notEqual(stagedDeletion.hash, first.hash, "staged tracked deletion has a tombstone");
+  assert.notEqual(stagedDeletion.hash, first.hash, "staged tracked deletion invalidates the baseline");
   execFileSync("git", ["reset", "--hard", "-q", "HEAD"], { cwd: root });
 
   fs.appendFileSync(specPath, "\nworkflow writeback\n");
@@ -190,6 +190,23 @@ test("repository snapshot covers working content but excludes spec lifecycle and
   );
   const afterCommit = await repositorySnapshotHash(root, { excludePaths: [specPath] });
   assert.equal(afterCommit.hash, beforeCommit.hash, "commit metadata must not invalidate same content");
+});
+
+test("snapshot keeps a staged deletion bound after committing identical content", async () => {
+  const root = project({ "removed.txt": "previous content\n", "kept.txt": "still here\n" });
+  try {
+    gitInit(root);
+    const baseline = await repositorySnapshotHash(root);
+    execFileSync("git", ["rm", "-q", "removed.txt"], { cwd: root });
+    const pending = await repositorySnapshotHash(root);
+    assert.notEqual(pending.hash, baseline.hash, "deletion must invalidate the old content");
+    execFileSync("git", ["-c", "user.name=spec-flow", "-c", "user.email=spec-flow@example.invalid", "commit", "-qm", "remove"], { cwd: root });
+    const committed = await repositorySnapshotHash(root);
+    assert.equal(committed.hash, pending.hash, "same deleted content set must survive a commit");
+    assert.equal(committed.fileCount, pending.fileCount);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("snapshot hashes verified gitlink HEAD and fails closed on an untracked nested repository", async () => {
@@ -233,7 +250,7 @@ test("snapshot hashes verified gitlink HEAD and fails closed on an untracked nes
   assert.equal(sparseMissing.hash, before.hash, "missing non-deleted submodule uses index gitlink");
   execFileSync("git", ["update-index", "--no-skip-worktree", "deps/module"], { cwd: root });
   const deleted = await repositorySnapshotHash(root);
-  assert.notEqual(deleted.hash, before.hash, "actual submodule deletion uses a tombstone");
+  assert.notEqual(deleted.hash, before.hash, "actual submodule deletion invalidates its prior identity");
 
   const nested = path.join(root, "nested");
   fs.mkdirSync(nested);
