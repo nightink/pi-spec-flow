@@ -9,6 +9,7 @@ import os from "node:os";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
 import {
   applyLifecycleWrite,
   approvalProblems,
@@ -2882,6 +2883,9 @@ async function main() {
 }
 
 // Run if executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Node resolves symlinked /tmp paths to /private/tmp on macOS; compare actual files,
+// not raw URL strings, so a downloaded/copied private Action CLI really executes.
+if (process.argv[1] && fs.existsSync(process.argv[1]) &&
+    fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
   main();
 }
