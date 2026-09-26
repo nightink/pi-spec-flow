@@ -1614,6 +1614,27 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
   const implementationProfile =
     path.resolve(repo) === path.resolve(cwd) ? profile : loadProjectProfile(repo);
   const config = detectProjectConfig(repo, implementationProfile);
+  // A project's verify script may itself call `check --ci --contracts-only`.
+  // Clear stale bound evidence *before* that gate runs, otherwise a changed
+  // contract makes re-impl impossible (verify correctly rejects the old hash).
+  // If the runner is interrupted, this pending record cannot be mistaken for
+  // passing implementation/audit/human evidence.
+  fm.impl = {
+    ...(fm.impl.repo ? { repo: fm.impl.repo } : {}),
+    base_sha: fm.impl.base_sha,
+    at: null,
+    pass: false,
+    required_gates: null,
+    gates: null,
+    e2e: null,
+    migrations: null,
+    snapshot_hash: null,
+    contract_hash: null,
+  };
+  delete fm.audit;
+  delete fm.attestations;
+  writeSpecLifecycleFile(spec, fm, profile);
+
   const diagnostics = [];
   const gateResults = await runGates(repo, config.gates, {
     signal,
@@ -1704,7 +1725,7 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
     excludePaths: [spec.path],
     signal,
   });
-  const contractHash = specContractHash(spec.content, profile);
+  const contractHash = specContractHash(fs.readFileSync(spec.path, "utf8"), profile);
 
   fm.impl = {
     ...fm.impl,

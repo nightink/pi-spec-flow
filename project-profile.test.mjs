@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 import {
   approvalProblems,
@@ -348,4 +349,46 @@ test("project profile: config content is snapshot-bound after impl", async () =>
   });
   fs.writeFileSync(path.join(root, ".spec-flow.json"), JSON.stringify(changed, null, 2));
   await assert.rejects(audit(root, "1"), /implementation changed after spec_impl/);
+});
+
+test("project profile: changed contract can re-impl when verify runs contracts-only", async () => {
+  const cli = fileURLToPath(new URL("./core.mjs", import.meta.url));
+  const root = project({
+    "package.json": JSON.stringify({ scripts: { verify: "node verify.mjs" } }),
+    ".spec-flow.json": JSON.stringify(profile(), null, 2),
+    "verify.mjs": `import { execFileSync } from "node:child_process"; execFileSync(process.execPath, [${JSON.stringify(cli)}, "check", "--ci", "--contracts-only"], { stdio: "inherit" }); if (process.env.FAIL_VERIFY === "1") process.exit(1);\n`,
+    "specs/1.done.md": exampleAppSpec({ id: 1, status: "done", check: true }),
+    "specs/2.feature.md": exampleAppSpec({ id: 2, dependsOn: [1] }),
+  });
+  try {
+    init(root);
+    await begin(root, "2");
+    assert.match(await impl(root, "2"), /PASS/);
+    const file = path.join(root, "specs/2.feature.md");
+    fs.appendFileSync(file, "\nNew contract: demonstrate re-implementation.\n");
+    let consistency = await checkCI(root, { runProjectGates: false });
+    assert.equal(consistency.pass, false);
+    assert.match(consistency.output, /contract_hash 已过期/);
+    // A failed prior audit record must not be forwarded to the project gate.
+    const fm = parseFrontmatter(fs.readFileSync(file, "utf8"));
+    fm.data.audit = { verdict: "fail" };
+    fs.writeFileSync(file, writeFrontmatter(fs.readFileSync(file, "utf8"), fm.data));
+    assert.match(await impl(root, "2"), /PASS/);
+    let current = findSpec(root, "2").frontmatter;
+    assert.equal(current.impl.pass, true);
+    assert.equal(current.audit, undefined);
+    assert.equal((await checkCI(root, { runProjectGates: false })).pass, true);
+
+    process.env.FAIL_VERIFY = "1";
+    const failed = await impl(root, "2");
+    assert.match(failed, /FAIL/);
+    current = findSpec(root, "2").frontmatter;
+    assert.equal(current.impl.pass, false);
+    consistency = await checkCI(root, { runProjectGates: false });
+    assert.equal(consistency.pass, false);
+    assert.match(consistency.output, /impl.pass 不是 true/);
+  } finally {
+    delete process.env.FAIL_VERIFY;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
