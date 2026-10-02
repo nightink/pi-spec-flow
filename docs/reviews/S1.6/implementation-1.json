@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-02T11:37:31.343Z",
+  "sha": "2a4d5474e3676af5ba0605d4dbc4aea5221a6299",
+  "base_sha": "f842a28a174b41bacb67ce73290d8a30ab3e39ff",
+  "impl_hash": "ea5c395cd7c66ee42cd60e4426c97d930956ef811e35077e2e040b737e93ec37",
+  "contract_hash": "23c5eaf4a92707bd83cf7059397fa2376216b912c35e7fd54fecbf1b108b23ed",
+  "prompt_version": 2,
+  "model": "deepseek/deepseek-v4-flash",
+  "thinking": "high",
+  "verdict": "fail",
+  "criteria": [
+    {
+      "criterion": "Existing default JS/npm and example-app-shaped profiles remain compatible; malformed generic profiles and evidence path escapes fail closed.",
+      "status": "pass",
+      "evidence": "core.mjs detectProjectConfig retains default npm typecheck/test/biome/vitest detection while adding argvGate paths; project-profile.mjs parseGates supports npmScripts and commands with assertExactKeys and rejects ambiguous lists; validateArgv/validateRelativeDirectory reject absolute, '..', leading '-', control chars; workspace-project.test.mjs 'generic schema rejects ambiguous gates, unsafe argv, unknown fields and evidence paths' enumerates failures, and full-check.log shows the example-app-shaped profile test passing."
+    },
+    {
+      "criterion": "A package.json-free Python project runs real configured unittest and Python E2E, records gates/snapshot/contract, and rejects a failing test; conservative pytest discovery/missing-interpreter/missing-gates errors are covered without dependency installation.",
+      "status": "pass",
+      "evidence": "core.mjs argvGate plus profile.evidence e2e runner runs .py E2E via runArgv with PYTHONDONTWRITEBYTECODE; impl pushes 'No project gates discovered...' diagnostic and allGatesPass requires config.gates.length > 0; workspace-project.test.mjs 'Python: minimal profile, real unittest/E2E, custom migration evidence, failing gate', 'Python discovery is conservative, venv-aware, and no-gate impl cannot pass', and 'missing executable is a failing configured gate'; tests/e2e/e2e-worktrees-python.mjs runs real python3 unittest and .py E2E."
+    },
+    {
+      "criterion": "Two real worktrees have local evidence; sibling changes do not invalidate isolated evidence, while changes in the target checkout and content-changing integration fail live freshness/audit before any model call. A target code write during gates cannot produce impl.pass=true.",
+      "status": "pass",
+      "evidence": "impl takes beforeGates snapshot then post snapshot, computes stable and requires it for implPass; checkCI live mode and renderWorktrees compare current snapshot/contract hashes; workspace-project.test.mjs 'linked/detached/spaced worktrees keep local evidence and expose live freshness' and 'mid-gate code changes fail impl, mid-gate spec edits are preserved'; tests/e2e/e2e-worktrees-python.mjs exercises a real linked worktree with concurrent main edits."
+    },
+    {
+      "criterion": "Concurrent subprocess allocation yields unique numeric/prefixed IDs; shared ID locks reject overlap but independent IDs proceed; concurrent contract editing is preserved and cannot be silently overwritten or certified.",
+      "status": "pass",
+      "evidence": "core.mjs allocateSpecId runs inside withWorkspaceLock('spec-allocator') and computes max observed/reserved suffix + 1 while scanning filename stems; workspace.mjs withWorkspaceLock uses exclusive O_EXCL lock files in the common dir with owner tokens and SPECFLOW_BUSY; writeSpecLifecycleFile adds an optimistic read-before-write content check; workspace-project.test.mjs covers six competing allocator children, same-ID rejection vs independent-ID proceed, and mid-gate spec edit preservation."
+    },
+    {
+      "criterion": "Copied composite-Action CLI invokes a caller's configured gates once (including legacy npm verify and a Python caller); contracts-only omission remains explicit; no private checkout/PAT or caller auto-install added.",
+      "status": "pass",
+      "evidence": "action.yml now runs 'node \"$SPECFLOW_CLI\" verify'; checkCI with preferVerify adds npm run verify only when profile.gates is absent and package.json#scripts.verify exists, otherwise runs configured/detected gates; tests/e2e/e2e-private-action.mjs verifies configured and no-profile verify-only callers exactly once, e2e-worktrees-python.mjs verifies a Python caller, and contracts-only output stays explicit ('项目门禁未运行（contracts-only）')."
+    },
+    {
+      "criterion": "Node 22 full npm run check, declared E2E, real Pi load/command smoke, whitespace/secret scans and isolated implementation review all pass with retained provenance. Independent audit and gates are not conflated.",
+      "status": "fail",
+      "evidence": "The S1.6 spec is status in-progress and this acceptance bullet remains unchecked; the spec text states 'Independent implementation review is still pending'; docs/reviews/S1.6/validation.md says the exact candidate packet 'must be secret-scanned before commit/review' without any retained secret-scan result, and docs/reviews/S1.6/ contains only proposal.md (no implementation review artifact). full-check.log, pi-smoke.log and dependency-audit.log exist, but isolated implementation review and secret scan are not satisfied."
+    }
+  ],
+  "scope_deviations": []
+}
