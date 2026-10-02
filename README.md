@@ -6,8 +6,9 @@ Pi 的证据绑定 spec 工作流扩展。它把 `begin → impl → audit → a
 
 ## 要求与安装
 
-- Node.js `>=22.19.0`
-- Git
+- 扩展/CLI 自身运行需要 Node.js `>=22.19.0`，**被管理项目不限 JS/TS**
+- Git（worktree 协调使用 `--path-format=absolute`）
+- 本仓库全量自测还需要 Python 3；不会自动 pip/uv/npm 安装被管理项目的依赖
 - 当前支持并在 macOS/Linux 验证；Windows 不是本版本的保证范围
 
 放在 `~/.pi/agent/extensions/spec-flow/` 后，Pi 会通过 `package.json#pi.extensions` 发现 `index.ts`：
@@ -26,6 +27,8 @@ npm run check
 |---|---|
 | `docs/specs/*.md`、`docs/spec/*.md`、`specs/*.md`、`spec/*.md` | 扫描这些显式目录中的 spec；目录可单复数，直接合并，不递归其他路径 |
 | `.spec-flow.json` | 可选的 v1 project governance profile；普通非 symlink 文件、严格 schema、非法时 fail closed |
+| `.spec-flow.json#gates.commands` | 显式 argv 门禁，适用于 Python/Go/Rust/Make 等，不要求 package.json |
+| `pytest.ini` / `pyproject.toml#[tool.pytest.ini_options]` | 保守探测 `python3 -m pytest -q`，优先当前 worktree 的 `.venv/bin/python` |
 | `package.json#scripts.typecheck` | 默认 profile 下的 `npm run typecheck` 门禁 |
 | `package.json#scripts.test` | Vitest 或通用 `npm test` 门禁 |
 | `biome.json` | `npx --no-install biome check .` 门禁 |
@@ -67,7 +70,7 @@ Profile 用于渐进接入已有本地治理，不会把项目强制迁到 spec-
 }
 ```
 
-安全边界：配置只允许引用当前 `package.json#scripts` 中存在的 npm script，不接受 shell、可执行路径或 JS 插件；未知键、保留/冲突字段、状态角色重叠、脚本缺失、越界或 symlink 配置一律报错，不回退到较弱默认门禁。CLI 会非零退出，commit interceptor 会把配置错误作为红门禁（显式 `SPECFLOW_BYPASS=1` 仍可放行）。配置文件参与 implementation snapshot，验证后修改会使旧证据失效。
+安全边界：`gates` 使用 `mode: "replace"`，必须二选一：当前 package.json 中存在的 `npmScripts`，或具名的 `commands` argv 数组。不使用隐式 shell、插值、动态配置/JS 插件；命令本身仍是**受信任的项目代码**，并非安全沙箱。未知键、保留/冲突字段、重复门禁名、状态角色重叠、脚本缺失、越界或 symlink 配置一律报错，不回退到较弱默认门禁。CLI 会非零退出，commit interceptor 会把配置错误作为红门禁（显式 `SPECFLOW_BYPASS=1` 仍可放行）。配置文件参与 implementation snapshot，验证后修改会使旧证据失效。
 
 `external-warning` 只适用于 `externalActiveIds` 明确列出的历史 active spec；未列出的 legacy active 仍报错，不能通过删除 `workflow_version` 绕过 CI。workflow v2 active spec 始终执行完整闭环。profile 声明的 `updated/reviewers/reviewed_at` 等 lifecycle metadata 不扰动 contract hash，但 proposal approval 在后续阶段持续重验；依赖、目标、验收和 evidence 仍受绑定。Frontmatter 仍必须是 `js-yaml` 可解析的合法 YAML，profile 不提供宽松解析兜底。
 
@@ -84,7 +87,31 @@ Profile 用于渐进接入已有本地治理，不会把项目强制迁到 spec-
 
 仅配置此对象时生效；要求字段非空、种类合法、`N.*.md` 文件名前缀对应非负安全整数 ID、`done` 正文不能有行首未勾选项，禁止 addendum 文件，依赖必须是存在的非负整数 ID 且不可成环。这些检查作用于**所有** spec（包括 archived 和历史 active/done），不会被 legacy warning 跳过。未知键/非法类型会拒绝整个 profile。
 
-v1 profile 只支持 spec 与 implementation 位于同一仓库；配置项目若声明外部 `impl.repo` 会 fail closed，避免 profile 语义落在 snapshot 之外。npm script 本身仍是项目代码，不是安全沙箱，只有在信任项目及检查脚本定义后才应执行。
+Profile 的 `lifecycle` 和 `gates` 均可省略，分别沿用默认状态/审批语义和默认探测。配置项目的合同与实现须在**同一 checkout**；不要从 main 的 spec 填 `impl.repo: ../worktree`，而应 `cd` 到该 worktree 执行完整生命周期。无 profile 的历史外部 impl.repo 行为保留。
+
+### Python / 通用命令配置
+
+不需要 package.json，也不必复制 JS 项目的 lifecycle 字段：
+
+```json
+{
+  "version": 1,
+  "gates": {
+    "mode": "replace",
+    "commands": [
+      { "name": "test", "argv": ["python3", "-m", "unittest", "discover", "-s", "tests"] }
+    ]
+  },
+  "evidence": {
+    "e2e": { "dir": "tests/e2e", "extension": ".py", "runner": ["python3"] },
+    "migrations": { "dir": "migrations", "extensions": [".py", ".sql"] }
+  }
+}
+```
+
+也可明确配置 `.venv/bin/python -m pytest -q`、`uv run --no-sync pytest`、`make verify`、`cargo test` 等 argv；省略 evidence 时仍使用旧 JS/TS 路径。runner 最后追加已验证的 E2E 文件绝对路径；仍需退出 0、输出行首 `PASS ` 且无 `FAIL `。migration 只验证编号/文件，不推断 Alembic/Django/数据库执行。
+
+门禁名必须安全且唯一；argv 非空、无 NUL/换行，首项是 PATH 名或项目相对执行路径（不能绝对/`..`/选项开头）。常见 venv 解释器 symlink 可用，但 **E2E 文件**必须普通非 symlink 文件，配置目录必须在 checkout 内。仅明确的 pytest 配置会自动探测；没有明确门禁的 Python 项目会要求配置，不会凭空跑 ruff/mypy 或安装工具。`impl` 没有门禁时不会通过。门禁生成的缓存/日志应 gitignore；门禁前后实现内容变化会记录 FAIL，生成 tracked 产物后需要重跑一次稳定验证。
 
 ## Workflow v2
 
@@ -97,18 +124,34 @@ spec-flow 会扫描 `docs/specs/`、`docs/spec/`、`specs/`、`spec/` 四个显�
 
 因此，代码或合同在验证后变化会让 audit/done 拒绝旧证据；仅把相同代码提交到 Git 不会使内容快照失效。
 
-### 六个 Pi 工具
+### Pi 工具
 
 | 工具 | 作用 |
 |---|---|
-| `spec_board` | 状态、漂移和下一步 |
+| `spec_board` | 当前 worktree 的状态、漂移和下一步 |
+| `spec_alloc {prefix?}` | 在 Git common directory 原子预留编号，例如 prefix 为 `S1.` |
 | `spec_begin <id>` | 要求 review approved、deps done；进入 v2 in-progress |
 | `spec_impl <id>` | 运行 required gates、逐项 E2E、migration 检查；写 `impl.pass` 与 snapshot |
 | `spec_audit <id>` | 隔离子 Pi 审计完整 base→working-tree diff；写 criteria、hash、model、prompt version |
 | `spec_attest <id> <item> <note>` | 仅在交互 UI 明确确认后登记人工 evidence |
 | `spec_done <id>` | record-consistency + live snapshot 双重校验后进入 done |
 
-Pi 的 begin/impl/audit/attest/done 对同一 spec 使用 `withFileMutationQueue()` 串行化。工具失败通过 throw 呈现为真实错误，长输出会明确标记截断。
+Pi 的 begin/impl/audit/attest/done 仍使用 `withFileMutationQueue()`；核心还在 Git common directory 使用按 Spec ID 的跨进程锁，CLI/多 Pi 会话/多个 worktree 也受保护。冲突报 busy 并给 owner/锁路径，不静默覆盖；正常异常/取消释放锁，SIGKILL 等留下的锁**不会自动抢占**，须确认 owner 已退出后由用户清理。写回前重验 spec 文件，保留门禁期间的并发人工改动。工具失败通过 throw 呈现为真实错误，长输出会明确标记截断。
+
+### 并行 Git worktree
+
+```bash
+cd /path/to/agent-worktree
+node /path/to/spec-flow/core.mjs spec-alloc --prefix S1.  # 跨 worktree 预留 S1.N
+node /path/to/spec-flow/core.mjs begin S1.N
+node /path/to/spec-flow/core.mjs impl S1.N
+node /path/to/spec-flow/core.mjs worktrees                 # 仓库家族看板 + 实时 freshness
+node /path/to/spec-flow/core.mjs check --ci --contracts-only --live
+```
+
+每个 worktree 的 spec、门禁、ledger 和完整内容快照独立；main 的脏文件不影响隔离分支的证据。看板支持 detached checkout 和带空格路径。`spec-alloc` 从所有已注册 worktree 的 Spec/文件名及预留记录中取 PREFIX 命名空间的最大数字 + 1；删除 worktree 不回收编号。编号记录和锁位于 `.git` 的 common directory，不提交、不当作第二份合同；仅协调本机同一 Git 仓库，不保证手写编号、独立 clone/其他机器的唯一性。不可访问/非法 Spec 的 worktree 会阻止分配，避免猜测空闲编号。
+
+合并后只有内容相同才可继续使用 hash-bound evidence；集成其他修改后在目标 checkout 重跑 impl/audit。`check --ci` 校验历史记录，`--live` 额外比对当前 **active** 的实现快照；done 历史不会与今天的代码比对。不能把普通 contracts-only 的绿灯当成合并后的实测通过。`/spec worktrees` 也可查看该看板。
 
 ### 人工核验
 
@@ -126,6 +169,7 @@ note 至少 20 个字符，并与当前 implementation/contract hash 绑定。
 /spec          项目看板
 /spec board    同上
 /spec <id>     单个 spec 详情
+/spec worktrees 同仓库全部 worktree 与 active 实时 freshness
 ```
 
 ```bash
@@ -136,8 +180,11 @@ node core.mjs audit S3.13
 node core.mjs attest S3.13 R1 "核验路径和样本（至少 20 字）"
 node core.mjs done S3.13
 node core.mjs migrate-alloc
+node core.mjs spec-alloc --prefix S1.
+node core.mjs worktrees
+node core.mjs verify                     # Action 同款：配置门禁 / 旧 npm verify / 默认探测
 node core.mjs check --ci
-node core.mjs check --ci --contracts-only  # 仅做 Spec/证据检查，不运行 npm gates
+node core.mjs check --ci --contracts-only --live  # 不运行项目 gates，但比对 active 实时快照
 ```
 
 ## 审计边界
@@ -159,9 +206,9 @@ node core.mjs check --ci --contracts-only  # 仅做 Spec/证据检查，不运�
 
 ### 与项目 `verify` / 跨仓 GitHub Action 组合
 
-项目的 `verify` 可以调用 `node core.mjs check --ci --contracts-only` 作为元数据门禁；`spec_impl` 仍运行 profile 的权威 `npm run verify`。**不要**在 `verify` 内调用完整 `check --ci`：它会再次执行 `verify`，产生递归。contracts-only 明示未运行 npm gates，不能单独冒充完整 CI；独立 `check --ci` 仍执行项目 gates 且缓存禁用。
+项目的 `verify` 可以调用 `node core.mjs check --ci --contracts-only` 作为元数据门禁；`spec_impl` 仍运行 profile 的权威 `npm run verify`。**不要**在 `verify` 内调用完整 `check --ci`：它会再次执行 `verify`，产生递归。contracts-only 明示未运行项目 gates，不能单独冒充完整 CI；独立 `check --ci` 仍执行项目 gates 且缓存禁用。
 
-此仓库根目录提供 `action.yml` composite Action。对于**同一账号**下的两个私有仓库，在 spec-flow 仓库 Settings → Actions → General → Access 中选“Accessible from repositories owned by USERNAME user”；example-app 的 `uses: nightink/pi-spec-flow@<full-40-char-commit-SHA>` 使用真实已推送 SHA，不用 `main` 等可变引用。Action 用自己的 `package-lock.json` 安装运行时依赖，然后对 caller 运行 contracts-only 与 `npm run verify`，传递只在该 Action 路径下的 `SPECFLOW_CLI`；不需要跨仓 checkout 的 PAT。Caller 应使用 `permissions: contents: read`，先 checkout 并用 Node >=22.19.0 执行 `npm ci`。本地 CLI 仍需从可信安装的 Pi 扩展运行（Action 只提供 CI，不自动部署 Pi skill 或扩展）。
+此仓库根目录提供 `action.yml` composite Action。对于**同一账号**下的两个私有仓库，在 spec-flow 仓库 Settings → Actions → General → Access 中选“Accessible from repositories owned by USERNAME user”；example-app 的 `uses: nightink/pi-spec-flow@<full-40-char-commit-SHA>` 使用真实已推送 SHA，不用 `main` 等可变引用。Action 用自己的 `package-lock.json` 安装运行时依赖，然后调用 `node "$SPECFLOW_CLI" verify`：显式 gates 优先；没有 gates 配置时保留 caller 的 npm `verify`（若存在）且只运行一次，否则用默认探测。无可执行门禁时 Action 失败。`SPECFLOW_CLI` 指向该 Action 路径，项目 verify 内仍仅调用 contracts-only 避免递归；不需要跨仓 checkout 的 PAT。Caller 应使用 `permissions: contents: read`，先 checkout，准备 Node >=22.19.0（引擎要求）及自身 Python/uv/venv/npm 等测试环境；Action 不安装 caller 依赖。本地 CLI 仍需从可信安装的 Pi 扩展运行（Action 只提供 CI，不自动部署 Pi skill 或扩展）。
 
 **交付顺序**：本地提交 spec-flow → 用户 push 该 commit → 用户启用上述私有 Action Access → example-app CI 引用已推送的固定 SHA → 用户 push example-app、查看真实 CI。没有远端设置和 CI 运行前只能证明本地 Action 等价路径，不能宣称远端已接通；本工具不会自动 push/publish 或改 GitHub 设置。注意共享私有 Action 时，调用仓库的外部协作者可能通过 workflow 日志间接看到输出；不要在 Action 输出机密或授权不可信仓库。
 
@@ -209,6 +256,7 @@ node tests/e2e/e2e-commit-gate.mjs
 node tests/e2e/e2e-trustworthy-closure.mjs
 node tests/e2e/e2e-spec-discovery.mjs
 node tests/e2e/e2e-project-governance-profile.mjs
+node tests/e2e/e2e-worktrees-python.mjs  # 真实 Python + linked worktree + Action copied CLI
 npm run check                    # 权威本地门禁
 npm run smoke:pi                 # 已安装 Pi 时：真实 RPC 加载 + /spec，无模型调用
 ```

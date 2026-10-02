@@ -118,6 +118,7 @@ try {
   const closureRepo = path.join(sandbox, "closure");
   fs.mkdirSync(closureRepo, { recursive: true });
   write(closureRepo, "docs/specs/S3.md", spec("S3"));
+  write(closureRepo, "package.json", JSON.stringify({ scripts: { test: "node -e \"require('node:fs').readFileSync('implementation.txt')\"" } }));
   init(closureRepo);
   check(cli(closureRepo, "begin", "S3").status === 0, "second spec begins");
   write(closureRepo, "implementation.txt", "untracked implementation evidence\n");

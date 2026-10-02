@@ -1,0 +1,80 @@
+{
+  "base": "f842a28a174b41bacb67ce73290d8a30ab3e39ff",
+  "captured_at": "2026-10-02T11:30:45.843Z",
+  "node": "v22.19.0",
+  "platform": "darwin",
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "15eed3f387940d516aad820b976600d8c886b34804af00cdd7218a0c4311024e"
+    },
+    {
+      "path": "README.md",
+      "sha256": "86a45d519cccd754ddb1ed2e7d47f3f6184f3e6d772f1009435f303f88e13b54"
+    },
+    {
+      "path": "action.test.mjs",
+      "sha256": "aa4208672865407d29197bef10b4468a200c3f25ead77fd678f5e2d652257758"
+    },
+    {
+      "path": "action.yml",
+      "sha256": "85535a0f26b64fde52ce0ee1b7842f5e516ed12e187733ad25a91a8b26e1d773"
+    },
+    {
+      "path": "adapter-core.test.mjs",
+      "sha256": "46fa45ec0c9b573c81ca78547bb5ad9b6ccb780cefd29d0f87a7d27ba8773956"
+    },
+    {
+      "path": "core.mjs",
+      "sha256": "4d1e89735c754d838b1682588f17c978175a4d9084e3b1202f871beeb934e1b3"
+    },
+    {
+      "path": "core.test.mjs",
+      "sha256": "82754c93f764a3439c30200ebcdfffa0a5b73fb475788d133a17bf95959d5aed"
+    },
+    {
+      "path": "index.ts",
+      "sha256": "ba35f812d527474fd732efc5caff0b08e59e32af83e43574f9e73e0ed98905e6"
+    },
+    {
+      "path": "package.json",
+      "sha256": "2bc981a6d4e659e6e728775bea9333542c9a8115a66cceb8d2427230dd8c2306"
+    },
+    {
+      "path": "project-contracts.test.mjs",
+      "sha256": "bc76e498183a10779bdd1f64db4453282617c1be113c1b700e8594c870e038e3"
+    },
+    {
+      "path": "project-profile.mjs",
+      "sha256": "12de3b96f48069d4fadea13d585caa27fb229824fe06b23ad73a4b91f4b03073"
+    },
+    {
+      "path": "tests/e2e/e2e-private-action.mjs",
+      "sha256": "1c61ce1541576e4852e8d4123cdb68872ddef1db971c19c9d4e6abbe1e9a5d5e"
+    },
+    {
+      "path": "tests/e2e/e2e-trustworthy-closure.mjs",
+      "sha256": "039909fa0ebf2368e13cd1b9973f50e55288158a4bc35c7f9413a94a73f85055"
+    },
+    {
+      "path": "tests/e2e/e2e-worktrees-python.mjs",
+      "sha256": "3c779f797281249d10f66cc2ca9be08f7da2a8b168d93582df28a3bec945c287"
+    },
+    {
+      "path": "tests/smoke/pi-rpc-load.mjs",
+      "sha256": "2d6a478d8eed7458ed902d760aabe5a37235f6e669cbfe049dd30ba1ed9d7d10"
+    },
+    {
+      "path": "trustworthy.test.mjs",
+      "sha256": "2e74d1fda4e69b6dbc74a7a51df173f9e1379dc8dad32bb970d00de69c8399c5"
+    },
+    {
+      "path": "workspace-project.test.mjs",
+      "sha256": "6fcd036f1244d5199a84f81ad4b4be232fca4a50c87c84b017ae66098f701044"
+    },
+    {
+      "path": "workspace.mjs",
+      "sha256": "30611bc598f1411d3dfb50d5eb2109228bc543f5d0ef7ca45a8cbd8ea17f9bee"
+    }
+  ]
+}

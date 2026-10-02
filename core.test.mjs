@@ -101,7 +101,7 @@ function fakeAuditor(verdict = "pass", criteria) {
 async function implementedLifecycle({
   externalRepo = false,
   evidence = {},
-  gatesPackage,
+  gatesPackage = { scripts: { test: "node -e \"process.exit(0)\"" } },
   implementationFiles = {},
 } = {}) {
   const project = mkProject({});
@@ -303,7 +303,7 @@ test("migrate-alloc: increment from last", () => {
 
 test("migrate-alloc: reject when no directory", () => {
   const dir = mkProject({});
-  assert.throws(() => migrateAlloc(dir), /No migration directory/);
+  assert.throws(() => migrateAlloc(dir), /No migrations found/);
 });
 
 // ─── attest ──────────────────────────────────────────────────────────────────
@@ -779,7 +779,7 @@ test("e2e parse: PASS must be at line start", () => {
 
 async function implE2eFixture(source, evidence = ["e2e-01"]) {
   const dir = mkProject({
-    "package.json": JSON.stringify({ scripts: {} }),
+    "package.json": JSON.stringify({ scripts: { test: "node -e \"process.exit(0)\"" } }),
     "tests/e2e/e2e-01.mjs": source,
     "docs/specs/S1.0.md": approvedSpec({ evidence: { e2e: evidence } }),
   });

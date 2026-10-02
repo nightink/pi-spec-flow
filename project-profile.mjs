@@ -229,6 +229,95 @@ function parseValidation(value) {
   };
 }
 
+// Project code is trusted, but argv is never interpolated into a shell.
+export function validateArgv(value, label) {
+  if (!Array.isArray(value) || value.length === 0 || value.some(
+    (arg) => typeof arg !== "string" || /[\0\r\n]/.test(arg)
+  )) throw new Error(`${label} must be a non-empty argv string array without control characters`);
+  const file = value[0];
+  if (!file || !/^[A-Za-z0-9_./-]+$/.test(file) || file.startsWith("-") ||
+      path.isAbsolute(file) || file.split("/").includes("..") || file === ".") {
+    throw new Error(`${label}[0] must be a PATH name or in-project relative executable`);
+  }
+  return [...value];
+}
+
+export function validateRelativeDirectory(value, label) {
+  if (typeof value !== "string" || !value || /[\0\r\n\\]/.test(value) ||
+      path.isAbsolute(value) || value.startsWith("-") ||
+      value.split("/").some((part) => !part || part === "." || part === "..")) {
+    throw new Error(`${label} must be a normalized project-relative directory`);
+  }
+  return value;
+}
+
+function parseGates(root, value) {
+  if (value === undefined) return null;
+  assertExactKeys(value, ["mode", "npmScripts", "commands"], "gates");
+  if (value.mode !== "replace") throw new Error('gates.mode must be "replace" in profile version 1');
+  if (Object.hasOwn(value, "npmScripts") === Object.hasOwn(value, "commands")) {
+    throw new Error("gates requires exactly one of npmScripts or commands");
+  }
+  if (Object.hasOwn(value, "commands")) {
+    if (!Array.isArray(value.commands) || value.commands.length === 0) {
+      throw new Error("gates.commands must be non-empty");
+    }
+    const names = new Set();
+    const commands = value.commands.map((command) => {
+      assertExactKeys(command, ["name", "argv"], "gates.commands item");
+      if (typeof command.name !== "string" || !SAFE_NPM_SCRIPT.test(command.name) ||
+          FORBIDDEN_KEYS.has(command.name) || names.has(command.name)) {
+        throw new Error("gates.commands names must be safe and unique");
+      }
+      names.add(command.name);
+      return { name: command.name, argv: validateArgv(command.argv, `gate ${command.name}`) };
+    });
+    return { mode: "replace", commands };
+  }
+  assertStringArray(value.npmScripts, "gates.npmScripts", { nonEmpty: true });
+  let pkg;
+  try { pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")); }
+  catch (error) { throw new Error(`Cannot validate configured npm scripts: ${error.message}`); }
+  for (const script of value.npmScripts) {
+    if (!SAFE_NPM_SCRIPT.test(script) || FORBIDDEN_KEYS.has(script)) {
+      throw new Error(`gates.npmScripts contains unsafe script name: ${script}`);
+    }
+    if (typeof pkg?.scripts?.[script] !== "string" || !pkg.scripts[script].trim()) {
+      throw new Error(`Configured npm script does not exist: ${script}`);
+    }
+  }
+  return { mode: "replace", npmScripts: [...value.npmScripts] };
+}
+
+function parseEvidence(value) {
+  if (value === undefined) return null;
+  assertExactKeys(value, ["e2e", "migrations"], "evidence");
+  const result = {};
+  const extension = (value, label) => {
+    if (typeof value !== "string" || !/^\.[A-Za-z0-9]+$/.test(value)) {
+      throw new Error(`${label} must be a filename extension`);
+    }
+    return value;
+  };
+  if (value.e2e !== undefined) {
+    assertExactKeys(value.e2e, ["dir", "extension", "runner"], "evidence.e2e");
+    result.e2e = {
+      dir: validateRelativeDirectory(value.e2e.dir, "evidence.e2e.dir"),
+      extension: extension(value.e2e.extension, "evidence.e2e.extension"),
+      runner: validateArgv(value.e2e.runner, "evidence.e2e.runner"),
+    };
+  }
+  if (value.migrations !== undefined) {
+    assertExactKeys(value.migrations, ["dir", "extensions"], "evidence.migrations");
+    assertStringArray(value.migrations.extensions, "evidence.migrations.extensions", { nonEmpty: true });
+    result.migrations = {
+      dir: validateRelativeDirectory(value.migrations.dir, "evidence.migrations.dir"),
+      extensions: value.migrations.extensions.map((item) => extension(item, "evidence.migrations.extensions")),
+    };
+  }
+  return result;
+}
+
 function parseConfiguredProfile(root, raw) {
   let data;
   try {
@@ -237,8 +326,18 @@ function parseConfiguredProfile(root, raw) {
     throw new Error(`Invalid ${PROJECT_PROFILE_FILE} JSON: ${error?.message || error}`);
   }
 
-  assertExactKeys(data, ["version", "lifecycle", "gates", "validation"], PROJECT_PROFILE_FILE);
+  assertExactKeys(data, ["version", "lifecycle", "gates", "validation", "evidence"], PROJECT_PROFILE_FILE);
   if (data.version !== 1) throw new Error(`${PROJECT_PROFILE_FILE} version must be 1`);
+  const gates = parseGates(root, data.gates);
+  const evidence = parseEvidence(data.evidence);
+  if (data.lifecycle === undefined) {
+    const validation = parseValidation(data.validation);
+    if (validation?.kindField === DEFAULT_PROFILE.lifecycle.dependenciesField) {
+      throw new Error("validation.kindField must be distinct from lifecycle metadata fields");
+    }
+    return { ...DEFAULT_PROFILE, configured: true, sourcePath: path.join(root, PROJECT_PROFILE_FILE),
+      gates, evidence, validation };
+  }
 
   assertExactKeys(
     data.lifecycle,
@@ -294,30 +393,6 @@ function parseConfiguredProfile(root, raw) {
     throw new Error("lifecycle dependency/review/update fields must be distinct");
   }
 
-  assertExactKeys(data.gates, ["mode", "npmScripts"], "gates");
-  if (data.gates.mode !== "replace") {
-    throw new Error('gates.mode must be "replace" in profile version 1');
-  }
-  assertStringArray(data.gates.npmScripts, "gates.npmScripts", { nonEmpty: true });
-  for (const script of data.gates.npmScripts) {
-    if (!SAFE_NPM_SCRIPT.test(script) || FORBIDDEN_KEYS.has(script)) {
-      throw new Error(`gates.npmScripts contains unsafe script name: ${script}`);
-    }
-  }
-
-  const packagePath = path.join(root, "package.json");
-  let pkg;
-  try {
-    pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
-  } catch (error) {
-    throw new Error(`Cannot validate configured npm scripts: ${error?.message || error}`);
-  }
-  for (const script of data.gates.npmScripts) {
-    if (typeof pkg?.scripts?.[script] !== "string" || !pkg.scripts[script].trim()) {
-      throw new Error(`Configured npm script does not exist: ${script}`);
-    }
-  }
-
   const validation = parseValidation(data.validation);
   if (validation && new Set([
     validation.kindField, lifecycle.dependenciesField, lifecycle.updatedField,
@@ -349,10 +424,8 @@ function parseConfiguredProfile(root, raw) {
         placeholderReviewers: [...approval.placeholderReviewers],
       },
     },
-    gates: {
-      mode: "replace",
-      npmScripts: [...data.gates.npmScripts],
-    },
+    gates,
+    evidence,
     contractMetadataFields: metadataFields,
   };
 }

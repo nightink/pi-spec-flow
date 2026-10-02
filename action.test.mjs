@@ -11,8 +11,8 @@ test("private cross-repository Action is composite, installs pinned deps, and ru
   assert.match(install.run, /--ignore-scripts/);
   assert.doesNotMatch(install.run, /\$\{\{\s*secrets\./);
   assert.equal(verify.env.SPECFLOW_CLI, "${{ github.action_path }}/core.mjs");
-  assert.match(verify.run, /node "\$SPECFLOW_CLI" check --ci --contracts-only/);
-  assert.match(verify.run, /npm run verify/);
+  assert.equal(verify.run, 'node "$SPECFLOW_CLI" verify');
+  assert.doesNotMatch(verify.run, /npm run verify/);
   assert.doesNotMatch(JSON.stringify(action), /secrets\.|actions\/checkout|git push|npm publish|deploy/i);
   assert.ok(fs.existsSync(new URL("./package-lock.json", import.meta.url)));
 });

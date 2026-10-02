@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // spec-flow core.mjs — zero-pi-dependency core logic
-// CLI: node core.mjs board|begin <id>|impl <id>|audit <id>|attest <id> <item> <note>|done <id>|migrate-alloc|check --ci
+// CLI: node core.mjs board|worktrees|spec-alloc [--prefix PREFIX]|begin|impl|audit|attest|done|migrate-alloc|verify|check --ci [--contracts-only] [--live]
 
 import yaml from "js-yaml";
 import fs from "node:fs";
@@ -10,6 +10,7 @@ import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { gitWorkspace, gitWorktrees, withWorkspaceLock, readReservations } from "./workspace.mjs";
 import {
   applyLifecycleWrite,
   approvalProblems,
@@ -133,7 +134,7 @@ export async function runArgv(
     if (e?.name === "AbortError") throw e;
     return {
       stdout: e.stdout ?? "",
-      stderr: e.stderr ?? "",
+      stderr: e.stderr || e.message || "",
       code: typeof e.code === "number" ? e.code : 1,
       tooBig: e.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
     };
@@ -298,11 +299,15 @@ function requireProposalApproval(profile, frontmatter, id) {
 
 function writeSpecLifecycleFile(spec, frontmatter, profile, { status } = {}) {
   applyLifecycleWrite(profile, frontmatter, { status });
+  if (fs.readFileSync(spec.path, "utf8") !== spec.content) {
+    throw new Error(`Spec changed concurrently; refusing to overwrite ${spec.path}. Retry with the current contract.`);
+  }
   let content = writeFrontmatter(spec.content, frontmatter);
   if (status !== undefined && profile.lifecycle.bodyStatusLine) {
     content = updateStatusLine(content, status);
   }
   atomicWriteFileSync(spec.path, content);
+  spec.content = content;
 }
 
 // ─── Drift detection ─────────────────────────────────────────────────────────
@@ -324,112 +329,68 @@ export function detectDrift(content, fmData, profile = defaultProjectProfile()) 
 }
 
 // ─── Project config detection ────────────────────────────────────────────────
+function argvGate(name, argv, cwd) {
+  const file = argv[0].includes("/") ? path.resolve(cwd, argv[0]) : argv[0];
+  return { name, file, args: argv.slice(1), cmd: argv.map((part) => JSON.stringify(part)).join(" ") };
+}
+
+function projectDirectory(cwd, relative) {
+  const directory = path.join(cwd, relative);
+  if (fs.existsSync(directory) && !pathInside(fs.realpathSync(cwd), fs.realpathSync(directory))) {
+    throw new Error(`Evidence directory escapes project: ${relative}`);
+  }
+  return directory;
+}
+
 export function detectProjectConfig(cwd, profile = loadProjectProfile(cwd)) {
   const pkgPath = path.join(cwd, "package.json");
-  const biomePath = path.join(cwd, "biome.json");
-  const vitestPatterns = [
-    "vitest.config.ts",
-    "vitest.config.js",
-    "vitest.config.mjs",
-    "vitest.workspace.ts",
-    "vitest.workspace.js",
-  ];
-
+  const pkg = fs.existsSync(pkgPath) ? JSON.parse(fs.readFileSync(pkgPath, "utf8")) : null;
   const gates = [];
   let hasTypecheck = false;
   let hasVitest = false;
-  let pkg = null;
-  if (fs.existsSync(pkgPath)) {
-    pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-  }
-
+  const npm = (name, args) => ({ name, cmd: `npm ${args.join(" ")}`,
+    file: process.platform === "win32" ? "npm.cmd" : "npm", args });
+  const pyproject = path.join(cwd, "pyproject.toml");
+  const pythonProject = ["pyproject.toml", "pytest.ini", "setup.py", "setup.cfg", "requirements.txt"].some(
+    (file) => fs.existsSync(path.join(cwd, file))
+  );
+  const pytestConfigured = fs.existsSync(path.join(cwd, "pytest.ini")) ||
+    (fs.existsSync(pyproject) && /^\s*\[tool\.pytest\.ini_options\]\s*$/m.test(fs.readFileSync(pyproject, "utf8")));
   if (profile.gates?.mode === "replace") {
-    for (const script of profile.gates.npmScripts) {
-      if (typeof pkg?.scripts?.[script] !== "string" || !pkg.scripts[script].trim()) {
-        throw new Error(`Configured npm script does not exist: ${script}`);
+    if (profile.gates.commands) {
+      gates.push(...profile.gates.commands.map(({ name, argv }) => argvGate(name, argv, cwd)));
+    } else {
+      for (const script of profile.gates.npmScripts) {
+        if (typeof pkg?.scripts?.[script] !== "string" || !pkg.scripts[script].trim()) {
+          throw new Error(`Configured npm script does not exist: ${script}`);
+        }
+        gates.push(npm(script, ["run", script]));
       }
-      gates.push({
-        name: script,
-        cmd: `npm run ${script}`,
-        file: process.platform === "win32" ? "npm.cmd" : "npm",
-        args: ["run", script],
-      });
     }
   } else {
-    if (pkg?.scripts?.typecheck) {
-      gates.push({
-        name: "typecheck",
-        cmd: "npm run typecheck",
-        file: process.platform === "win32" ? "npm.cmd" : "npm",
-        args: ["run", "typecheck"],
-      });
-      hasTypecheck = true;
-    }
-    if (
-      pkg?.scripts?.test &&
-      (pkg.scripts.test.includes("vitest") || pkg.scripts.test === "vitest run")
-    ) {
-      hasVitest = true;
-    } else if (pkg?.scripts?.test) {
-      gates.push({
-        name: "test",
-        cmd: "npm test",
-        file: process.platform === "win32" ? "npm.cmd" : "npm",
-        args: ["test"],
-      });
-    }
-    if (fs.existsSync(biomePath)) {
-      gates.push({
-        name: "biome",
-        cmd: "npx --no-install biome check .",
-        file: process.platform === "win32" ? "npx.cmd" : "npx",
-        args: ["--no-install", "biome", "check", "."],
-      });
-    }
-    if (hasVitest) {
-      gates.push({
-        name: "vitest",
-        cmd: "npx --no-install vitest run",
-        file: process.platform === "win32" ? "npx.cmd" : "npx",
-        args: ["--no-install", "vitest", "run"],
-      });
-    }
-
-    // Check vitest config files as fallback
-    if (!hasVitest) {
-      for (const vf of vitestPatterns) {
-        if (fs.existsSync(path.join(cwd, vf))) {
-          gates.push({
-            name: "vitest",
-            cmd: "npx --no-install vitest run",
-            file: process.platform === "win32" ? "npx.cmd" : "npx",
-            args: ["--no-install", "vitest", "run"],
-          });
-          break;
-        }
-      }
+    if (pkg?.scripts?.typecheck) { gates.push(npm("typecheck", ["run", "typecheck"])); hasTypecheck = true; }
+    hasVitest = Boolean(pkg?.scripts?.test?.includes("vitest"));
+    if (pkg?.scripts?.test && !hasVitest) gates.push(npm("test", ["test"]));
+    if (fs.existsSync(path.join(cwd, "biome.json"))) gates.push(argvGate("biome", ["npx", "--no-install", "biome", "check", "."], cwd));
+    if (hasVitest || ["vitest.config.ts", "vitest.config.js", "vitest.config.mjs", "vitest.workspace.ts", "vitest.workspace.js"].some(
+      (file) => fs.existsSync(path.join(cwd, file))
+    )) gates.push(argvGate("vitest", ["npx", "--no-install", "vitest", "run"], cwd));
+    if (pytestConfigured) {
+      const local = path.join(cwd, ".venv/bin/python");
+      gates.push(argvGate("pytest", [fs.existsSync(local) ? ".venv/bin/python" : "python3", "-m", "pytest", "-q"], cwd));
     }
   }
-
-  // e2e
-  const e2eDir = path.join(cwd, "tests/e2e");
-  const e2eFiles = fs.existsSync(e2eDir)
-    ? fs
-        .readdirSync(e2eDir)
-        .filter((f) => /^e2e-.*\.mjs$/.test(f))
-        .sort()
-    : [];
-
-  // migrations
-  const migDir = path.join(cwd, "packages/db/src/migrations");
-  const migFiles = fs.existsSync(migDir)
-    ? fs
-        .readdirSync(migDir)
-        .filter((f) => /^\d+.*\.ts$/.test(f))
-        .sort()
-    : [];
-
-  return { gates, e2eFiles, e2eDir, migDir, migFiles, hasTypecheck, hasVitest };
+  const e2e = profile.evidence?.e2e || { dir: "tests/e2e", extension: ".mjs", runner: ["node"] };
+  const migrations = profile.evidence?.migrations || { dir: "packages/db/src/migrations", extensions: [".ts"] };
+  const e2eDir = projectDirectory(cwd, e2e.dir);
+  const e2eFiles = fs.existsSync(e2eDir) ? fs.readdirSync(e2eDir).filter((file) => validE2eFileName(file, e2e.extension)).sort() : [];
+  const migDir = projectDirectory(cwd, migrations.dir);
+  const migFiles = fs.existsSync(migDir) ? fs.readdirSync(migDir).filter((file) =>
+    /^\d+/.test(file) && migrations.extensions.some((extension) => file.endsWith(extension)) &&
+    fs.lstatSync(path.join(migDir, file)).isFile()
+  ).sort() : [];
+  return { gates, e2eFiles, e2eDir, e2eExtension: e2e.extension, e2eRunner: e2e.runner,
+    migDir, migFiles, hasTypecheck, hasVitest, pythonProject, pkg };
 }
 
 // ─── Spec discovery ──────────────────────────────────────────────────────────
@@ -1114,7 +1075,7 @@ export async function runGates(
           cwd,
           timeout: 180000,
           signal,
-          env: { ...process.env, CI: process.env.CI || "1" },
+          env: { ...process.env, CI: process.env.CI || "1", PYTHONDONTWRITEBYTECODE: "1" },
         })
       : await runCmd(gate.cmd, {
           cwd,
@@ -1293,6 +1254,10 @@ export async function commitGateDecision(cwd, command, { signal, onGate } = {}) 
 
   // Target repo has no gates → allow (no session-project gate spillover).
   // Explicit bypass still wins and is recorded as bypass (S1.1 goal 4).
+  if (config.gates.length === 0 && (config.pythonProject || loadProjectProfile(gatesRepo).configured)) {
+    const gateResults = { "project-gates": { pass: false, tail: "No project gates discovered; configure .spec-flow.json gates.commands" } };
+    return { ...commitGateAction(command, gateResults), repo: gatesRepo, targetRepo, confidence, gateResults };
+  }
   if (config.gates.length === 0) {
     if (shouldBypass(command)) {
       return {
@@ -1398,11 +1363,11 @@ export function migrateAlloc(cwd) {
   const config = detectProjectConfig(cwd);
   if (config.migFiles.length === 0) {
     throw new Error(
-      "No migration directory found at packages/db/src/migrations/ (or empty)"
+      `No migrations found at ${config.migDir} (or empty)`
     );
   }
-  const last = config.migFiles[config.migFiles.length - 1];
-  const num = parseInt(last.match(/^(\d+)/)[1], 10);
+  const num = Math.max(...config.migFiles.map((file) => Number(file.match(/^(\d+)/)[1])));
+  if (!Number.isSafeInteger(num + 1)) throw new Error("Migration namespace exhausted");
   return String(num + 1).padStart(3, "0");
 }
 
@@ -1428,7 +1393,7 @@ export function board(cwd) {
 }
 
 // ─── begin ───────────────────────────────────────────────────────────────────
-export async function begin(cwd, id, { signal } = {}) {
+async function beginUnlocked(cwd, id, { signal } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter (unmanaged)`);
@@ -1544,15 +1509,11 @@ function evidenceArray(fm, key) {
   return fm?.evidence?.[key] ?? [];
 }
 
-function validE2eFileName(id) {
+function validE2eFileName(id, extension = ".mjs") {
   if (typeof id !== "string") return null;
-  const fileName = id.endsWith(".mjs") ? id : `${id}.mjs`;
-  if (
-    path.basename(fileName) !== fileName ||
-    !/^e2e-[A-Za-z0-9._-]+\.mjs$/.test(fileName)
-  ) {
-    return null;
-  }
+  const fileName = id.endsWith(extension) ? id : `${id}${extension}`;
+  const stem = fileName.slice(0, -extension.length);
+  if (path.basename(fileName) !== fileName || !/^e2e-[A-Za-z0-9._-]+$/.test(stem)) return null;
   return fileName;
 }
 
@@ -1570,7 +1531,7 @@ function safeE2eFile(repo, e2eDir, fileName) {
     };
   }
   if (!pathInside(repoRoot, realDir)) {
-    return { path: filePath, problem: "tests/e2e resolves outside the implementation repository" };
+    return { path: filePath, problem: "E2E directory resolves outside the implementation repository" };
   }
 
   let stat;
@@ -1587,13 +1548,13 @@ function safeE2eFile(repo, e2eDir, fileName) {
   }
   const realFile = fs.realpathSync(filePath);
   if (!pathInside(realDir, realFile) || !pathInside(repoRoot, realFile)) {
-    return { path: filePath, problem: `E2E evidence escapes tests/e2e: ${fileName}` };
+    return { path: filePath, problem: `E2E evidence escapes its directory: ${fileName}` };
   }
   return { path: realFile, problem: null };
 }
 
 // ─── impl ────────────────────────────────────────────────────────────────────
-export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
+async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
@@ -1638,7 +1599,9 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
   delete fm.attestations;
   writeSpecLifecycleFile(spec, fm, profile);
 
+  const beforeGates = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
   const diagnostics = [];
+  if (config.gates.length === 0) diagnostics.push("No project gates discovered; configure .spec-flow.json gates.commands (no-gate impl cannot pass)");
   const gateResults = await runGates(repo, config.gates, {
     signal,
     onGate,
@@ -1647,12 +1610,12 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
       onDiagnostic?.(message);
     },
   });
-  const allGatesPass = Object.values(gateResults).every((result) => result.pass);
+  const allGatesPass = config.gates.length > 0 && Object.values(gateResults).every((result) => result.pass);
 
   const e2eResults = {};
   const evidenceE2e = evidenceArray(fm, "e2e");
   for (const e2eId of evidenceE2e) {
-    const fileName = validE2eFileName(e2eId);
+    const fileName = validE2eFileName(e2eId, config.e2eExtension);
     if (!fileName) {
       e2eResults[String(e2eId)] = {
         pass: false,
@@ -1665,10 +1628,10 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
       e2eResults[e2eId] = { pass: false, tail: resolvedE2e.problem };
       continue;
     }
-    const { stdout, stderr, code } = await runArgv("node", [resolvedE2e.path], {
-      cwd: repo,
-      timeout: 180000,
-      signal,
+    const runner = argvGate("e2e", config.e2eRunner, repo);
+    const { stdout, stderr, code } = await runArgv(runner.file, [...runner.args, resolvedE2e.path], {
+      cwd: repo, timeout: 180000, signal,
+      env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
     });
     if (code === 0) {
       const output = [stdout, stderr].filter(Boolean).join("\n");
@@ -1723,12 +1686,11 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
     checked: evidenceMig.map((value) => String(value).padStart(3, "0")),
     problems: migrationProblems,
   };
-  const implPass = allGatesPass && allE2ePass && migrations.pass;
-  const snapshot = await repositorySnapshotHash(repo, {
-    excludePaths: [spec.path],
-    signal,
-  });
-  const contractHash = specContractHash(fs.readFileSync(spec.path, "utf8"), profile);
+  const snapshot = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
+  const stable = snapshot.hash === beforeGates.hash;
+  if (!stable) diagnostics.push("Implementation changed during gates; ignore generated caches/artifacts or rerun impl on stable content");
+  const implPass = allGatesPass && allE2ePass && migrations.pass && stable;
+  const contractHash = specContractHash(spec.content, profile);
 
   fm.impl = {
     ...fm.impl,
@@ -1738,6 +1700,7 @@ export async function impl(cwd, id, { signal, onGate, onDiagnostic } = {}) {
     gates: gateResults,
     e2e: e2eResults,
     migrations,
+    diagnostics,
     snapshot_hash: snapshot.hash,
     contract_hash: contractHash,
   };
@@ -1954,7 +1917,7 @@ export function normalizeAuditResult(value) {
 }
 
 // ─── audit ───────────────────────────────────────────────────────────────────
-export async function audit(cwd, id, { signal, onProgress } = {}) {
+async function auditUnlocked(cwd, id, { signal, onProgress } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
@@ -2138,6 +2101,8 @@ migrations: ${JSON.stringify(fm.impl?.migrations || {}, null, 2)}
     }
   }
 
+  const afterAudit = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
+  if (afterAudit.hash !== snapshot.hash) throw new Error("Implementation changed during audit; rerun impl/audit on stable checkout content");
   auditResult = normalizeAuditResult(auditResult);
   fm.audit = {
     at: new Date().toISOString(),
@@ -2188,7 +2153,7 @@ migrations: ${JSON.stringify(fm.impl?.migrations || {}, null, 2)}
 }
 
 // ─── attest ──────────────────────────────────────────────────────────────────
-export function attest(cwd, id, item, note) {
+function attestUnlocked(cwd, id, item, note) {
   if (!note || note.length < 20) {
     throw new Error(
       `Attest note too short (${note?.length || 0} chars, need ≥20). Must describe verification path and sample.`
@@ -2391,7 +2356,7 @@ function inProgressConsistencyGaps(spec, profile = spec.profile || defaultProjec
 }
 
 // ─── done ────────────────────────────────────────────────────────────────────
-export async function done(cwd, id, { signal } = {}) {
+async function doneUnlocked(cwd, id, { signal } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
@@ -2537,12 +2502,15 @@ function projectDependencyProblems(specs, profile) {
   return errors;
 }
 
-export async function checkCI(cwd, { runProjectGates = true } = {}) {
+export async function checkCI(cwd, { runProjectGates = true, live = false, preferVerify = false } = {}) {
   const specs = loadSpecs(cwd);
   const profile = specs[0]?.profile || loadProjectProfile(cwd);
   const config = detectProjectConfig(cwd, profile);
   const errors = [];
   const warnings = [];
+  if (preferVerify && !profile.gates && typeof config.pkg?.scripts?.verify === "string" && config.pkg.scripts.verify.trim()) {
+    config.gates = [argvGate("verify", ["npm", "run", "verify"], cwd)];
+  }
 
   const seenIds = new Map();
   for (const spec of specs) {
@@ -2625,7 +2593,7 @@ export async function checkCI(cwd, { runProjectGates = true } = {}) {
     const specConfig = detectProjectConfig(implRepo, implProfile);
     const evidenceE2e = Array.isArray(fm.evidence?.e2e) ? fm.evidence.e2e : [];
     for (const e2eId of evidenceE2e) {
-      const fileName = validE2eFileName(e2eId);
+      const fileName = validE2eFileName(e2eId, specConfig.e2eExtension);
       if (!fileName) {
         errors.push(`${id}: evidence.e2e 非法 basename: ${String(e2eId)}`);
         continue;
@@ -2640,6 +2608,10 @@ export async function checkCI(cwd, { runProjectGates = true } = {}) {
       }
     }
 
+    if (live && role === "active" && fm.workflow_version === WORKFLOW_VERSION && fm.impl?.snapshot_hash) {
+      const snapshot = await repositorySnapshotHash(implRepo, { excludePaths: [spec.path] });
+      if (snapshot.hash !== fm.impl.snapshot_hash) errors.push(`${id}: live implementation snapshot stale; rerun impl in this checkout`);
+    }
     const evidenceMig = Array.isArray(fm.evidence?.migrations)
       ? fm.evidence.migrations
       : [];
@@ -2664,7 +2636,7 @@ export async function checkCI(cwd, { runProjectGates = true } = {}) {
   // Contracts-only is for project verify scripts that are themselves the impl gate.
   // It is NOT a full check --ci and must say so in the output.
   if (!runProjectGates) {
-    warnings.push("仅校验 Spec 合同/证据；项目 npm 门禁未运行（contracts-only）");
+    warnings.push("仅校验 Spec 合同/证据；项目门禁未运行（contracts-only）");
   } else if (config.gates.length > 0) {
     const gateResults = await runGates(cwd, config.gates, { cacheTtlMs: 0 });
     for (const [name, result] of Object.entries(gateResults)) {
@@ -2672,8 +2644,10 @@ export async function checkCI(cwd, { runProjectGates = true } = {}) {
         errors.push(`门禁 ${name} 未通过`);
       }
     }
+  } else if (config.pythonProject || profile.configured || preferVerify) {
+    errors.push("No project gates discovered; configure .spec-flow.json gates.commands");
   } else {
-    warnings.push("未探测到门禁（无 typecheck/biome/vitest 配置）");
+    warnings.push("未探测到项目门禁（请显式配置 gates.commands）");
   }
 
   const lines = [];
@@ -2688,7 +2662,7 @@ export async function checkCI(cwd, { runProjectGates = true } = {}) {
   if (errors.length === 0) {
     lines.push(runProjectGates
       ? "✅ check --ci 通过"
-      : "✅ check --ci --contracts-only 通过（项目 npm 门禁未运行）");
+      : "✅ check --ci --contracts-only 通过（项目门禁未运行）");
   }
 
   return { output: lines.join("\n"), pass: errors.length === 0 };
@@ -2839,6 +2813,79 @@ export async function renderSpecDetail(cwd, id, signal) {
   return lines.join("\n");
 }
 
+// Locks live in the shared Git common directory, while all reads/writes remain
+// in the selected checkout. Preserve validation errors for legacy non-Git specs.
+function mutateSpec(cwd, id, fn) {
+  const spec = findSpec(cwd, id);
+  if (!spec) return fn();
+  try { gitWorkspace(cwd); } catch { return fn(); }
+  return withWorkspaceLock(cwd, `spec:${canonicalSpecId(spec.frontmatter?.id ?? id)}`, fn);
+}
+export async function begin(cwd, id, options) { return mutateSpec(cwd, id, () => beginUnlocked(cwd, id, options)); }
+export async function impl(cwd, id, options) { return mutateSpec(cwd, id, () => implUnlocked(cwd, id, options)); }
+export async function audit(cwd, id, options) { return mutateSpec(cwd, id, () => auditUnlocked(cwd, id, options)); }
+export function attest(cwd, id, item, note) { return mutateSpec(cwd, id, () => attestUnlocked(cwd, id, item, note)); }
+export async function done(cwd, id, options) { return mutateSpec(cwd, id, () => doneUnlocked(cwd, id, options)); }
+
+export async function allocateSpecId(cwd, prefix = "") {
+  if (typeof prefix !== "string" || prefix.length > 80 ||
+      (prefix && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(prefix))) throw new Error("Invalid Spec ID prefix");
+  for (let attempt = 0; ; attempt++) {
+    try { return withWorkspaceLock(cwd, "spec-allocator", () => {
+    const { file, ids } = readReservations(cwd);
+    const observed = [...ids];
+    for (const tree of gitWorktrees(cwd)) {
+      for (const spec of loadSpecs(tree.root)) {
+        if (!spec.hasFrontmatter || !["string", "number"].includes(typeof spec.frontmatter.id)) {
+          throw new Error(`Cannot allocate with malformed/unmanaged Spec: ${spec.path}`);
+        }
+        observed.push(canonicalSpecId(spec.frontmatter.id));
+        // Filename candidates are burned too, even without strict numericFileId.
+        const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const match = spec.file.match(new RegExp(`^(${escaped}\\d+)(?:[._-]|\\.md$)`));
+        if (match) observed.push(match[1]);
+      }
+    }
+    let maximum = 0;
+    for (const id of observed) {
+      if (!id.startsWith(prefix)) continue;
+      const suffix = id.slice(prefix.length);
+      if (!/^\d+$/.test(suffix)) continue;
+      const number = Number(suffix);
+      if (!Number.isSafeInteger(number)) throw new Error("Spec ID namespace exceeds safe integers");
+      maximum = Math.max(maximum, number);
+    }
+    if (!Number.isSafeInteger(maximum + 1)) throw new Error("Spec ID namespace exhausted");
+    const id = prefix + (maximum + 1);
+    atomicWriteFileSync(file, JSON.stringify([...ids, id]) + "\n", 0o600);
+    return id;
+    }); } catch (error) {
+      if (error.code !== "SPECFLOW_BUSY" || attempt >= 200) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+}
+
+export async function renderWorktrees(cwd) {
+  const lines = ["📋 spec-flow worktrees (checkout-local evidence)"];
+  for (const tree of gitWorktrees(cwd)) {
+    lines.push(`\n${tree.root} | ${tree.branch} @${tree.head?.slice(0, 12)}`);
+    const specs = loadSpecs(tree.root);
+    if (specs.length === 0) lines.push("  (no specs)");
+    for (const spec of specs) {
+      const fm = spec.frontmatter;
+      let freshness = "";
+      if (fm?.status === spec.profile.lifecycle.active && fm.impl?.snapshot_hash) {
+        const snapshot = await repositorySnapshotHash(implementationRepo(tree.root, fm), { excludePaths: [spec.path] });
+        const fresh = snapshot.hash === fm.impl.snapshot_hash && specContractHash(spec.content, spec.profile) === fm.impl.contract_hash;
+        freshness = fresh ? " | live fresh" : " | live STALE — rerun impl in this checkout";
+      }
+      lines.push(`  ${fm?.id ?? spec.file}: ${fm?.status ?? "unmanaged"}${freshness}`);
+    }
+  }
+  return lines.join("\n");
+}
+
 // ─── CLI entry ───────────────────────────────────────────────────────────────
 async function main() {
   const cwd = process.cwd();
@@ -2846,7 +2893,7 @@ async function main() {
 
   if (!cmd) {
     console.log(
-      "Usage: node core.mjs board|begin <id>|impl <id>|audit <id>|attest <id> <item> <note>|done <id>|migrate-alloc|check --ci"
+      "Usage: node core.mjs board|worktrees|spec-alloc [--prefix PREFIX]|begin <id>|impl <id>|audit <id>|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]"
     );
     process.exit(1);
   }
@@ -2856,6 +2903,21 @@ async function main() {
       case "board":
         console.log(board(cwd));
         break;
+      case "worktrees":
+        if (args.length) throw new Error("worktrees accepts no arguments");
+        console.log(await renderWorktrees(cwd));
+        break;
+      case "spec-alloc":
+        if (args.length && (args.length !== 2 || args[0] !== "--prefix")) throw new Error("spec-alloc accepts only --prefix PREFIX");
+        console.log(await allocateSpecId(cwd, args[1] || ""));
+        break;
+      case "verify": {
+        if (args.length) throw new Error("verify accepts no arguments");
+        const result = await checkCI(cwd, { preferVerify: true });
+        console.log(result.output);
+        process.exit(result.pass ? 0 : 1);
+        break;
+      }
       case "begin":
         if (!args[0]) throw new Error("begin requires <id>");
         console.log(await begin(cwd, args[0]));
@@ -2887,10 +2949,10 @@ async function main() {
       case "check":
         if (args.includes("--ci")) {
           if (args.length !== new Set(args).size ||
-              args.some((arg) => arg !== "--ci" && arg !== "--contracts-only")) {
-            throw new Error("check accepts only --ci and optional --contracts-only");
+              args.some((arg) => !["--ci", "--contracts-only", "--live"].includes(arg))) {
+            throw new Error("check accepts only --ci and optional --contracts-only / --live");
           }
-          const result = await checkCI(cwd, { runProjectGates: !args.includes("--contracts-only") });
+          const result = await checkCI(cwd, { runProjectGates: !args.includes("--contracts-only"), live: args.includes("--live") });
           console.log(result.output);
           process.exit(result.pass ? 0 : 1);
         } else {

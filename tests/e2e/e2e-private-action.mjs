@@ -22,7 +22,7 @@ try {
   // The real Action installs its locked dependencies in its own checkout. Tests
   // reuse this repository's *already installed* deps to stay offline; this still
   // runs the copied CLI from outside both source and caller, never a Pi global path.
-  for (const name of ["core.mjs", "project-profile.mjs"]) {
+  for (const name of ["core.mjs", "project-profile.mjs", "workspace.mjs"]) {
     fs.copyFileSync(path.join(source, name), path.join(action, name));
   }
   fs.symlinkSync(path.join(source, "node_modules"), path.join(action, "node_modules"), "dir");
@@ -52,11 +52,19 @@ try {
   fs.writeFileSync(path.join(project, "verify.mjs"), `import fs from 'node:fs';import {execFileSync} from 'node:child_process';fs.appendFileSync('gate-marker','verify\\n');execFileSync(process.execPath,[process.env.SPECFLOW_CLI,'check','--ci','--contracts-only'],{stdio:'inherit'});console.log('VERDICT: PASS');\n`);
   const env = { ...process.env, SPECFLOW_CLI: cli };
   const check = run(process.execPath, [cli, "check", "--ci", "--contracts-only"], project, env);
-  assert(check.includes("项目 npm 门禁未运行"), `contracts-only must disclose omitted gates: ${check}`);
+  assert(check.includes("项目门禁未运行"), `contracts-only must disclose omitted gates: ${check}`);
   assert(!fs.existsSync(path.join(project, "gate-marker")), "contracts-only ran the gate");
-  assert(run("npm", ["run", "verify"], project, env).includes("VERDICT: PASS"), "verify did not finish");
+  assert(run(process.execPath, [cli, "verify"], project, env).includes("check --ci 通过"), "configured Action verify did not finish");
   assert(fs.readFileSync(path.join(project, "gate-marker"), "utf8") === "verify\n", "recursive verify detected");
   console.log("PASS private Action-equivalent subprocess chain invokes caller verify once");
+  fs.unlinkSync(path.join(project, ".spec-flow.json"));
+  fs.unlinkSync(path.join(project, "gate-marker"));
+  assert(run(process.execPath, [cli, "verify"], project, env).includes("check --ci 通过"), "no-profile verify fallback failed");
+  assert(fs.readFileSync(path.join(project, "gate-marker"), "utf8") === "verify\n", "no-profile verify entrypoint lost or repeated");
+  console.log("PASS private Action preserves unconfigured verify-only callers");
+  // Restore the configured metadata rules for the negative document path.
+  fs.writeFileSync(path.join(project, ".spec-flow.json"), JSON.stringify({version:1, gates:{mode:"replace",npmScripts:["verify"]},
+    validation:{requiredFields:["id","title","kind","status"],kindField:"kind",allowedKinds:["spec"],numericFileId:true,checkDoneCheckboxes:true,forbidAddendumFilename:true,dependencyIntegrity:false}}));
 
   fs.writeFileSync(specPath, validSpec.replace("- [x]", "- [ ]"));
   let rejected = false;

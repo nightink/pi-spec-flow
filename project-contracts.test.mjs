@@ -68,7 +68,7 @@ test("configured contract checker enforces parity across done/legacy/archived", 
   try {
     let result = await checkCI(root, { runProjectGates: false });
     assert.equal(result.pass, true, result.output);
-    assert.match(result.output, /项目 npm 门禁未运行/);
+    assert.match(result.output, /项目门禁未运行/);
     assert.equal(fs.existsSync(path.join(root, "gate-ran")), false);
     mutate(root, "0.example.md", "- [x] initial", "- [ ] initial");
     mutate(root, "2.example.md", "kind: spec", "kind: wrong");
@@ -121,7 +121,7 @@ test("CLI contracts-only does not execute gates; full CI does; unknown flags fai
   const root = makeProject();
   try {
     const run = (...flags) => execFileSync(process.execPath, [CLI, "check", ...flags], { cwd: root, encoding: "utf8" });
-    assert.match(run("--ci", "--contracts-only"), /项目 npm 门禁未运行/);
+    assert.match(run("--ci", "--contracts-only"), /项目门禁未运行/);
     assert.equal(fs.existsSync(path.join(root, "gate-ran")), false);
     assert.match(run("--ci"), /check --ci 通过/);
     assert.equal(fs.readFileSync(path.join(root, "gate-ran"), "utf8"), "yes");

@@ -67,6 +67,7 @@ function approvedSpec({ id = "S1", evidence = {}, extra = {} } = {}) {
 
 async function begunProject({ evidence = {}, extraSpecs = {}, files = {} } = {}) {
   const root = project({
+    "package.json": JSON.stringify({ scripts: { test: "node -e \"process.exit(0)\"" } }),
     "docs/specs/S1.md": approvedSpec({ evidence }),
     ...extraSpecs,
     ...files,
@@ -485,8 +486,7 @@ test("E2E parent-directory symlink cannot escape the implementation repository",
   fs.symlinkSync(outside, path.join(root, "tests"));
   gitInit(root);
   await begin(root, "S1");
-  const output = await impl(root, "S1");
-  assert.match(output, /tests\/e2e resolves outside/);
+  await assert.rejects(impl(root, "S1"), /Evidence directory escapes project/);
   assert.equal(fs.existsSync(marker), false);
 });
 

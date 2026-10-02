@@ -1,5 +1,5 @@
 // spec-flow index.ts — pi extension adapter
-// Thin wrapper: registerTool ×6 + tool_call intercept + session_start summary
+// Thin wrapper: lifecycle/allocation tools + tool_call intercept + session_start summary
 // All long-running work (gates, e2e, pi audit subprocess) is async — the
 // event loop stays free so the TUI never freezes while waiting.
 // Lifecycle tools (begin/impl/audit/attest/done) resolve the real spec path and
@@ -12,6 +12,8 @@ import { Type } from "typebox";
 import { resolve } from "node:path";
 import {
   board,
+  allocateSpecId,
+  renderWorktrees,
   begin,
   impl,
   audit,
@@ -61,6 +63,16 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
       return toolResult(board(ctx.cwd));
+    },
+  });
+
+  pi.registerTool({
+    name: "spec_alloc",
+    label: "Spec ID Allocate",
+    description: "Reserve a unique Spec ID across this repository's Git worktrees (local Git common directory)",
+    parameters: Type.Object({ prefix: Type.Optional(Type.String({ description: "Optional numeric namespace prefix, e.g. S1. (default: numeric IDs)" })) }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      return toolResult(await allocateSpecId(ctx.cwd, params.prefix || ""));
     },
   });
 
@@ -217,6 +229,7 @@ export default function (pi: ExtensionAPI) {
         }));
         const items = [
           { value: "board", label: "看板" },
+          { value: "worktrees", label: "并行 worktree 看板（实时快照）" },
           ...ids,
         ].filter((i) => i.value.startsWith(prefix));
         return items.length > 0 ? items : null;
@@ -228,6 +241,7 @@ export default function (pi: ExtensionAPI) {
       try {
         const arg = args.trim();
         const text =
+          arg === "worktrees" ? await renderWorktrees(ctx.cwd) :
           arg && arg !== "board"
             ? await renderSpecDetail(ctx.cwd, arg, ctx.signal)
             : await renderBoard(ctx.cwd, ctx.signal);
