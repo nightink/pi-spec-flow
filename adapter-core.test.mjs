@@ -227,7 +227,7 @@ export async function withFileMutationQueue(key, fn) {
     fs.writeFileSync(join(typeboxDir, "package.json"), '{"type":"module","exports":"./index.js"}\n');
     fs.writeFileSync(
       join(typeboxDir, "index.js"),
-      "export const Type = { Object: (value) => value, Optional: (value) => value, String: (value = {}) => ({ type: 'string', ...value }) };\n"
+      "export const Type = { Object: (value) => value, Optional: (value) => value, Array: (value) => ({items:value}), Union: (value) => ({anyOf:value}), Any: () => ({}), Literal: (value) => ({const:value}), Boolean: () => ({type:'boolean'}), Integer: () => ({type:'integer'}), String: (value = {}) => ({ type: 'string', ...value }) };\n"
     );
 
     const project = join(root, "project");
@@ -269,7 +269,7 @@ evidence:
 
     assert.deepEqual(
       [...tools.keys()].sort(),
-      ["spec_alloc", "spec_attest", "spec_audit", "spec_begin", "spec_board", "spec_done", "spec_impl"]
+      ["spec_alloc", "spec_attest", "spec_audit", "spec_begin", "spec_board", "spec_done", "spec_impl", "spec_new", "spec_review"]
     );
     assert.ok(commands.has("spec"));
     assert.ok(events.has("tool_call"));
@@ -294,6 +294,13 @@ evidence:
     assert.equal(queueModule.queueState.calls[0], join(project, "docs/specs/S9.md"));
     const allocated = await tools.get("spec_alloc").execute("allocate", { prefix: "S" }, undefined, undefined, ctx);
     assert.equal(allocated.content[0].text, "S10");
+    for (const name of ["spec_new", "spec_review"]) {
+      assert.ok(tools.get(name).outputSchema);
+      assert.ok(tools.get(name).promptSnippet);
+    }
+    const preview = await tools.get("spec_new").execute("preview", { title: "Native draft", dryRun: true }, undefined, undefined, ctx);
+    assert.equal(preview.structuredContent.status, "draft");
+    assert.equal(preview.structuredContent.dryRun, true);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

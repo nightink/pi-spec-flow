@@ -13,6 +13,8 @@ import { resolve } from "node:path";
 import {
   board,
   allocateSpecId,
+  newSpec,
+  reviewSpec,
   renderWorktrees,
   begin,
   impl,
@@ -54,6 +56,29 @@ function toolResult(text: string) {
   };
 }
 
+function structuredResult(value: any) {
+  return { ...toolResult(JSON.stringify(value, null, 2)), details: value, structuredContent: value };
+}
+const stringList = Type.Array(Type.String({ minLength: 1, maxLength: 4000 }), { minItems: 1, maxItems: 100 });
+const newParameters = Type.Object({
+  title: Type.String({ minLength: 1, maxLength: 300 }), prefix: Type.Optional(Type.String({ maxLength: 80 })),
+  slug: Type.Optional(Type.String({ pattern: "^[a-z0-9][a-z0-9-]*$", maxLength: 80 })),
+  goals: Type.Optional(stringList), nonGoals: Type.Optional(stringList), design: Type.Optional(stringList),
+  plan: Type.Optional(stringList), acceptance: Type.Optional(stringList),
+  dependencies: Type.Optional(Type.Array(Type.Union([Type.String(), Type.Integer({ minimum: 0 })]), { maxItems: 100 })),
+  dryRun: Type.Optional(Type.Boolean()),
+}, { additionalProperties: false });
+const reviewParameters = Type.Union([
+  Type.Object({ action: Type.Optional(Type.Literal("prepare")),
+    mode: Type.Optional(Type.Union([Type.Literal("proposal"), Type.Literal("committed"), Type.Literal("incremental")])),
+    id: Type.Optional(Type.String()), specPath: Type.Optional(Type.String()),
+    base: Type.Optional(Type.String()), head: Type.Optional(Type.String()), previousReview: Type.Optional(Type.String()),
+    allowDirty: Type.Optional(Type.Boolean()),
+  }, { additionalProperties: false }),
+  Type.Object({ action: Type.Literal("run"), jobId: Type.String(), budgetId: Type.Optional(Type.String()) }, { additionalProperties: false }),
+  Type.Object({ action: Type.Literal("status"), jobId: Type.String() }, { additionalProperties: false }),
+]);
+
 export default function (pi: ExtensionAPI) {
   // ─── Register tools ──────────────────────────────────────────────────────
   pi.registerTool({
@@ -74,6 +99,28 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       return toolResult(await allocateSpecId(ctx.cwd, params.prefix || ""));
     },
+  });
+
+  pi.registerTool({
+    name: "spec_new", label: "Spec New",
+    description: "Create an unapproved draft from the fixed versioned template using a shared-family unique ID; no lifecycle evidence. dryRun previews without allocation.",
+    promptSnippet: "Create a deterministic, unapproved Spec draft (or dry-run its template).",
+    promptGuidelines: ["Use spec_new rather than inventing frontmatter/sections. Complete the project contract and obtain proposal approval before spec_begin."],
+    parameters: newParameters,
+    outputSchema: Type.Object({ id: Type.Optional(Type.String()), path: Type.Optional(Type.String()), status: Type.String(),
+      template: Type.Object({ version: Type.Integer(), sha256: Type.String() }),
+      dryRun: Type.Optional(Type.Boolean()), directory: Type.Optional(Type.String()), content: Type.Optional(Type.String()) }, { additionalProperties: false }),
+    async execute(_id, params, _signal, _update, ctx) { return structuredResult(await newSpec(ctx.cwd, params)); },
+  });
+  pi.registerTool({
+    name: "spec_review", label: "Spec Review",
+    description: "Read-only isolated proposal/explicit committed hash-diff/incremental review. prepare/status are free; run consumes an existing user-authorized delivery-cycle grant once. Never writes lifecycle audit or closes a Spec.",
+    promptSnippet: "Prepare/run/inspect a sealed, hash-bound independent review without changing Spec lifecycle.",
+    promptGuidelines: ["Discovery/prepare never call a provider. Ask for explicit paid review authorization; this tool cannot grant/reset budgets. Delta PASS does not mean full Spec acceptance."],
+    parameters: reviewParameters,
+    outputSchema: Type.Object({ version: Type.Integer(), jobId: Type.String(), mode: Type.String(), state: Type.String(),
+      modelInvoked: Type.Boolean(), receipt: Type.Any(), packetPath: Type.String(), result: Type.Any() }, { additionalProperties: false }),
+    async execute(_id, params, signal, _update, ctx) { return structuredResult(await reviewSpec(ctx.cwd, params, { signal })); },
   });
 
   pi.registerTool({
@@ -119,9 +166,11 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "spec_audit",
     label: "Spec Audit",
-    description: "Independent LLM audit of spec vs diff",
+    description: "Independent full current working-tree audit via the sealed review engine; existing authorized grant required for a fresh call. Can attach only a matching working-tree-audit job, never ordinary/delta approval.",
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
+      budgetId: Type.Optional(Type.String({ description: "Existing user-authorized delivery-cycle grant" })),
+      reviewJobId: Type.Optional(Type.String({ description: "Matching prepared/completed full working-tree audit job to resume/attach, without duplicate invocation" })),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
       if (ctx.hasUI) {
@@ -141,7 +190,7 @@ export default function (pi: ExtensionAPI) {
       try {
         const output = await runSpecMutation(ctx.cwd, params.id, () =>
           audit(ctx.cwd, params.id, {
-            signal,
+            signal, budgetId: params.budgetId, reviewJobId: params.reviewJobId,
             onProgress: (text) =>
               onUpdate?.({
                 content: [{ type: "text", text: truncateToolText(text) }],
@@ -230,6 +279,8 @@ export default function (pi: ExtensionAPI) {
         const items = [
           { value: "board", label: "看板" },
           { value: "worktrees", label: "并行 worktree 看板（实时快照）" },
+          { value: "new", label: "固定模板草案：/spec new <JSON>" },
+          { value: "review", label: "封存审查：/spec review <JSON>" },
           ...ids,
         ].filter((i) => i.value.startsWith(prefix));
         return items.length > 0 ? items : null;
@@ -240,6 +291,14 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       try {
         const arg = args.trim();
+        if (/^(new|review)(?:\s|$)/.test(arg)) {
+          const split = arg.indexOf(" ");
+          if (split < 0) throw new Error("Use /spec new <JSON> or /spec review <JSON>");
+          const input = JSON.parse(arg.slice(split + 1));
+          const result = arg.slice(0, split) === "new" ? await newSpec(ctx.cwd, input) : await reviewSpec(ctx.cwd, input, { signal: ctx.signal });
+          ctx.ui.notify(truncateToolText(JSON.stringify(result, null, 2)), "info");
+          return;
+        }
         const text =
           arg === "worktrees" ? await renderWorktrees(ctx.cwd) :
           arg && arg !== "board"

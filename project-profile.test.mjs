@@ -306,8 +306,10 @@ test("project profile: example-app-shaped numeric lifecycle preserves local meta
   const auditor = fakeAuditor();
   const previousBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor.file;
+  const { authorizeReviewBudget } = await import("./review-engine.mjs");
+  authorizeReviewBudget(root, { id: "mechanical-tests", calls: 1, note: "Synthetic profile fixture with a fake auditor only; no real review call." });
   try {
-    const audited = await audit(root, "2");
+    const audited = await audit(root, "2", { budgetId: "mechanical-tests" });
     assert.match(audited, /PASS/);
   } finally {
     if (previousBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;

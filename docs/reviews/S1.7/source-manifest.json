@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "contract": "docs/specs/S1.7-unified-review-and-spec-creation.md",
+  "base": "78738343732b58ad6892df6d28fa69d8568fae06",
+  "boundary": "Changed product sources; governing Spec and review-only archives excluded. Candidate SHA recorded in normalized Spec Review.",
+  "files": [
+    {
+      "file": ".spec-flow.json",
+      "sha256": "05ed000b1dad75c82ebe541e2a6a1b1c61dc597dcfe80f0746f08c94396344d8",
+      "executable": false
+    },
+    {
+      "file": "README.md",
+      "sha256": "1a593cbd0fcbf5ce75b8323d302481620c072f3bf2968e7381f5b2fe8b133bbc",
+      "executable": false
+    },
+    {
+      "file": "adapter-core.test.mjs",
+      "sha256": "ec55f5376c7070a9cb3653f802dcadfc83d75ee1a887be6737e239690d147d8f",
+      "executable": false
+    },
+    {
+      "file": "core.mjs",
+      "sha256": "0d89841d2603c3836058bdb2301d404fe658a0c49f6663ad7520028a5f3226e3",
+      "executable": false
+    },
+    {
+      "file": "core.test.mjs",
+      "sha256": "817b7a2140a67afb7f5013ef31834daac83e3ec77df79b9797c1ec65f8cdfb13",
+      "executable": false
+    },
+    {
+      "file": "index.ts",
+      "sha256": "bae22ada82f9868fdc65d49e94f75e16fb85c7741dacaecc3e77b5e7940c5698",
+      "executable": false
+    },
+    {
+      "file": "integrations/autonomous-delivery/CHANGELOG.md",
+      "sha256": "e0feafbd1ae8da5d70849a711814dc3b4e434107ef2c686fd4e5f2c0fde6eb2d",
+      "executable": false
+    },
+    {
+      "file": "integrations/autonomous-delivery/MANIFEST.sha256",
+      "sha256": "bdf65ebcc9e214bf0adbf822456c3304b89b2ccbf8295e2e5a0f2de3eac7c934",
+      "executable": false
+    },
+    {
+      "file": "integrations/autonomous-delivery/SKILL.md",
+      "sha256": "6dfab3f01b13a1068ac5094e55f9ed0064b006dd524003aff574bd6d6b229ba9",
+      "executable": false
+    },
+    {
+      "file": "integrations/autonomous-delivery/VERSION",
+      "sha256": "1575e1af4a95f12f70b4ee6a6adce8160953d93ea17dc2611b90883ccc3ad3b8",
+      "executable": false
+    },
+    {
+      "file": "integrations/autonomous-delivery/assets/delivery-contract-template.md",
+      "sha256": "d94bc7ef80ccec64be836cb6acafe3dcab9daa2649504c1161325d46c2559b50",
+      "executable": false
+    },
+    {
+      "file": "integrations/autonomous-delivery/references/delivery-gates.md",
+      "sha256": "6fdb42730164a9e9b91c7a661c1be12566e992f8bf74a849bf5fb187cc578abc",
+      "executable": false
+    },
+    {
+      "file": "integrations/autonomous-delivery/references/project-discovery.md",
+      "sha256": "4a7bd27195f8f4934129c3eac1482c9891c192e9263c3b03d2195b7bd5222aa7",
+      "executable": false
+    },
+    {
+      "file": "integrations/autonomous-delivery/references/review-convergence.md",
+      "sha256": "5abb00f77a87fda5fc50244864b48f538512d3c54b669e0cc8ef25f31f163a1d",
+      "executable": false
+    },
+    {
+      "file": "integrations/skill-migration.json",
+      "sha256": "abebd65f8b42e55342c488c24b10f36c076c920a7697b8ec876a3aee35875c99",
+      "executable": false
+    },
+    {
+      "file": "integrations/skill-migration.mjs",
+      "sha256": "c2ea6f613b3927f74791b088c75161e2bbc9cb32f09e2fadc94f7f012796f53a",
+      "executable": false
+    },
+    {
+      "file": "package.json",
+      "sha256": "52fcf9194bf574bd092eafb0515a2028035df1c09658e93e2344eeba3ddb584a",
+      "executable": false
+    },
+    {
+      "file": "project-profile.mjs",
+      "sha256": "f63793c55516b25a1b4084cec9d557f7804e3a32235093267a77c1e260a0e469",
+      "executable": false
+    },
+    {
+      "file": "project-profile.test.mjs",
+      "sha256": "78e71b95d2406ef42ff18c817d138c674b15ddaf6a0cf7544ccfb1b766f55e0b",
+      "executable": false
+    },
+    {
+      "file": "review-creation.test.mjs",
+      "sha256": "669a29d88ff0394e0bb365afdef51eca80acb776407b312f87a48f89aa099874",
+      "executable": false
+    },
+    {
+      "file": "review-engine.mjs",
+      "sha256": "f4a4ef1cceda8e54a51be9f642b824fc99893c657c9d0444afbb0f00c047af11",
+      "executable": false
+    },
+    {
+      "file": "review-storage.mjs",
+      "sha256": "45ec2e339086a2af9983c82b6c36e04c2cfda7f6b7dd4b93ccd0210b59077ccb",
+      "executable": false
+    },
+    {
+      "file": "review-worker.mjs",
+      "sha256": "cf3bff3317390956ce26a2ab1a7ae2cb66d4b6298d616d43238543bb0e5976f6",
+      "executable": false
+    },
+    {
+      "file": "spec-creation.mjs",
+      "sha256": "cee48d85a2707338d0808c4c50b745a91d5298046f2c45818401ac41b4aba5a1",
+      "executable": false
+    },
+    {
+      "file": "templates/spec-v1.md",
+      "sha256": "1eb25876978ed28e5d913aabba2e05767ce2e6918966211babf7c026cc568687",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-project-governance-profile.mjs",
+      "sha256": "4667b86a201cbe86532d5461e2d77fa4173b4ce910b064fc7cc04243c982ffcb",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-review-and-spec-new.mjs",
+      "sha256": "7623eafd63aa13a56a9e51c592ab902f27bc7ef85e48f456857021aae27ad15a",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-trustworthy-closure.mjs",
+      "sha256": "5964ecd29a8d1ef27b1318af23d03fd52c6a20ab02d130630d7d7332484457fa",
+      "executable": false
+    },
+    {
+      "file": "tests/smoke/pi-native-review.mjs",
+      "sha256": "0cc88ab810673feee798a5ffb861c096aa0c6ab60c691c4f78db7c98fc2a2eb5",
+      "executable": false
+    },
+    {
+      "file": "tests/smoke/pi-rpc-load.mjs",
+      "sha256": "7519c1b43947b093c77c10be84ddda6e574b050b5c0d86247547ca698d84e79e",
+      "executable": false
+    },
+    {
+      "file": "trustworthy.test.mjs",
+      "sha256": "34a14ecb445f9e41ab6ce17fb718f5945bc064b03e7add0e6b3624e1da46e255",
+      "executable": false
+    }
+  ]
+}

@@ -504,8 +504,10 @@ test("audit cache never bypasses base ancestor validation", async () => {
   );
   const oldBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor;
+  const { authorizeReviewBudget } = await import("./review-engine.mjs");
+  authorizeReviewBudget(root, { id: "mechanical-tests", calls: 2, note: "Synthetic isolated fake-auditor ancestor test; no actual model authorization." });
   try {
-    assert.match(await audit(root, "S1"), /✅ PASS/);
+    assert.match(await audit(root, "S1", { budgetId: "mechanical-tests" }), /✅ PASS/);
     execFileSync("git", ["checkout", "--orphan", "rewritten"], { cwd: root, stdio: "pipe" });
     execFileSync("git", ["add", "-A"], { cwd: root });
     execFileSync(

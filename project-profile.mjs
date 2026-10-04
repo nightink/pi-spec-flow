@@ -22,7 +22,7 @@ const DEFAULT_PROFILE = Object.freeze({
   configured: false,
   sourcePath: null,
   lifecycle: Object.freeze({
-    preReview: Object.freeze([]),
+    preReview: Object.freeze(["draft"]),
     startable: Object.freeze(["pending", "approved"]),
     active: "in-progress",
     done: "done",
@@ -36,6 +36,7 @@ const DEFAULT_PROFILE = Object.freeze({
   }),
   gates: null,
   validation: null,
+  creation: null,
   contractMetadataFields: Object.freeze([]),
 });
 
@@ -251,7 +252,7 @@ export function validateRelativeDirectory(value, label) {
   return value;
 }
 
-function parseGates(root, value) {
+function parseGates(root, value, packageOverride) {
   if (value === undefined) return null;
   assertExactKeys(value, ["mode", "npmScripts", "commands"], "gates");
   if (value.mode !== "replace") throw new Error('gates.mode must be "replace" in profile version 1');
@@ -276,7 +277,7 @@ function parseGates(root, value) {
   }
   assertStringArray(value.npmScripts, "gates.npmScripts", { nonEmpty: true });
   let pkg;
-  try { pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")); }
+  try { pkg = packageOverride !== undefined ? packageOverride : JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")); }
   catch (error) { throw new Error(`Cannot validate configured npm scripts: ${error.message}`); }
   for (const script of value.npmScripts) {
     if (!SAFE_NPM_SCRIPT.test(script) || FORBIDDEN_KEYS.has(script)) {
@@ -318,7 +319,31 @@ function parseEvidence(value) {
   return result;
 }
 
-function parseConfiguredProfile(root, raw) {
+function parseCreation(value, lifecycle, validation) {
+  if (value === undefined) return null;
+  assertExactKeys(value, ["directory", "template", "defaults"], "creation");
+  if (value.directory !== undefined && !["docs/specs", "docs/spec", "specs", "spec"].includes(value.directory)) {
+    throw new Error("creation.directory must be a recognized Spec directory");
+  }
+  if (value.template !== undefined) validateRelativeDirectory(value.template, "creation.template");
+  const defaults = value.defaults ?? {};
+  assertObject(defaults, "creation.defaults");
+  const reserved = new Set([...RESERVED_FRONTMATTER_FIELDS, "title", "created", "template",
+    lifecycle.dependenciesField, lifecycle.updatedField,
+    lifecycle.approval.reviewersField, lifecycle.approval.reviewedAtField]);
+  const allowed = new Set(["author", "kind", validation?.kindField, ...(validation?.requiredFields || [])]);
+  const scalar = (item) => typeof item === "string" || typeof item === "boolean" ||
+    (typeof item === "number" && Number.isFinite(item));
+  for (const [key, item] of Object.entries(defaults)) {
+    if (!SAFE_FIELD.test(key) || FORBIDDEN_KEYS.has(key) || reserved.has(key) || !allowed.has(key) ||
+        !(scalar(item) || (Array.isArray(item) && item.every(scalar)))) {
+      throw new Error(`creation.defaults contains unsafe/unfillable field: ${key}`);
+    }
+  }
+  return { directory: value.directory ?? null, template: value.template ?? null, defaults: { ...defaults } };
+}
+
+function parseConfiguredProfile(root, raw, { packageJson } = {}) {
   let data;
   try {
     data = JSON.parse(raw.replace(/^\uFEFF/, ""));
@@ -326,9 +351,9 @@ function parseConfiguredProfile(root, raw) {
     throw new Error(`Invalid ${PROJECT_PROFILE_FILE} JSON: ${error?.message || error}`);
   }
 
-  assertExactKeys(data, ["version", "lifecycle", "gates", "validation", "evidence"], PROJECT_PROFILE_FILE);
+  assertExactKeys(data, ["version", "lifecycle", "gates", "validation", "evidence", "creation"], PROJECT_PROFILE_FILE);
   if (data.version !== 1) throw new Error(`${PROJECT_PROFILE_FILE} version must be 1`);
-  const gates = parseGates(root, data.gates);
+  const gates = parseGates(root, data.gates, packageJson);
   const evidence = parseEvidence(data.evidence);
   if (data.lifecycle === undefined) {
     const validation = parseValidation(data.validation);
@@ -336,7 +361,7 @@ function parseConfiguredProfile(root, raw) {
       throw new Error("validation.kindField must be distinct from lifecycle metadata fields");
     }
     return { ...DEFAULT_PROFILE, configured: true, sourcePath: path.join(root, PROJECT_PROFILE_FILE),
-      gates, evidence, validation };
+      gates, evidence, validation, creation: parseCreation(data.creation, DEFAULT_PROFILE.lifecycle, validation) };
   }
 
   assertExactKeys(
@@ -405,6 +430,7 @@ function parseConfiguredProfile(root, raw) {
     configured: true,
     sourcePath: path.join(root, PROJECT_PROFILE_FILE),
     validation,
+    creation: parseCreation(data.creation, { ...lifecycle, approval }, validation),
     lifecycle: {
       preReview: [...lifecycle.preReview],
       startable: [...lifecycle.startable],
@@ -428,6 +454,11 @@ function parseConfiguredProfile(root, raw) {
     evidence,
     contractMetadataFields: metadataFields,
   };
+}
+
+// Head-version parsing never consults a dirty checkout's package.json.
+export function parseProjectProfileData(raw, { root = "", packageJson = null } = {}) {
+  return raw === null ? DEFAULT_PROFILE : parseConfiguredProfile(root, raw, { packageJson });
 }
 
 export function defaultProjectProfile() {

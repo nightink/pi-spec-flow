@@ -145,6 +145,8 @@ console.log(JSON.stringify({
     { mode: 0o755 }
   );
   process.env.SPECFLOW_AUDIT_BIN = auditor;
+  process.env.SPECFLOW_REVIEW_BUDGET_ID = "mechanical-tests";
+  check(cli(closureRepo, "review-budget", "--json", JSON.stringify({ id: "mechanical-tests", calls: 1, note: "Synthetic CLI fake auditor fixture only, not the real delivery's budget." })).status === 0, "fake CLI review has an explicit finite grant");
   const auditResult = cli(closureRepo, "audit", "S3");
   check(auditResult.status === 0 && /✅ PASS/.test(auditResult.stdout), "isolated fake auditor produces bound pass evidence");
   const childArgs = JSON.parse(fs.readFileSync(argsFile, "utf8"));
@@ -183,6 +185,7 @@ console.log(JSON.stringify({
   console.log(`FAIL e2e unexpected error: ${error?.stack || error}`);
 } finally {
   delete process.env.SPECFLOW_AUDIT_BIN;
+  delete process.env.SPECFLOW_REVIEW_BUDGET_ID;
   fs.rmSync(sandbox, { recursive: true, force: true });
 }
 

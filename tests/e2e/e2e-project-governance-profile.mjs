@@ -163,7 +163,9 @@ try {
     `#!/usr/bin/env node\nimport fs from "node:fs"; fs.writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2))); console.log(JSON.stringify({verdict:"pass",criteria:[{criterion:"configured lifecycle",status:"pass",evidence:"implementation.txt"}],scope_deviations:[]}));\n`,
     { mode: 0o755 }
   );
-  const audited = cli(root, ["audit", "2"], { SPECFLOW_AUDIT_BIN: auditor });
+  const grant = cli(root, ["review-budget", "--json", JSON.stringify({ id: "mechanical-tests", calls: 1, note: "Synthetic configured CLI fake auditor test only; no real review authorization." })]);
+  check(grant.status === 0, "explicit finite fake-review grant created");
+  const audited = cli(root, ["audit", "2"], { SPECFLOW_AUDIT_BIN: auditor, SPECFLOW_REVIEW_BUDGET_ID: "mechanical-tests" });
   check(
     audited.status === 0 && /✅ PASS/.test(audited.stdout),
     "audit remains bound after review-only metadata updates"

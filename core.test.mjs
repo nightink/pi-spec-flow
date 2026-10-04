@@ -45,6 +45,9 @@ import {
   recordConsistencyGaps,
 } from "./core.mjs";
 
+import { authorizeReviewBudget } from "./review-engine.mjs";
+process.env.SPECFLOW_REVIEW_BUDGET_ID = "mechanical-tests";
+
 // Helper: create temp project
 function mkProject(files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-test-"));
@@ -61,6 +64,7 @@ function gitInit(dir) {
     "git init -q && git config user.email spec-flow@example.invalid && git config user.name spec-flow && git add . && git commit -qm init --allow-empty",
     { cwd: dir, stdio: "pipe" }
   );
+  authorizeReviewBudget(dir, { id: "mechanical-tests", calls: 30, note: "Synthetic fake-auditor fixture only; never this delivery's real review grant." });
 }
 
 function approvedSpec({ id = "S1.0", repo, evidence = {}, body = "## 验收标准\n\n- works" } = {}) {
@@ -404,7 +408,7 @@ test("done: ledger includes bound impl and audit summary", async () => {
   assert.deepEqual(entry.impl_summary.e2e, {});
   assert.equal(entry.impl_summary.migrations.pass, true);
   assert.equal(entry.audit.verdict, "pass");
-  assert.equal(entry.audit.prompt_version, 2);
+  assert.equal(entry.audit.prompt_version, 3);
   assert.match(entry.impl_hash, /^[0-9a-f]{64}$/);
   assert.match(entry.contract_hash, /^[0-9a-f]{64}$/);
 });
@@ -837,7 +841,7 @@ test("audit: pass result caches only on unchanged implementation and contract ha
   await assert.rejects(audit(project, "S1.0"), /contract changed/);
 });
 
-test("audit: fail verdict is not cached and re-runs auditor", async () => {
+test("audit: failed job is never respawned; explicit re-impl permits a new charged review",  async () => {
   const { project } = await implementedLifecycle();
   const counter = path.join(os.tmpdir(), `specflow-audit-count-${process.pid}-${Date.now()}`);
   const auditor = fakeAuditor("fail", [
@@ -852,6 +856,9 @@ test("audit: fail verdict is not cached and re-runs auditor", async () => {
     const second = await audit(project, "S1.0");
     assert.match(second, /❌ FAIL/);
     assert.doesNotMatch(second, /缓存复用/);
+    assert.equal(fs.readFileSync(counter, "utf8").trim().split("\n").length, 1);
+    assert.match(await impl(project, "S1.0"), /✅ PASS/);
+    assert.match(await audit(project, "S1.0"), /❌ FAIL/);
     assert.equal(fs.readFileSync(counter, "utf8").trim().split("\n").length, 2);
   } finally {
     if (savedBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
@@ -895,7 +902,8 @@ test("buildAuditorArgs: returns @file arg, file contains prompt, cleanup works",
     "--no-prompt-templates",
     "--no-context-files",
   ]);
-  assert.deepEqual(args.slice(7, 9), ["--thinking", "off"]);
+  assert.deepEqual(args.slice(7, 11), ["--no-themes", "--no-approve", "--mode", "json"]);
+  assert.deepEqual(args.slice(11, 13), ["--thinking", "off"]);
   assert.ok(args[args.length - 1].startsWith("@"));
   const file = args[args.length - 1].slice(1);
   assert.ok(fs.existsSync(file));
@@ -906,18 +914,18 @@ test("buildAuditorArgs: returns @file arg, file contains prompt, cleanup works",
 
 test("buildAuditorArgs: includes --model when model is provided", () => {
   const { args, cleanup } = buildAuditorArgs("hello", "gpt-4");
-  assert.deepStrictEqual(args.slice(0, 9), [
+  assert.deepStrictEqual(args.slice(0, 13), [
     "-p",
     "--no-session",
     "--no-tools",
     "--no-extensions",
     "--no-skills",
     "--no-prompt-templates",
-    "--no-context-files",
+    "--no-context-files", "--no-themes", "--no-approve", "--mode", "json",
     "--model",
     "gpt-4",
   ]);
-  assert.deepEqual(args.slice(9, 11), ["--thinking", "off"]);
+  assert.deepEqual(args.slice(13, 15), ["--thinking", "off"]);
   assert.ok(args[args.length - 1].startsWith("@"));
   cleanup();
 });

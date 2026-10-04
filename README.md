@@ -11,7 +11,7 @@ Pi 的证据绑定 spec 工作流扩展。它把 `begin → impl → audit → a
 - 本仓库全量自测还需要 Python 3；不会自动 pip/uv/npm 安装被管理项目的依赖
 - 当前支持并在 macOS/Linux 验证；Windows 不是本版本的保证范围
 
-放在 `~/.pi/agent/extensions/spec-flow/` 后，Pi 会通过 `package.json#pi.extensions` 发现 `index.ts`：
+`package.json#pi.extensions` 声明 `index.ts` 入口；静态声明不等于当前宿主已加载或工具可调用。Pi 1.x 支持本版本的 typed/structured 新工具；安装或修改后现有会话需要 `/reload`，不要为此自动重启生产进程：
 
 ```bash
 cd ~/.pi/agent/extensions/spec-flow
@@ -130,6 +130,8 @@ spec-flow 会扫描 `docs/specs/`、`docs/spec/`、`specs/`、`spec/` 四个显�
 |---|---|
 | `spec_board` | 当前 worktree 的状态、漂移和下一步 |
 | `spec_alloc {prefix?}` | 在 Git common directory 原子预留编号，例如 prefix 为 `S1.` |
+| `spec_new {title,…,dryRun?}` | 固定版本模板、共享编号、独占创建未批准 draft；预览不分配 |
+| `spec_review {action,…}` | prepare/run/status：只读 proposal / committed / incremental 审查；不写生命周期 |
 | `spec_begin <id>` | 要求 review approved、deps done；进入 v2 in-progress |
 | `spec_impl <id>` | 运行 required gates、逐项 E2E、migration 检查；写 `impl.pass` 与 snapshot |
 | `spec_audit <id>` | 隔离子 Pi 审计完整 base→working-tree diff；写 criteria、hash、model、prompt version |
@@ -170,6 +172,8 @@ note 至少 20 个字符，并与当前 implementation/contract hash 绑定。
 /spec board    同上
 /spec <id>     单个 spec 详情
 /spec worktrees 同仓库全部 worktree 与 active 实时 freshness
+/spec new <JSON> 固定模板草案/预览
+/spec review <JSON> 封存审查 prepare/run/status
 ```
 
 ```bash
@@ -187,11 +191,42 @@ node core.mjs check --ci
 node core.mjs check --ci --contracts-only --live  # 不运行项目 gates，但比对 active 实时快照
 ```
 
+## 固定模板 `spec_new`
+
+```bash
+node core.mjs spec-new --json '{"title":"Observable outcome","prefix":"S1.","slug":"feature","goals":["What works"],"nonGoals":["What is excluded"],"design":["Smallest complete design"],"plan":["First slice"],"acceptance":["Executable observable case"],"dryRun":true}'
+```
+
+同款 `/spec new <JSON>` 和 native tool。缺省语义项留下明确 TODO，不捏造要求或审批；默认 `draft` 是 preReview，旧 pending/startable 保留。新文件没有 impl/audit/attestations；完成合同并按项目规则批准、转为 startable 后才能 begin。新 Spec 会改变其他 active 的全仓快照，宜在 impl 前创建。
+
+可选严格 `creation: {directory, template, defaults}`：目录仅四个扫描目录；未配置时零目录用 docs/specs，一个目录沿用，多个则拒绝。模板是 checkout 内 <=64 KiB 的非 symlink body-only Markdown，heading 开头，六个 literal slots 各一次：title/goals/non_goals/design/plan/acceptance；不执行 JS 或插值。安全 defaults 仅补项目允许的必需元数据（scalar/array），不能覆盖 ID/status/approval/evidence 等保留字段。缺失/无法填的必需字段或 custom lifecycle 无 preReview 时，在预留前失败。生成文件 <=256 KiB，记录模板版本/hash；结构化输入拒绝未知字段、路径/换行注入，永不覆盖；发布失败的编号仍烧掉。数字项目写 YAML integer 与 N.slug.md，prefixed 写 ID-slug.md。预览 ID 是示意值，不是预留。
+
+## 统一封存审查与预算
+
+```bash
+# 仅在本 delivery cycle 得到用户授权后由终端/API 初始化；已用外部审查必须计入 used。
+node core.mjs review-budget --json '{"id":"delivery-example-1","calls":3,"used":1,"note":"User explicitly authorized this delivery cycle; one external proposal call already used."}'
+node core.mjs review --json '{"action":"prepare","id":"S1.7","base":"BASE_COMMIT","head":"HEAD_COMMIT"}'
+# 检查输出 packetPath，对同一完整文件做 check_secrets；prepare 无模型调用。
+node core.mjs review --json '{"action":"run","jobId":"PREPARED_JOB_ID","budgetId":"delivery-example-1"}'
+node core.mjs review --json '{"action":"status","jobId":"PREPARED_JOB_ID"}'
+```
+
+`/spec review <JSON>` / native `spec_review` 相同。committed 解析完整 commit SHA、验证祖先，只读指定 head 的 Spec/profile/package 与精确 base..head；缺省拒绝脏 tracked/staged/untracked，allowDirty 明示排除项。incremental 还需要 prior engine job ID，保留 original implementation base、独立 review base、report hash 与 closure matrix；阻断需准确 changed-line + introduced-by-diff/regression/incomplete-fix 分类，baseline 观察不阻断。合同/profile 改变需 full review。proposal 读取当前声明 Spec，不以空 diff 批准；普通空 diff skipped，无模型、不是 PASS。
+
+只有 full current working-tree-audit 能写 lifecycle audit；prepare/run/status 普通审查永不修改 approval/status/audit。`spec_audit` 的 budgetId 或 `SPECFLOW_REVIEW_BUDGET_ID` 引用同一授权，reviewJobId 可无二次调用地 resume/attach 匹配的 full job；必须匹配 snapshot/contract/Spec/scope/diff/impl。当前 Spec 整体单独送审，重复的生命周期 diff 与 reserved ledger 排除；新文件 headers 稳定。delta/历史批准不能 import 为 full PASS。旧 v2 合法记录仍兼容。
+
+Git common-dir 的 `spec-flow/review-v1/{budgets,jobs}` 私有保存完整 packet、原始 stdout/stderr、hash/scan/usage/receipt/state（0700/0600）；不触碰旧 `spec-flow/jobs/*`。整个实际 child prompt <=512 KiB、raw <=32 MiB，不静默截断；名为 high-risk-patterns/v1 的有限扫描与 @file 字节 hash 在执行前重检，不能冒充通用 check_secrets。raw verdict 与归一化失败/父级 dispositions 分开；错格式/超限/取消绝不 PASS。
+
+模型工具不能建/提高/重置授权。经过 preflight 后、spawn 前共享锁原子计次；失败/取消/中断不退款，同 job 不自动 respawn；completed cache 在 budget lookup 前免费。独立 worker 的结果先落盘，再交付 frontend，frontend 消失不会自动重审；未知 running 状态须查 owner/证据，不抢旧锁或换 cycle 逃避预算。已失败 job 重放不重审，明确 re-impl 后可创建新 job（仍消耗原授权）。授权 metadata 可写，不是防篡改/付费权限沙箱。
+
+Pi 项目识别只读取目标 tree/snapshot 的声明/常规入口、路径/mode/hash 与标记 lexical hints，不 import/load；128 declarations、256 matches、256 KiB/source 限制，记录缺失/不支持/越界/symlink diagnostics。静态 recognized 不是真实宿主加载证明。
+
 ## 审计边界
 
 审计 patch 使用 argv 形式的 Git 命令，包含从 `base_sha` 到当前 working tree 的 committed/staged/unstaged tracked 变化和未跟踪文件。以下情况 fail closed：base 非 HEAD 祖先、非法 scope、Git 失败、diff 超限、空 diff、非法审计 JSON。
 
-审计子进程使用 `--no-session --no-tools --no-extensions --no-skills --no-prompt-templates --no-context-files`。spec/diff 仍是不可信输入；禁用工具降低 prompt injection 的影响，但不构成进程级沙箱。
+审计子进程使用 `--no-session --no-tools --no-extensions --no-skills --no-prompt-templates --no-context-files --no-themes --no-approve --mode json`。spec/diff 仍是不可信输入；禁用工具降低 prompt injection 的影响，但不构成进程级沙箱。
 
 | 环境变量 | 默认 | 说明 |
 |---|---:|---|
@@ -199,7 +234,8 @@ node core.mjs check --ci --contracts-only --live  # 不运行项目 gates，但�
 | `SPECFLOW_AUDIT_BIN` | `pi` | 审计可执行文件；主要用于测试 |
 | `SPECFLOW_AUDIT_TIMEOUT` | `180000` | 超时毫秒 |
 | `SPECFLOW_AUDIT_THINKING` | `off` | 子 Pi thinking 等级；可显式提高到 `low`/`medium`/`high` 等 |
-| `SPECFLOW_AUDIT_MAX_BYTES` | `524288` | 完整 audit patch 上限；超限不截断而失败 |
+| `SPECFLOW_AUDIT_MAX_BYTES` | `524288` | 限制 patch/完整 child packet，不能提高 512 KiB packet cap；超限失败 |
+| `SPECFLOW_REVIEW_BUDGET_ID` | 无 | 已显式授权的 delivery-cycle grant；不自动创建 |
 | `SPECFLOW_SNAPSHOT_MAX_BYTES` | `536870912` | snapshot 总读取上限 |
 
 通过的 audit 只有在 implementation hash 与 contract hash 均未变化时才可复用。
@@ -240,7 +276,7 @@ Pi 的 `tool_call` 拦截器识别 `git commit`、`git -C … commit` 和常见 
 - run: npm audit --omit=dev
 ```
 
-仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
+本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/unit/七组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
 
 Legacy 行为：
 
@@ -257,6 +293,9 @@ node tests/e2e/e2e-trustworthy-closure.mjs
 node tests/e2e/e2e-spec-discovery.mjs
 node tests/e2e/e2e-project-governance-profile.mjs
 node tests/e2e/e2e-worktrees-python.mjs  # 真实 Python + linked worktree + Action copied CLI
+node tests/e2e/e2e-review-and-spec-new.mjs # 创建竞争 / finite grant / frontend loss / cache
 npm run check                    # 权威本地门禁
-npm run smoke:pi                 # 已安装 Pi 时：真实 RPC 加载 + /spec，无模型调用
+SPECFLOW_PI_BIN=/trusted/installed/pi SPECFLOW_PI_SDK=/trusted/installed/pi-package npm run smoke:pi
+# 私有临时 agent/project：真实 RPC /spec + Pi 1.x typed tools/ctx.executeTool/handled commands；无 provider
+node integrations/skill-migration.mjs --check  # 只校验 tracked bundle，不读全局安装
 ```

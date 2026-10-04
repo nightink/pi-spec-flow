@@ -1,0 +1,4 @@
+{
+  "version": 1,
+  "gates": { "mode": "replace", "npmScripts": ["check"] }
+}
