@@ -1,0 +1,8 @@
+
+> pi-spec-flow@0.2.0 smoke:pi
+> node tests/smoke/pi-rpc-load.mjs && node tests/smoke/pi-native-review.mjs
+
+PASS real isolated Pi CLI discovered /spec
+PASS /spec completed through real isolated Pi RPC without a model call
+PASS /spec worktrees completed through real isolated Pi RPC without a model call
+PASS trusted Pi 1.x discovers typed tools and calls them through ctx.executeTool + handled commands, no provider/production state

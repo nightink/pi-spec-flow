@@ -1,0 +1,27 @@
+# example-app's only authoritative product gate is `npm run verify`.
+# The private same-account spec-flow Action also validates the single project Spec contract.
+# Pin every cross-repository reference to an immutable, published full SHA.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify product and Spec contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+      - run: npm ci
+      # This SHA is local until the owner pushes pi-spec-flow and enables
+      # Settings → Actions → General → Access for same-account private repos.
+      - uses: nightink/pi-spec-flow@f842a28a174b41bacb67ce73290d8a30ab3e39ff

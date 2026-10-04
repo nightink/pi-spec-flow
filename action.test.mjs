@@ -16,3 +16,19 @@ test("private cross-repository Action is composite, installs pinned deps, and ru
   assert.doesNotMatch(JSON.stringify(action), /secrets\.|actions\/checkout|git push|npm publish|deploy/i);
   assert.ok(fs.existsSync(new URL("./package-lock.json", import.meta.url)));
 });
+
+test("self CI statically selects supported Node, Python and the entire authoritative gate", () => {
+  // A local YAML/command contract check is not evidence of a successful hosted
+  // run. In particular it cannot diagnose a zero-job startup_failure remotely.
+  const workflow = yaml.load(fs.readFileSync(new URL("./.github/workflows/ci.yml", import.meta.url), "utf8"));
+  assert.deepEqual(Object.keys(workflow.on).sort(), ["pull_request", "push"]);
+  assert.deepEqual(workflow.permissions, { contents: "read" });
+  const steps = workflow.jobs.verify.steps;
+  const node = steps.find((step) => step.uses?.startsWith("actions/setup-node@"));
+  const python = steps.find((step) => step.uses?.startsWith("actions/setup-python@"));
+  assert.equal(node.with["node-version"], "22.19.0");
+  assert.equal(python.with["python-version"], "3.11");
+  assert.deepEqual(steps.filter((step) => step.run).map((step) => step.run), ["npm ci", "npm run check", "npm audit --omit=dev"]);
+  const profile = JSON.parse(fs.readFileSync(new URL("./.spec-flow.json", import.meta.url), "utf8"));
+  assert.deepEqual(profile.gates, { mode: "replace", npmScripts: ["check"] });
+});

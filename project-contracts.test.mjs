@@ -98,6 +98,21 @@ test("numeric ID, filename, missing dependency, arbitrary cycle and addendum fai
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
+test("Action verify stops before gates on invalid contracts while bare CI still diagnoses all gates", async () => {
+  const root = makeProject();
+  try {
+    mutate(root, "0.example.md", "- [x] initial", "- [ ] initial");
+    let result = await checkCI(root, { preferVerify: true });
+    assert.equal(result.pass, false);
+    assert.match(result.output, /status=done 但仍有未勾验收项/);
+    assert.match(result.output, /verify 项目门禁未运行/);
+    assert.equal(fs.existsSync(path.join(root, "gate-ran")), false);
+    result = await checkCI(root);
+    assert.equal(result.pass, false);
+    assert.equal(fs.readFileSync(path.join(root, "gate-ran"), "utf8"), "yes");
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
 test("strict validation schema rejects unknown keys and unsafe required fields", () => {
   const root = makeProject();
   try {

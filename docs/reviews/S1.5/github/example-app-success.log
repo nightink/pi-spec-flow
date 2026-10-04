@@ -1,0 +1,263 @@
+Verify product and Spec contracts	UNKNOWN STEP	﻿2026-10-03T01:10:55.4388101Z Current runner version: '2.337.0'
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4417511Z ##[group]Runner Image Provisioner
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4418544Z Hosted Compute Agent
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4419373Z Version: 20260901.588
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4420148Z Commit: f88ec8081b781fac6c440065ac7ff9e710ce3d0b
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4421337Z Build Date: 2026-09-01T19:56:44Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4422270Z Worker ID: {c6bbeac9-dd51-4ff7-a36b-07a4e43d3873}
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4423157Z Azure Region: westcentralus
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4423952Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4425841Z ##[group]Operating System
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4426680Z Ubuntu
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4427449Z 24.04.5
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4428068Z LTS
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4428757Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4429448Z ##[group]Runner Image
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4430239Z Image: ubuntu-24.04
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4431518Z Version: 20260927.320.1
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4433068Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260927.320/images/ubuntu/Ubuntu2404-Readme.md
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4435145Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260927.320
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4436387Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4437816Z ##[group]GITHUB_TOKEN Permissions
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4439908Z Contents: read
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4441019Z Metadata: read
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4441702Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4444124Z Secret source: Actions
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4445395Z Cache mode: write
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4446232Z Prepare workflow directory
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.4989102Z Prepare all required actions
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:55.5088738Z Getting action download info
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:56.4715034Z Download action repository 'actions/checkout@11d5960a326750d5838078e36cf38b85af677262' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:56.6549408Z Download action repository 'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:56.8262354Z Download action repository 'nightink/pi-spec-flow@f842a28a174b41bacb67ce73290d8a30ab3e39ff' (SHA:f842a28a174b41bacb67ce73290d8a30ab3e39ff)
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3195594Z Complete job name: Verify product and Spec contracts
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3883931Z ##[group]Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3885331Z with:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3886036Z   repository: example-org/example-app
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3892434Z   token: ***
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3893151Z   ssh-strict: true
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3893863Z   ssh-user: git
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3894584Z   persist-credentials: true
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3895369Z   clean: true
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3896088Z   sparse-checkout-cone-mode: true
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3896941Z   fetch-depth: 1
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3897650Z   fetch-tags: false
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3898386Z   show-progress: true
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3899112Z   lfs: false
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3899801Z   submodules: false
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3900614Z   set-safe-directory: true
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3901439Z   allow-unsafe-pr-checkout: false
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.3902524Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5473486Z Syncing repository: example-org/example-app
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5476635Z ##[group]Getting Git version info
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5478235Z Working directory is '<runner>/work/example-app/example-app'
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5481817Z [command]/usr/bin/git version
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5483207Z git version 2.55.0
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5486994Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5495969Z Temporarily overriding HOME='<runner>/work/_temp/814b5fd5-79f7-4131-8324-68947ba7b96e' before making global git config changes
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5501361Z Adding repository directory to the temporary git global config as a safe directory
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5503953Z [command]/usr/bin/git config --global --add safe.directory <runner>/work/example-app/example-app
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5507556Z Deleting the contents of '<runner>/work/example-app/example-app'
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5511215Z ##[group]Initializing the repository
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5514495Z [command]/usr/bin/git init <runner>/work/example-app/example-app
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5555596Z hint: Using 'master' as the name for the initial branch. This default branch name
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5560147Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5562801Z hint: to use in all of your new repositories, which will suppress this warning,
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5564884Z hint: call:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5565943Z hint:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5567254Z hint: 	git config --global init.defaultBranch <name>
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5568819Z hint:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5570300Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5572952Z hint: 'development'. The just-created branch can be renamed via this command:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5574948Z hint:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5576041Z hint: 	git branch -m <name>
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5577255Z hint:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5578904Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5582042Z Initialized empty Git repository in <runner>/work/example-app/example-app/.git/
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5586009Z [command]/usr/bin/git remote add origin https://github.com/example-org/example-app
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5712715Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5722066Z ##[group]Disabling automatic garbage collection
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5741812Z [command]/usr/bin/git config --local gc.auto 0
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5750832Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5769533Z ##[group]Setting up auth
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5771374Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.5777553Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.6264824Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.6292329Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.6509546Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.6534321Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.6784637Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.6798362Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.6801472Z ##[group]Fetching the repository
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:57.6809498Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +74142b874da37846f6a21a6b32dfb5a403d56b39:refs/remotes/origin/main
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.2602773Z From https://github.com/example-org/example-app
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.2604034Z  * [new ref]         74142b874da37846f6a21a6b32dfb5a403d56b39 -> origin/main
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.2641085Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.2642028Z ##[group]Determining the checkout info
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.2642845Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.2643611Z [command]/usr/bin/git sparse-checkout disable
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.2734390Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.2771196Z ##[group]Checking out the ref
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.2782887Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.3573305Z Switched to a new branch 'main'
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.3587691Z branch 'main' set up to track 'origin/main'.
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.3595490Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.3644031Z [command]/usr/bin/git log -1 --format=%H
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.3682558Z 74142b874da37846f6a21a6b32dfb5a403d56b39
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.4000297Z ##[group]Run actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.4001031Z with:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.4001227Z   node-version: 22.19.0
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.4001415Z   cache: npm
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.4001802Z   always-auth: false
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.4001985Z   check-latest: false
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.4003840Z   token: ***
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.4004020Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.5175500Z Attempting to download 22.19.0...
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.5269076Z (node:2042) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:10:59.5270122Z (Use `node --trace-deprecation ...` to show where the warning was created)
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:00.4546156Z Acquiring 22.19.0 - x64 from https://github.com/actions/node-versions/releases/download/22.19.0-17311483029/node-22.19.0-linux-x64.tar.gz
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:01.2362731Z Extracting ...
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:01.2515352Z [command]/usr/bin/tar xz --strip 1 --warning=no-unknown-keyword --overwrite -C <runner>/work/_temp/a8fe6638-acfb-4ca6-93de-84b8861fb4b6 -f <runner>/work/_temp/c7a5e6c4-6f2a-4b25-a9e9-1e698d8e4bff
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:02.3215118Z Adding to the cache ...
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:06.5339973Z ##[group]Environment details
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:06.7406471Z node: v22.19.0
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:06.7407009Z npm: 10.9.3
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:06.7407463Z yarn: 1.22.22
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:06.7408493Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:06.7431202Z [command]/opt/hostedtoolcache/node/22.19.0/x64/bin/npm config get cache
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:06.8195047Z <runner>/.npm
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:07.0227195Z npm cache is not found
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:07.0757350Z ##[group]Run npm ci
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:07.0757628Z ^[[36;1mnpm ci^[[0m
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:07.2204811Z shell: /usr/bin/bash -e {0}
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:07.2205075Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:11.9807626Z npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2621150Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2660841Z added 510 packages, and audited 517 packages in 15s
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2691008Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2694421Z 120 packages are looking for funding
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2695079Z   run `npm fund` for details
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2819579Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2828926Z 8 vulnerabilities (4 moderate, 4 high)
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2829536Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2834528Z To address issues that do not require attention, run:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2834958Z   npm audit fix
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2835129Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2835418Z To address all issues (including breaking changes), run:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2835834Z   npm audit fix --force
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2836106Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.2836265Z Run `npm audit` for details.
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.4949709Z ##[group]Run nightink/pi-spec-flow@f842a28a174b41bacb67ce73290d8a30ab3e39ff
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.4950181Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.5007778Z ##[start-action display=Install locked Spec Flow runtime dependencies;id=__nightink_pi-spec-flow.__run]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.5031401Z ##[group]Run cd "$ACTION_ROOT" && npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.5031947Z ^[[36;1mcd "$ACTION_ROOT" && npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund^[[0m
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.5089167Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.5089443Z env:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.5089789Z   ACTION_ROOT: <runner>/work/_actions/nightink/pi-spec-flow/f842a28a174b41bacb67ce73290d8a30ab3e39ff
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:22.5090166Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0166270Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0169074Z added 2 packages in 432ms
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0225593Z ##[end-action id=__nightink_pi-spec-flow.__run;outcome=success;conclusion=success;duration_ms=521]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0245430Z ##[start-action display=Check caller contracts and run its authoritative verify;id=__nightink_pi-spec-flow.__run_2]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0262443Z ##[group]Run node "$SPECFLOW_CLI" check --ci --contracts-only
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0262800Z ^[[36;1mnode "$SPECFLOW_CLI" check --ci --contracts-only^[[0m
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0263061Z ^[[36;1mnpm run verify^[[0m
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0319623Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0319905Z env:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0320652Z   SPECFLOW_CLI: <runner>/work/_actions/nightink/pi-spec-flow/f842a28a174b41bacb67ce73290d8a30ab3e39ff/core.mjs
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.0321126Z ##[endgroup]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1541847Z ⚠️ 警告:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1542650Z   ! 0: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1543132Z   ! 1: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1543615Z   ! 10: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1544080Z   ! 11: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1544688Z   ! 12: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1545201Z   ! 13: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1545700Z   ! 14: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1546202Z   ! 15: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1546754Z   ! 16: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1547233Z   ! 17: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1547650Z   ! 18: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1548175Z   ! 19: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1548667Z   ! 2: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1549102Z   ! 20: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1549541Z   ! 21: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1549976Z   ! 22: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1550590Z   ! 23: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1551842Z   ! 24: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1552474Z   ! 25: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1553556Z   ! 26: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1554221Z   ! 29: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1555348Z   ! 3: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1555910Z   ! 30: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1556945Z   ! 34: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1557561Z   ! 36: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1558427Z   ! 37: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1558989Z   ! 38: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1559780Z   ! 39: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1560530Z   ! 4: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1561511Z   ! 40: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1562048Z   ! 41: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1562909Z   ! 42: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1563535Z   ! 43: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1564327Z   ! 44: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1564922Z   ! 45: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1565723Z   ! 46: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1566889Z   ! 47: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1568005Z   ! 48: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1568669Z   ! 49: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1569537Z   ! 50: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1570270Z   ! 51: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1571822Z   ! 52: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1572448Z   ! 53: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1573307Z   ! 54: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1573909Z   ! 55: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1574749Z   ! 60: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1575346Z   ! 61: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1576250Z   ! 62: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1576997Z   ! 7: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1577955Z   ! 8: external legacy active spec，由项目本地治理继续管理
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1578656Z   ! 9: legacy done spec，仅做只读兼容
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1579652Z   ! 仅校验 Spec 合同/证据；项目 npm 门禁未运行（contracts-only）
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.1580761Z ✅ check --ci --contracts-only 通过（项目 npm 门禁未运行）
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.2380011Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.2380745Z > pi-example-app@1.0.0 verify
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.2381390Z > node scripts/verify.mjs
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.2381890Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.2622621Z ▶ example-app verify（6 步）· 日志: <tmp>/example-app-verify/verify-2026-10-03T01-11-23-259Z.log
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:23.2623434Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:39.4886475Z [1/6] build ... ok (16.2s) · - Using dynamic import() to code-split the application | - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting | - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.^[[39m
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:11:39.5246105Z [2/6] dist-fresh ... ok (0.0s) · ✓ dist/index.html 比源码新 |  | [check-dist-fresh] PASS：产物与源码一致
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:17:30.1274976Z [3/6] test:safe ... ok (350.6s) ·  | ^[[90mstderr^[[2m | packages/frontend/src/__tests__/pdf-attachment-local.test.ts^[[2m > ^[[22m^[[2mspec 62 本地 PDF 提取^[[2m > ^[[22m^[[2m无效头部、损坏或超限会拒绝 | ^[[22m^[[39mWarning: Indexing all PDF objects
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:17:52.1693321Z [4/6] health ... ok (22.0s) ·   重复 71 区段 / 584 行 · 死导出 1 · lint 15 warning |  | [health-fresh] PASS：无指标退化
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.4468133Z [5/6] lint ... ok (18.3s) ·   40:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components |  | ✖ 15 problems (0 errors, 15 warnings)
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.5592961Z [6/6] spec-flow ... ok (0.1s) ·   ! 9: legacy done spec，仅做只读兼容 |   ! 仅校验 Spec 合同/证据；项目 npm 门禁未运行（contracts-only） | ✅ check --ci --contracts-only 通过（项目 npm 门禁未运行）
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.5600978Z
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.5622430Z 完整日志: <tmp>/example-app-verify/verify-2026-10-03T01-11-23-259Z.log
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.5627250Z VERDICT: PASS
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.5706328Z ##[end-action id=__nightink_pi-spec-flow.__run_2;outcome=success;conclusion=success;duration_ms=407545]
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.5777486Z Post job cleanup.
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.6841702Z (node:5443) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.6843257Z (Use `node --trace-deprecation ...` to show where the warning was created)
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:10.7119049Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C <runner>/work/example-app/example-app --files-from manifest.txt --use-compress-program zstdmt
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:11.4462165Z (node:5443) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:12.4360719Z Sent 13164653 of 147382381 (8.9%), 12.5 MBs/sec
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.0103889Z Sent 147382381 of 147382381 (100.0%), 89.1 MBs/sec
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.2879328Z Cache saved with the key: node-cache-Linux-x64-npm-86827b44fdf3e4d9290250c1563db2690504897300d952853507aa31d8047474
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.3039099Z Post job cleanup.
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.3834267Z [command]/usr/bin/git version
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.3903657Z git version 2.55.0
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.3948523Z Temporarily overriding HOME='<runner>/work/_temp/da7c16d6-634f-4c75-ac52-f6e192270416' before making global git config changes
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.3975388Z Adding repository directory to the temporary git global config as a safe directory
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.3986865Z [command]/usr/bin/git config --global --add safe.directory <runner>/work/example-app/example-app
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.4055675Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.4072414Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.4339368Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.4368527Z http.https://github.com/.extraheader
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.4377061Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.4415861Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.4730027Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.4774091Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.5263778Z Cleaning up orphan processes
+Verify product and Spec contracts	UNKNOWN STEP	2026-10-03T01:18:13.5502574Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

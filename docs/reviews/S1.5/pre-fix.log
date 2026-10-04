@@ -1,0 +1,67 @@
+TAP version 13
+# Subtest: private cross-repository Action is composite, installs pinned deps, and runs caller verify
+ok 1 - private cross-repository Action is composite, installs pinned deps, and runs caller verify
+  ---
+  duration_ms: 2.350041
+  type: 'test'
+  ...
+# Subtest: self CI statically selects supported Node, Python and the entire authoritative gate
+ok 2 - self CI statically selects supported Node, Python and the entire authoritative gate
+  ---
+  duration_ms: 1.033167
+  type: 'test'
+  ...
+# Error: check accepts only --ci and optional --contracts-only / --live
+# Subtest: without validation profile, project contract rules remain disabled
+ok 3 - without validation profile, project contract rules remain disabled
+  ---
+  duration_ms: 6.356708
+  type: 'test'
+  ...
+# Subtest: configured contract checker enforces parity across done/legacy/archived
+ok 4 - configured contract checker enforces parity across done/legacy/archived
+  ---
+  duration_ms: 3.646583
+  type: 'test'
+  ...
+# Subtest: numeric ID, filename, missing dependency, arbitrary cycle and addendum fail closed
+ok 5 - numeric ID, filename, missing dependency, arbitrary cycle and addendum fail closed
+  ---
+  duration_ms: 3.40825
+  type: 'test'
+  ...
+# Subtest: strict validation schema rejects unknown keys and unsafe required fields
+ok 6 - strict validation schema rejects unknown keys and unsafe required fields
+  ---
+  duration_ms: 1.937375
+  type: 'test'
+  ...
+# Subtest: CLI contracts-only does not execute gates; full CI does; unknown flags fail
+ok 7 - CLI contracts-only does not execute gates; full CI does; unknown flags fail
+  ---
+  duration_ms: 301.626542
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 365.744291
+PASS private Action-equivalent subprocess chain invokes caller verify once
+PASS private Action preserves unconfigured verify-only callers
+tests/e2e/e2e-private-action.mjs:19
+  if (!condition) throw new Error(message);
+                        ^
+
+Error: invalid contracts executed caller gate
+    at assert (tests/e2e/e2e-private-action.mjs:19:25)
+    at tests/e2e/e2e-private-action.mjs:81:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:345:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:651:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.19.0

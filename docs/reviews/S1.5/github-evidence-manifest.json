@@ -1,0 +1,87 @@
+{
+  "observed_at": "2026-10-04T03:31:09.814Z",
+  "boundary": "Existing read-only gh responses, exact YAML and complete log with trailing whitespace removed (no removed lines). Original raw log durably retained privately. No authentication configuration, workflow dispatch/rerun, settings mutation or push.",
+  "files": [
+    {
+      "path": "github/access.json",
+      "bytes": 23,
+      "sha256": "5e417468bb93f8322e933c6df1670952726351ca9da9d729af245bd3c3e959b2"
+    },
+    {
+      "path": "github/example-app-ci-at-run.yml",
+      "bytes": 898,
+      "sha256": "dcff3c5902014b63f0cc55086abec7d24bdb06d22da490a35c3c3c09d538952a"
+    },
+    {
+      "path": "github/example-app-job.json",
+      "bytes": 1731,
+      "sha256": "15fa60daaa9e2bdbef42e0f5ee636ee605f939cbf129eda6c12c2405868e51e8"
+    },
+    {
+      "path": "github/example-app-run.json",
+      "bytes": 291,
+      "sha256": "4b6f3b618d3ecaf62b3db347128a2f720d702e4b52602efe6fc0f657c1ca325b"
+    },
+    {
+      "path": "github/example-app-success.log",
+      "bytes": 34493,
+      "sha256": "fe97691b32a005d51b91b719cc4d655a26cda8b7e75e2c95649199d9becb2c3d"
+    },
+    {
+      "path": "github/main.json",
+      "bytes": 89,
+      "sha256": "a4adcbeda0b1a9c6b6b670d450ae6b3f7c5a4a9d3cee17bce4c3fbcb8f5f214e"
+    },
+    {
+      "path": "github/permissions.json",
+      "bytes": 69,
+      "sha256": "0bffee97e4ad52676c0127aacb5b4b304a2675f5c524de641acf1326e0b0e857"
+    },
+    {
+      "path": "github/repo.json",
+      "bytes": 112,
+      "sha256": "f041085dfbd27b4820307054f4fecd7751126eb4ac7958363a499642a5c580fe"
+    },
+    {
+      "path": "github/specflow-ci-at-run.yml",
+      "bytes": 366,
+      "sha256": "1d29df222e09d2d87c66a205435fa31e5c695583458997f42aa33f17b06ef8e6"
+    },
+    {
+      "path": "github/specflow-startup-error.log",
+      "bytes": 37,
+      "sha256": "e4238f2f3cbfb95454d5468ba5ee520254b9f3e365b6fe5f6e5df70950a7e3ec"
+    },
+    {
+      "path": "github/startup-check-runs.json",
+      "bytes": 34,
+      "sha256": "cb94646e60544ba682294dab7e576ef54a8866d556fc6fd651a922b3b428ebc5"
+    },
+    {
+      "path": "github/startup-jobs.json",
+      "bytes": 28,
+      "sha256": "81fad6e0b8c5e61b09d89c058a469316f5b3b72e1c8aeca03a4495974b1ce443"
+    },
+    {
+      "path": "github/startup-run.json",
+      "bytes": 336,
+      "sha256": "d71ccfe0a2e52246ee051f58c30cfdafc9133ac543ac0bff49ab6b872e0a1d49"
+    },
+    {
+      "path": "github/workflow-permissions.json",
+      "bytes": 80,
+      "sha256": "f6e178fc1e56cf43900da383f85398b61de9ae61c6b8433116c1856605745924"
+    },
+    {
+      "path": "github/workflow.json",
+      "bytes": 158,
+      "sha256": "e07b2588a96a583a2ac6240c943e5315d02bc007084508a14e8185f65dd213fe"
+    }
+  ],
+  "raw_example_app_log": {
+    "path": ".git/spec-flow/acceptance/S1.5-closure-2/example-app-success-raw.log",
+    "bytes": 34504,
+    "sha256": "43023a054829929fcd9bd576109984ba285d69c0edddbacb210f327c57a48977",
+    "normalization": "Only trailing tabs/spaces per line removed from tracked log; timestamps/ANSI/content/order/line numbers otherwise unchanged."
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "type": "historical-frontmatter-audit-not-original-transport",
+  "source_commit": "446d67be0ad1a7522fae9d6f00881ac228b0c586",
+  "source_path": "docs/specs/S1.5-project-contract-check-and-shared-action.md",
+  "source_spec_sha256": "55640679ed74b7a2057a935ac40383ec9c0239d3eecb9343ff167010e59e8b16",
+  "limitations": "Original transport was not retained by the historical workflow. This is the exact stored fm.audit record, not a reconstructed new review. Original FAIL remains unchanged.",
+  "audit": {
+    "at": "2026-09-26T11:54:07.475Z",
+    "sha": "52775bb405d420ace902118329c7939b868d7d6c",
+    "base_sha": "c32a4fca664ce7f37403be8bf163aa348e9c6dfc",
+    "impl_hash": "81fa13523f5b2d30bec822b474efae44ca45ab5abaf9c0c807ca1457f744e4fc",
+    "contract_hash": "bc1ce058c526262cf0cc708aed1841a30ba1661f041c664bc81b06d19fd86256",
+    "prompt_version": 2,
+    "model": "session-default",
+    "thinking": "off",
+    "verdict": "fail",
+    "criteria": [
+      {
+        "criterion": "No-profile regression suite stays green; strict profile fails unknown/unsafe validation fields.",
+        "status": "pass",
+        "evidence": "project-contracts.test.mjs 首个测试删除 validation 后断言 pass=true；第四个测试断言 unknown key、__proto__ 不安全字段名与 dependencyIntegrity 非布尔会抛出。project-profile.mjs 的 parseValidation 使用 assertExactKeys 白名单并校验 SAFE_FIELD/FORBIDDEN_KEYS；DEFAULT_PROFILE 增加 validation: null 保证未配置时行为不变。"
+      },
+      {
+        "criterion": "example-app-shaped positive and negative parity covers required fields, kind, ID filename, done unchecked, archived/legacy, dependency missing and 3-node cycle, addendum filename.",
+        "status": "pass",
+        "evidence": "core.mjs 新增 projectContractProblems（requiredFields、allowedKinds、numericFileId 校验 basename N.*.md 与非负安全整数 id、checkDoneCheckboxes 对 done 状态扫描根级 `- [ ]`、forbidAddendumFilename、dependencyIntegrity 数组类型）以及 projectDependencyProblems（缺失目标 id、DFS 检测任意长度环）。这些检查在 `if (role === \"ignored\") continue;` 之前加入，故对 ignored/archived/legacy 也生效。project-contracts.test.mjs 第三个测试覆盖 id=99 不符文件名、addendum 禁止、引用不存在 id 777、4→5→6→4 三节点环，且 makeProject 中 id 2 为 external-warning legacy active、id 3 为 archived，被同批断言覆盖。"
+      },
+      {
+        "criterion": "Contracts-only never runs project gates, explicitly says so and fails on bad documents; full `check --ci` still executes gates.",
+        "status": "pass",
+        "evidence": "core.mjs checkCI 新增 runProjectGates 参数：为 false 时 push 提示 \"仅校验 Spec 合同/证据；项目 npm 门禁未运行（contracts-only）\" 并输出 `✅ check --ci --contracts-only 通过（项目 npm 门禁未运行）`，跳过 runGates；为 true 时仍执行 runGates(cacheTtlMs: 0)。main() 中 check 分支只接受 --ci 与 --contracts-only，重复或未知参数抛错。project-contracts.test.mjs 末测断言 contracts-only 不产生 gate-ran、完整 check --ci 产生 gate-ran、`--typo` 与含未勾 done 项的 contracts-only 均以非零退出。"
+      },
+      {
+        "criterion": "Composite Action has pinned caller SHA guidance, uses no privileged cross-repo checkout/PAT, invokes authoritative `verify`; local simulation passes, remote requires user setup.",
+        "status": "pass",
+        "evidence": "action.yml 为 composite，第一步 `cd \"$ACTION_ROOT\" && npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund`，第二步以 SPECFLOW_CLI=${{ github.action_path }}/core.mjs 运行 `check --ci --contracts-only` 后 `npm run verify`；无 secrets、无 actions/checkout、无 push/publish/deploy。action.test.mjs 断言这些形状并确认 package-lock.json 存在。tests/e2e/e2e-private-action.mjs 用复制的 CLI 与一次性 caller 真实跑通子进程链，gate-marker 恰为一行证明 verify 未被递归，并验证未勾 done 项时 fail-closed。README 补充同账号私有 Action Access 设置与完整 40 位 SHA 固定、两仓交付顺序，并明确未 push/未远端运行前只能证明本地等价路径。"
+      },
+      {
+        "criterion": "Node 22 full `npm run check`, real CLI acceptance, diff/secret scan pass; independent review has no unresolved confirmed blocker.",
+        "status": "fail",
+        "evidence": "diff 将 tests/e2e/e2e-private-action.mjs 加入 package.json 的 `check` 脚本链，且 impl 记录 e2e-private-action.mjs 2 PASS、typecheck/test PASS，但本 diff 中不存在任何记录或可验证产物证明：Node 22.19.0 下完整 `npm run check` 实际执行（123/123 + 五个 E2E + `check --ci`）、真实 CLI 验收、`git diff --check` 与 secret scan 结果。这些证据仅出现在 Spec 正文 2026-09-26 的叙述中，属未提供的声明，且验收项本身仍标记为未勾选 `[ ]`，diff 中亦无任何独立 review 通过结论。因此该 criterion 无法从 diff 得到验证。"
+      }
+    ],
+    "scope_deviations": [
+      "独立审计无法核验 Spec 正文中关于 Node 22 `npm run check`、真实 CLI 验收、diff/secret scan 与独立 review 结果的叙述性声明——这些内容未以可验证证据形式出现在本次 diff 中，最后一条验收项仍为未勾选状态。"
+    ]
+  }
+}

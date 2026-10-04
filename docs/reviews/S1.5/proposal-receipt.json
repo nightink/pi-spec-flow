@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "id": "762bab8886f950546bf237f8d6f67e91",
+  "mode": "proposal",
+  "state": "completed",
+  "created": "2026-10-04T02:51:05.870Z",
+  "repository": ".",
+  "packet_sha256": "ed31f137af719bedfbcd16cbdc707f6f48ca2f968cd06381a7b04ad7f0205160",
+  "packet_bytes": 23292,
+  "scan": {
+    "scanner": "high-risk-patterns/v1",
+    "packet_sha256": "ed31f137af719bedfbcd16cbdc707f6f48ca2f968cd06381a7b04ad7f0205160",
+    "findings": []
+  },
+  "bindings": {
+    "base": null,
+    "head": null,
+    "implementation_base": "c32a4fca664ce7f37403be8bf163aa348e9c6dfc",
+    "coverage": "proposal-only",
+    "spec_path": "docs/specs/S1.5-project-contract-check-and-shared-action.md",
+    "spec_blob_sha256": "ce50a428c42c65f5e4e01ad47d1dd94a33c0b541e62a051324a7fc0046170fbc",
+    "contract_hash": "369c8f21070176b3cedefca23ad350456f1a8c820a2f9bec0ea9f4e8df4efd4f",
+    "profile_sha256": "05ed000b1dad75c82ebe541e2a6a1b1c61dc597dcfe80f0746f08c94396344d8",
+    "dirty_status_sha256": "66e799c3eda54aa66694a6101fff0db7348d37c4021f356b5ddfe2ffb9332b0b",
+    "dirty_excluded": false,
+    "dirty_exclusions": []
+  },
+  "changed_lines": {},
+  "prior_findings": [],
+  "skipped": false,
+  "budget": {
+    "id": "S1.5-closure-2",
+    "ordinal": 1,
+    "limit": 3
+  },
+  "model_invoked": true,
+  "started": "2026-10-04T02:52:23.279Z",
+  "execution": {
+    "bin": "<home>/.pi/worktrees/example-app/node_modules/.bin/pi",
+    "model": "deepseek/deepseek-v4-flash",
+    "thinking": "high",
+    "timeout": 300000
+  },
+  "worker_pid": 53372,
+  "child_input_sha256": "ed31f137af719bedfbcd16cbdc707f6f48ca2f968cd06381a7b04ad7f0205160",
+  "raw_sha256": "355adfd72c0461ed386b2fe978a15f2a3b6539615d281d63be4d020e9f2366e7",
+  "output_truncated": false,
+  "output_scan": {
+    "scanner": "high-risk-patterns/v1",
+    "packet_sha256": "355adfd72c0461ed386b2fe978a15f2a3b6539615d281d63be4d020e9f2366e7",
+    "findings": []
+  },
+  "effective_model": "deepseek/deepseek-v4-flash",
+  "usage": {
+    "input": 5736,
+    "output": 13341,
+    "cacheRead": 384,
+    "cacheWrite": 0,
+    "reasoning": 12553,
+    "totalTokens": 19461,
+    "cost": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    }
+  },
+  "raw_verdict": "pass",
+  "result": {
+    "verdict": "pass",
+    "criteria": [
+      {
+        "criterion": "Optional strict .spec-flow.json v1 validation schema is opt-in, rejects unknown/unsafe keys, and preserves existing behavior when omitted.",
+        "status": "pass",
+        "evidence": "Contract item 1: optional `validation` with explicitly allowed keys only; reject unknown keys, invalid types, colliding keys and path/shell execution; omitted `validation` changes no existing behavior."
+      },
+      {
+        "criterion": "Configured document checks apply to every discovered spec, including ignored/legacy, before legacy compatibility continue.",
+        "status": "pass",
+        "evidence": "Contract item 1: apply configured checks to *every* discovered spec, including ignored/legacy, before legacy compatibility `continue`."
+      },
+      {
+        "criterion": "numericFileId, done-checkbox, and dependency-integrity semantics are bounded and fail closed, including arbitrary-length cycle detection and no bypass of document rules.",
+        "status": "pass",
+        "evidence": "Contract item 2 defines safe integer id, root-level `- [ ]` for done, safe nonnegative integer dependency arrays, existing targets, cycle detection, and legacy profile limits."
+      },
+      {
+        "criterion": "Contracts-only check skips npm gates with explicit labeling, while bare check --ci still runs all configured gates; malformed/unknown CLI flags fail closed and verify recursion is prevented.",
+        "status": "pass",
+        "evidence": "Contract item 3: `check --ci --contracts-only` skips npm gates and labels omission; bare `check --ci` runs all gates without caching; malformed/unknown flags fail closed; impl gate may call contracts-only without infinite recursion."
+      },
+      {
+        "criterion": "Re-implementation safely invalidates stale evidence and persists pending state before calling verify, preserving base SHA and preventing old pass evidence from remaining current after failure/interruption.",
+        "status": "pass",
+        "evidence": "Contract item 3 requires invalidating old impl/audit/attestation evidence and persisting pending impl state before verify; preserve base SHA; failed/interrupted gate may never leave old pass evidence current."
+      },
+      {
+        "criterion": "Tracked-deletion snapshot invariance is addressed so a pre-commit deleted path does not become a HEAD-only tombstone, with a staged-deletion regression.",
+        "status": "pass",
+        "evidence": "Contract item 3: deleted path still absent after commit represents same content set; pre-commit deleted path distinguishes baseline but cannot leave HEAD-only tombstone; add staged deletion -> same-content commit regression."
+      },
+      {
+        "criterion": "Composite Action design is safe and non-privileged: locked deps from its own checkout, caller specs/verify, Action-local CLI path, no arbitrary shell input, no PAT, least privilege, full-SHA pinning.",
+        "status": "pass",
+        "evidence": "Contract item 4 specifies action.yml, locked runtime deps from own checkout, caller specs and `npm run verify`, no arbitrary shell/configured executable from Action inputs, no PAT/release/deploy, least privilege, full commit SHA pin."
+      },
+      {
+        "criterion": "Test/documentation plan covers positive/no-profile and negative schema/metadata/cycle/legacy/done/CLI-recursion cases, Action shape and local Action-equivalent chain, and honest remote-access limits.",
+        "status": "pass",
+        "evidence": "Contract item 5 requires these tests and documentation; contract item 4 and renewed-cycle steps 3-4 require remote non-claim and separate source-bound archive before closure."
+      }
+    ],
+    "scope_deviations": [],
+    "findings": [],
+    "previous_closure": [],
+    "out_of_scope": [
+      "Future implementation and runtime acceptance (Node 22 full npm run check, real CLI/Action acceptance, diff/secret scans) are not evaluated in proposal mode; the Spec's final acceptance item remains unchecked.",
+      "Embedded parent approval, prior impl/gate records, and claimed remote GitHub evidence are treated as proposal context, not independent static verification."
+    ]
+  },
+  "completed": "2026-10-04T02:53:24.605Z"
+}

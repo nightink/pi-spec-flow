@@ -71,7 +71,35 @@ try {
   try { run(process.execPath, [cli, "check", "--ci", "--contracts-only"], project, env); }
   catch { rejected = true; }
   assert(rejected, "invalid done checkbox was accepted");
-  console.log("PASS private Action-equivalent chain fails closed on invalid caller Spec");
+  fs.unlinkSync(path.join(project, "gate-marker"));
+  // Exercise the actual composite Action entrypoint, not only its standalone
+  // contracts-only helper: a bad document must stop before the caller gate.
+  rejected = false;
+  try { run(process.execPath, [cli, "verify"], project, env); }
+  catch { rejected = true; }
+  assert(rejected, "Action verify accepted an invalid caller Spec");
+  assert(!fs.existsSync(path.join(project, "gate-marker")), "invalid contracts executed caller gate");
+  console.log("PASS private Action-equivalent chain fails closed before gates on invalid caller Spec");
+
+  fs.writeFileSync(specPath, validSpec);
+  const profilePath = path.join(project, ".spec-flow.json");
+  const profile = JSON.parse(fs.readFileSync(profilePath, "utf8"));
+  fs.writeFileSync(profilePath, JSON.stringify({ ...profile, validation: { ...profile.validation, unknown: true } }));
+  rejected = false;
+  try { run(process.execPath, [cli, "verify"], project, env); }
+  catch { rejected = true; }
+  assert(rejected, "Action verify accepted an unknown validation key");
+  assert(!fs.existsSync(path.join(project, "gate-marker")), "invalid profile executed caller gate");
+  console.log("PASS private Action-equivalent chain rejects malformed profile before gates");
+
+  fs.writeFileSync(profilePath, JSON.stringify(profile));
+  fs.writeFileSync(path.join(project, "verify.mjs"), "import fs from 'node:fs';fs.appendFileSync('gate-marker','failed-verify\\n');process.exit(7);\n");
+  rejected = false;
+  try { run(process.execPath, [cli, "verify"], project, env); }
+  catch { rejected = true; }
+  assert(rejected, "Action verify ignored failed caller product gate");
+  assert(fs.readFileSync(path.join(project, "gate-marker"), "utf8") === "failed-verify\n", "failed gate entrypoint repeated or never ran");
+  console.log("PASS private Action-equivalent chain propagates failed caller gate exactly once");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

@@ -2638,6 +2638,11 @@ export async function checkCI(cwd, { runProjectGates = true, live = false, prefe
   // It is NOT a full check --ci and must say so in the output.
   if (!runProjectGates) {
     warnings.push("仅校验 Spec 合同/证据；项目门禁未运行（contracts-only）");
+  } else if (preferVerify && errors.length > 0) {
+    // The composite Action's verify entrypoint preserves contracts-first order:
+    // invalid metadata/evidence must not execute caller-defined product gates.
+    // Ordinary check --ci still runs all gates for diagnostic compatibility.
+    warnings.push("Spec 合同/证据校验失败；verify 项目门禁未运行");
   } else if (config.gates.length > 0) {
     const gateResults = await runGates(cwd, config.gates, { cacheTtlMs: 0 });
     for (const [name, result] of Object.entries(gateResults)) {
