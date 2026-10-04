@@ -1,0 +1,12 @@
+PASS default-lifecycle kindField=id rejected by assertField reserved guard
+PASS default-lifecycle kindField=status rejected by assertField reserved guard
+PASS default-lifecycle kindField=impl rejected by assertField reserved guard
+PASS default-lifecycle kindField=audit rejected by assertField reserved guard
+PASS default-lifecycle kindField=evidence rejected by assertField reserved guard
+PASS default-lifecycle kindField=scope rejected by assertField reserved guard
+PASS default-lifecycle kindField=review rejected by assertField reserved guard
+PASS default-lifecycle kindField=attestations rejected by assertField reserved guard
+PASS default-lifecycle kindField=workflow_version rejected by assertField reserved guard
+PASS default-lifecycle actual dependenciesField=deps collision rejected
+PASS default-lifecycle updatedField=null, reviewer timestamp fields absent: custom kindField=updated is NOT a mapped metadata collision
+Parent disposition F1: reject alleged id/status acceptance; updated acceptance confirmed but there is no default mapped updated field, so no collision or lifecycle overwrite. Original reviewer suggestion/nonblocking retained; no product fix or third model call required.

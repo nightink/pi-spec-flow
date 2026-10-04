@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "id": "bc92a3954c94e83c406d8de98bbb771d",
+  "mode": "working-tree-audit",
+  "state": "completed",
+  "created": "2026-10-04T03:53:40.121Z",
+  "repository": ".",
+  "packet_sha256": "01fc158edb531c06e75234f52291ac6f3d43005e6a86d4fa4f30b2fb8165a800",
+  "packet_bytes": 502236,
+  "scan": {
+    "scanner": "high-risk-patterns/v1",
+    "packet_sha256": "01fc158edb531c06e75234f52291ac6f3d43005e6a86d4fa4f30b2fb8165a800",
+    "findings": []
+  },
+  "bindings": {
+    "base_sha": "c32a4fca664ce7f37403be8bf163aa348e9c6dfc",
+    "head": "bccb354bc77d16a575461bda9938499bc89e819a",
+    "snapshot_hash": "becfa81d862f0d7611ab4d405f4ee95d2da25e7327523e4cf9e938756a9f7804",
+    "scope_sha256": "383e235129062f2b2b762a755609795d17d23dc83fb34afafc9b26b871eb5425",
+    "diff_sha256": "7c8efa120c7ebc5b628b30332999e59e4ba3666471dfa5bef04008d2c2cba0c5",
+    "impl_sha256": "0e7d040761624780388e953af3eb3a816ef7ff0828afd1926dc8e529a6a9fb52",
+    "coverage": "full-current-audit",
+    "profile_sha256": "05ed000b1dad75c82ebe541e2a6a1b1c61dc597dcfe80f0746f08c94396344d8",
+    "spec_path": "docs/specs/S1.5-project-contract-check-and-shared-action.md",
+    "spec_id": "S1.5",
+    "spec_blob_sha256": "33b72605483bba4390af40b038bc7f76fbcafbbbb5d95255083494c51a2a1d34",
+    "contract_hash": "2ac917797f9a2416f67cc95e3310264fb9dd7609cfbd8b0ca78730af0ad9f55d"
+  },
+  "changed_lines": {},
+  "prior_findings": [],
+  "skipped": false,
+  "budget": {
+    "id": "S1.5-closure-2",
+    "ordinal": 2,
+    "limit": 3
+  },
+  "model_invoked": true,
+  "started": "2026-10-04T03:56:06.324Z",
+  "execution": {
+    "bin": "<home>/.pi/worktrees/example-app/node_modules/.bin/pi",
+    "model": "deepseek/deepseek-v4-flash",
+    "thinking": "high",
+    "timeout": 300000
+  },
+  "worker_pid": 94680,
+  "child_input_sha256": "01fc158edb531c06e75234f52291ac6f3d43005e6a86d4fa4f30b2fb8165a800",
+  "raw_sha256": "d5da7825dc23b7dd776739cf2bdaae83819538983d2c602f6a32bc0d6e3d7273",
+  "output_truncated": false,
+  "output_scan": {
+    "scanner": "high-risk-patterns/v1",
+    "packet_sha256": "d5da7825dc23b7dd776739cf2bdaae83819538983d2c602f6a32bc0d6e3d7273",
+    "findings": []
+  },
+  "effective_model": "deepseek/deepseek-v4-flash",
+  "usage": {
+    "input": 153018,
+    "output": 23382,
+    "cacheRead": 384,
+    "cacheWrite": 0,
+    "reasoning": 21807,
+    "totalTokens": 176784,
+    "cost": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    }
+  },
+  "raw_verdict": "pass",
+  "result": {
+    "verdict": "pass",
+    "criteria": [
+      {
+        "criterion": "Optional strict .spec-flow.json `validation` is opt-in, rejects unknown/invalid/unsafe keys, preserves prior behavior when omitted, and applies to every discovered spec (including ignored/legacy) before the legacy compatibility continue.",
+        "status": "pass",
+        "evidence": "project-profile.mjs parseValidation uses assertExactKeys over exactly requiredFields/kindField/allowedKinds/numericFileId/checkDoneCheckboxes/forbidAddendumFilename/dependencyIntegrity, enforces SAFE_FIELD/FORBIDDEN_KEYS on requiredFields, boolean types, and kindField distinctness (configured-lifecycle branch checks all metadata fields). core.mjs projectContractProblems returns [] when rules are null, and checkCI pushes its problems immediately after the unknown-status branch and before `if (role === \"ignored\") continue;`. project-contracts.test.mjs proves no-profile no-op plus rejected unknown key, __proto__, non-boolean. Impl evidence run shows the whole suite green."
+      },
+      {
+        "criterion": "numericFileId (safe-integer id matching N.*.md basename), checkDoneCheckboxes (root-level `- [ ]` for done), and dependencyIntegrity (safe non-negative integer arrays, existing targets, arbitrary-length cycle detection) fail closed.",
+        "status": "pass",
+        "evidence": "core.mjs projectContractProblems validates basename with /^([0-9]+)\\.[^/]+\\.md$/ against Number.isSafeInteger(id), scans body after frontmatter for /^- \\[ \\]/gm when statusRole is done, and enforces integer/non-negative dependency arrays; projectDependencyProblems builds the id graph and DFS-detects cycles of any length. project-contracts.test.mjs asserts id/filename mismatch, addendum filename, missing target id 777, and the 4→5→6→4 cycle; impl records the targeted suite passing."
+      },
+      {
+        "criterion": "`check --ci --contracts-only` performs the same contract/evidence checks but never runs project gates and labels that omission; bare `check --ci` still runs all gates without caching; malformed/duplicate CLI flags fail closed; a verify script calling contracts-only cannot recurse.",
+        "status": "pass",
+        "evidence": "checkCI(runProjectGates:false) pushes the contracts-only warning and skips runGates, and bare check uses runGates(cacheTtlMs:0). main() rejects any check flag not in {--ci,--contracts-only,--live} and duplicates. project-contracts.test.mjs and tests/e2e/e2e-private-action.mjs show contracts-only leaving no gate marker while full CI does, plus unknown-flag failure; e2e gate marker 'verify\\n' proves a single non-recursive invocation."
+      },
+      {
+        "criterion": "Re-implementation invalidates stale impl/audit/attestation evidence and persists a pending non-passing impl before gates, preserving base_sha; a failed/interrupted gate cannot leave old pass evidence current; a tracked deletion preserves the content snapshot across commit.",
+        "status": "pass",
+        "evidence": "core.mjs implUnlocked resets fm.impl to pending (pass:false, at:null, null hash fields), deletes fm.audit/attestations, and writes that before runGates, keeping fm.impl.base_sha. project-profile.test.mjs 'changed contract can re-impl when verify runs contracts-only' covers old-hash invalidation and a failing verify (old success cannot survive); workspace-project.test.mjs covers cancelled impl leaving impl.pass=false. repositorySnapshotHash now contributes nothing for actually-deleted paths and hashes gitlink paths after stat, with the staged-git-rm → commit equality regression in trustworthy.test.mjs."
+      },
+      {
+        "criterion": "Composite action.yml installs spec-flow's locked deps from its own checkout, hands the Action-local CLI path to a contracts-first verify, uses no PAT/privileged checkout/arbitrary shell, documents full-SHA caller pinning, and propagates gate failures once.",
+        "status": "pass",
+        "evidence": "action.yml is composite: step 1 `cd \"$ACTION_ROOT\" && npm ci --omit=dev --omit=peer --ignore-scripts --no-audit --no-fund` with ACTION_ROOT=${{ github.action_path }}; step 2 runs `node \"$SPECFLOW_CLI\" verify` with SPECFLOW_CLI=${{ github.action_path }}/core.mjs. No secrets/checkout/publish/deploy. action.test.mjs asserts this shape and absence of privileged references. checkCI(preferVerify) runs gates only when contracts are error-free and otherwise labels 'verify 项目门禁未运行', preserving bare check --ci all-gates diagnostics; tests/e2e/e2e-private-action.mjs proves invalid docs/profile stop before the gate marker and a nonzero caller gate runs exactly once. README documents same-account Access, two-repo ordering, full-SHA pins and the local-only claim before remote setup."
+      },
+      {
+        "criterion": "Full authoritative gate (syntax/unit/seven E2E groups/contracts-only) and real local CLI/Action-equivalent acceptance are archived with source-bound logs, and the implementation record is snapshot/contract bound.",
+        "status": "pass",
+        "evidence": "package.json `check` runs typecheck+syntax, unit tests, seven real E2E groups and `check --ci --contracts-only`. docs/reviews/S1.5/full-check.log (tracked) is a complete Node 22.19.0 run: 161/161 tests, all seven E2E groups, terminal contracts-only pass and no errors; targeted.log records 8/8 targeted units plus 5 real copied-CLI Action-equivalent PASS; pre-fix.log preserves the pre-repair caller-gate ordering FAIL; github evidence, dependency-audit.json (0 runtime vulns), pi-smoke.log and secret-scan.md are archived. The recorded impl has pass:true with snapshot_hash becfa81d… and contract_hash 2ac91779…, matching the supplied audit bindings."
+      }
+    ],
+    "scope_deviations": [],
+    "findings": [
+      {
+        "id": "F1",
+        "classification": "suggestion",
+        "blocking": false,
+        "file": "project-profile.mjs",
+        "line": 357,
+        "evidence": "In the default-lifecycle branch of parseConfiguredProfile the collision guard is only `validation?.kindField === DEFAULT_PROFILE.lifecycle.dependenciesField`, whereas the configured-lifecycle branch compares kindField against dependenciesField/updatedField/reviewersField/reviewedAtField. A default-profile config with kindField='updated' (or 'status'/'id') is therefore accepted, so the full 'colliding keys' rejection is not uniform. Impact is fail-closed rather than a bypass (lifecycle writes would then invalidate the spec), so this is a low-priority hardening item, not a product blocker."
+      }
+    ],
+    "previous_closure": [],
+    "out_of_scope": [
+      "Remote execution of the current local endpoint (post-published-f842 local guard) is not independently statically verifiable; the supplied read-only GitHub artifacts cover the earlier published f842 endpoint and the owner's push/settings steps remain explicit user actions.",
+      "Closed S1.6/S1.7 lifecycle evidence and their review journals are not re-adjudicated here; only insofar as shared modules affect S1.5 contract guarantees.",
+      "Proposal feasibility verdict and the exhausted original S1.5 cycle are treated as history, not as this audit's acceptance."
+    ]
+  },
+  "completed": "2026-10-04T03:57:47.061Z"
+}
