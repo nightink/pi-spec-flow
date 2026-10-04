@@ -222,6 +222,23 @@ Git common-dir 的 `spec-flow/review-v1/{budgets,jobs}` 私有保存完整 packe
 
 Pi 项目识别只读取目标 tree/snapshot 的声明/常规入口、路径/mode/hash 与标记 lexical hints，不 import/load；128 declarations、256 matches、256 KiB/source 限制，记录缺失/不支持/越界/symlink diagnostics。静态 recognized 不是真实宿主加载证明。
 
+### timeout 生效与无 PATH pi 的启动
+
+`prepared` job 首次 run 才读取当前执行参数；提高 `SPECFLOW_AUDIT_TIMEOUT` 后可直接启动尚未执行的同一 job。`running` 只等待原 worker，终态只重放原结果，不刷新 timeout/bin/model/thinking，也不重启或退款。run 返回 `executionInfo`（requested/effective timeout、是否 applied/ignored、started/wait-existing/reuse-result）；native tool 同时更新进度，audit 缓存也显示沿用值。`receipt.execution` 始终保留原参数。需要更长 timeout 的**新执行**须 prepare 新 job 并使用仍有效的授权，不能靠重放旧 job 自动再调用。
+
+review/audit 共享计次前 launcher preflight：显式 `SPECFLOW_AUDIT_BIN`（包括已有可信 shim）优先；否则显式 `SPECFLOW_PI_CLI` 使用当前 Node + 已安装 CLI 的绝对路径，**不需要 PATH 中有 pi 或生成 shim**；均未配置时才从宿主 PATH 查找 pi。缺失/不可执行 bin、缺失/不可读 CLI、非法 timeout 在 spawn/charge 前失败，prepared job 可修正配置后再次 run。只做文件系统检查，不执行 `--version` 探测、不自动安装/发现目标项目 CLI、不猜 npx 缓存、不修改全局 PATH 或重启服务。已计费之后的失败仍不退款；preflight 不是版本兼容性或防文件替换的安全沙箱。
+
+```bash
+# 选择已安装、明确受信的 Pi CLI；不要求它在宿主 PATH 中。
+export SPECFLOW_PI_CLI=/absolute/trusted/pi/dist/cli.js
+export SPECFLOW_AUDIT_TIMEOUT=600000
+# 使用相同环境执行 review run 或 lifecycle audit，无需 caller 的 spec:audit 专用 wrapper。
+node core.mjs review --json '{"action":"run","jobId":"PREPARED_JOB_ID","budgetId":"AUTHORIZED_CYCLE"}'
+node core.mjs audit SPEC_ID
+```
+
+配置应传入**实际宿主/worker 的环境**；交互 shell 能运行 pi/npx 不证明 daemon 能解析它。现有 shim 仍可通过 `SPECFLOW_AUDIT_BIN=/absolute/trusted/shim` 使用；此变量优先于 `SPECFLOW_PI_CLI`。
+
 ## 审计边界
 
 审计 patch 使用 argv 形式的 Git 命令，包含从 `base_sha` 到当前 working tree 的 committed/staged/unstaged tracked 变化和未跟踪文件。以下情况 fail closed：base 非 HEAD 祖先、非法 scope、Git 失败、diff 超限、空 diff、非法审计 JSON。
@@ -231,8 +248,9 @@ Pi 项目识别只读取目标 tree/snapshot 的声明/常规入口、路径/mod
 | 环境变量 | 默认 | 说明 |
 |---|---:|---|
 | `SPECFLOW_AUDIT_MODEL` | 子 Pi 默认模型 | 模型名/别名 |
-| `SPECFLOW_AUDIT_BIN` | `pi` | 审计可执行文件；主要用于测试 |
-| `SPECFLOW_AUDIT_TIMEOUT` | `180000` | 超时毫秒 |
+| `SPECFLOW_AUDIT_BIN` | PATH 的 `pi` | review/audit 共用可信可执行文件或 shim；显式设置优先 |
+| `SPECFLOW_PI_CLI` | 无 | 可信已安装 Pi JS CLI 的绝对路径；未指定 BIN 时使用当前 Node 执行，无需 PATH pi |
+| `SPECFLOW_AUDIT_TIMEOUT` | `180000` | 首次执行的超时毫秒（1..1800000）；复用不修改旧计时器 |
 | `SPECFLOW_AUDIT_THINKING` | `off` | 子 Pi thinking 等级；可显式提高到 `low`/`medium`/`high` 等 |
 | `SPECFLOW_AUDIT_MAX_BYTES` | `524288` | 限制 patch/完整 child packet，不能提高 512 KiB packet cap；超限失败 |
 | `SPECFLOW_REVIEW_BUDGET_ID` | 无 | 已显式授权的 delivery-cycle grant；不自动创建 |

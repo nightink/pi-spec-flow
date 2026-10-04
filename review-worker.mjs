@@ -31,13 +31,15 @@ try {
     job.child_input_sha256 = digest(childInput); job.model_invoked = true; persist();
     const env = { ...process.env, NO_COLOR: "1", PI_SKIP_VERSION_CHECK: "1" };
     for (const name of ["PI_SESSION_FILE", "PI_SESSION_ID", "PI_PROVIDER", "PI_MODEL", "PI_REASONING_LEVEL"]) delete env[name];
-    response = await runSpawn(job.execution.bin, args, { cwd, env, signal: controller.signal,
+    response = await runSpawn(job.execution.bin, [...(job.execution.prefixArgs || []), ...args], { cwd, env, signal: controller.signal,
       timeout: job.execution.timeout, maxBuffer: 32 * 1024 * 1024,
       onOutput: (stream, bytes) => fs.writeSync(outputFds[stream], bytes) });
   } finally { cleanup(); for (const fd of Object.values(outputFds)) fs.closeSync(fd); }
   job.raw_sha256 = digest(fs.readFileSync(path.join(dir, "stdout.txt"))); job.output_truncated = response.tooBig;
+  job.timed_out = response.timedOut === true;
   job.output_scan = scanReviewPacket(response.stdout);
   if (job.output_scan.findings.length) throw new Error("Auditor output contains sensitive pattern; retained privately, not returned");
+  if (job.timed_out) throw new Error(`Auditor execution timed out after ${job.execution.timeout}ms; new settings require a new job`);
   if (response.tooBig || response.code !== 0) throw new Error(`Auditor execution failed (code=${response.code}, truncated=${response.tooBig})`);
   const { raw, effectiveModel, usage } = decodeAuditorResponse(response.stdout);
   job.effective_model = effectiveModel; job.usage = usage;

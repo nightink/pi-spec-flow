@@ -1,0 +1,196 @@
+TAP version 13
+# Subtest: new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID
+ok 1 - new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID
+  ---
+  duration_ms: 480.46225
+  type: 'test'
+  ...
+# Subtest: new: strict creation-only numeric profile makes a CI-clean unapproved draft
+ok 2 - new: strict creation-only numeric profile makes a CI-clean unapproved draft
+  ---
+  duration_ms: 358.016667
+  type: 'test'
+  ...
+# Subtest: new: custom lifecycle mappings and kind defaults are respected
+ok 3 - new: custom lifecycle mappings and kind defaults are respected
+  ---
+  duration_ms: 309.798375
+  type: 'test'
+  ...
+# Subtest: new: explicit no-draft lifecycle, unfillable metadata and unknown keys fail before reservation
+ok 4 - new: explicit no-draft lifecycle, unfillable metadata and unknown keys fail before reservation
+  ---
+  duration_ms: 171.54975
+  type: 'test'
+  ...
+# Subtest: new: unsafe profile defaults/template paths, expressions, symlinks and ambiguous dirs fail closed
+ok 5 - new: unsafe profile defaults/template paths, expressions, symlinks and ambiguous dirs fail closed
+  ---
+  duration_ms: 136.455417
+  type: 'test'
+  ...
+# Subtest: new: exclusive publication never overwrites and a failed reservation stays burned
+ok 6 - new: exclusive publication never overwrites and a failed reservation stays burned
+  ---
+  duration_ms: 551.646
+  type: 'test'
+  ...
+# Subtest: review: exact head contract, static nonexecuting Pi metadata, explicit dirty exclusions
+ok 7 - review: exact head contract, static nonexecuting Pi metadata, explicit dirty exclusions
+  ---
+  duration_ms: 567.160625
+  type: 'test'
+  ...
+# Subtest: review: no model on empty diff; proposal isn't an empty-diff PASS
+ok 8 - review: no model on empty diff; proposal isn't an empty-diff PASS
+  ---
+  duration_ms: 859.545834
+  type: 'test'
+  ...
+# Subtest: review: malformed revisions, nonancestor and oversized packets fail before model
+ok 9 - review: malformed revisions, nonancestor and oversized packets fail before model
+  ---
+  duration_ms: 610.945042
+  type: 'test'
+  ...
+# Subtest: review: high-risk scanner and packet tampering reject before charge/spawn
+ok 10 - review: high-risk scanner and packet tampering reject before charge/spawn
+  ---
+  duration_ms: 1352.301833
+  type: 'test'
+  ...
+# Subtest: review: explicit immutable grant, single charge, exact child bytes, raw response and free cache
+ok 11 - review: explicit immutable grant, single charge, exact child bytes, raw response and free cache
+  ---
+  duration_ms: 2787.407417
+  type: 'test'
+  ...
+# Subtest: review: malformed model output and contradictory criteria remain nonpassing and retained
+ok 12 - review: malformed model output and contradictory criteria remain nonpassing and retained
+  ---
+  duration_ms: 1526.439625
+  type: 'test'
+  ...
+# Subtest: review: cancellation remains charged, nonpassing and never auto-respawns
+ok 13 - review: cancellation remains charged, nonpassing and never auto-respawns
+  ---
+  duration_ms: 1710.140625
+  type: 'test'
+  ...
+# Subtest: incremental: unchanged baseline observations don't block, and blockers need exact delta lines/closure
+ok 14 - incremental: unchanged baseline observations don't block, and blockers need exact delta lines/closure
+  ---
+  duration_ms: 2091.466
+  type: 'test'
+  ...
+# Subtest: Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute
+ok 15 - Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute
+  ---
+  duration_ms: 0.355417
+  type: 'test'
+  ...
+# Subtest: lifecycle: shared full audit, free attach/cache, ordinary report cannot close; source mutation rejected
+ok 16 - lifecycle: shared full audit, free attach/cache, ordinary report cannot close; source mutation rejected
+  ---
+  duration_ms: 4081.842667
+  type: 'test'
+  ...
+# Subtest: new: safe custom body template is versioned; kind cannot be guessed
+ok 17 - new: safe custom body template is versioned; kind cannot be guessed
+  ---
+  duration_ms: 292.013583
+  type: 'test'
+  ...
+# Subtest: review: profile/package from head and fsmonitor never executes during preparation
+ok 18 - review: profile/package from head and fsmonitor never executes during preparation
+  ---
+  duration_ms: 506.680292
+  type: 'test'
+  ...
+# Subtest: review: cached packet/raw/result tampering cannot become another cached approval
+ok 19 - review: cached packet/raw/result tampering cannot become another cached approval
+  ---
+  duration_ms: 1538.8255
+  type: 'test'
+  ...
+# Subtest: review: overflowing output is captured boundedly and never passes
+ok 20 - review: overflowing output is captured boundedly and never passes
+  ---
+  duration_ms: 1522.514667
+  type: 'test'
+  ...
+# Subtest: lifecycle: a mid-review source edit rejects even a fake PASS; ordinary approval never attaches
+ok 21 - lifecycle: a mid-review source edit rejects even a fake PASS; ordinary approval never attaches
+  ---
+  duration_ms: 3799.256166
+  type: 'test'
+  ...
+# Subtest: lifecycle: retained tamper rejects cached audit and done without another model call
+ok 22 - lifecycle: retained tamper rejects cached audit and done without another model call
+  ---
+  duration_ms: 2801.083292
+  type: 'test'
+  ...
+# Subtest: lifecycle: prepared full job checks exact diff/impl and attaches after same-content commit for free
+ok 23 - lifecycle: prepared full job checks exact diff/impl and attaches after same-content commit for free
+  ---
+  duration_ms: 3464.874166
+  type: 'test'
+  ...
+# Subtest: execution: prepared job refreshes stale unstarted settings from current timeout
+ok 24 - execution: prepared job refreshes stale unstarted settings from current timeout
+  ---
+  duration_ms: 1770.342125
+  type: 'test'
+  ...
+# Subtest: execution: running/cache reuse exposes ignored timeout without changing provenance or spending
+ok 25 - execution: running/cache reuse exposes ignored timeout without changing provenance or spending
+  ---
+  duration_ms: 2758.454834
+  type: 'test'
+  ...
+# Subtest: execution: missing bin, permission errors and invalid timeout fail before charge/spawn
+ok 26 - execution: missing bin, permission errors and invalid timeout fail before charge/spawn
+  ---
+  duration_ms: 2639.470042
+  type: 'test'
+  ...
+# Subtest: execution: no PATH pi and invalid explicit CLI are resumable preflight failures
+ok 27 - execution: no PATH pi and invalid explicit CLI are resumable preflight failures
+  ---
+  duration_ms: 2030.859625
+  type: 'test'
+  ...
+# Subtest: execution: explicit Node + trusted CLI needs no PATH pi/shim and preserves exact bytes
+ok 28 - execution: explicit Node + trusted CLI needs no PATH pi/shim and preserves exact bytes
+  ---
+  duration_ms: 1409.261291
+  type: 'test'
+  ...
+# Subtest: execution: explicit BIN shim wins over CLI and timeout failure/replay remains charged
+ok 29 - execution: explicit BIN shim wins over CLI and timeout failure/replay remains charged
+  ---
+  duration_ms: 1630.007583
+  type: 'test'
+  ...
+# Subtest: execution: PATH pi and relative explicit BIN resolve to stable absolute executables
+ok 30 - execution: PATH pi and relative explicit BIN resolve to stable absolute executables
+  ---
+  duration_ms: 2546.008792
+  type: 'test'
+  ...
+# Subtest: execution: lifecycle audit shares Node CLI launcher and explains cached timeout without mutation
+ok 31 - execution: lifecycle audit shares Node CLI launcher and explains cached timeout without mutation
+  ---
+  duration_ms: 2090.582666
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 31
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 31569.618667

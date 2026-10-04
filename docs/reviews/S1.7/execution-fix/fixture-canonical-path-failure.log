@@ -1,0 +1,214 @@
+TAP version 13
+# Subtest: new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID
+ok 1 - new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID
+  ---
+  duration_ms: 500.496834
+  type: 'test'
+  ...
+# Subtest: new: strict creation-only numeric profile makes a CI-clean unapproved draft
+ok 2 - new: strict creation-only numeric profile makes a CI-clean unapproved draft
+  ---
+  duration_ms: 374.754958
+  type: 'test'
+  ...
+# Subtest: new: custom lifecycle mappings and kind defaults are respected
+ok 3 - new: custom lifecycle mappings and kind defaults are respected
+  ---
+  duration_ms: 309.412125
+  type: 'test'
+  ...
+# Subtest: new: explicit no-draft lifecycle, unfillable metadata and unknown keys fail before reservation
+ok 4 - new: explicit no-draft lifecycle, unfillable metadata and unknown keys fail before reservation
+  ---
+  duration_ms: 175.419125
+  type: 'test'
+  ...
+# Subtest: new: unsafe profile defaults/template paths, expressions, symlinks and ambiguous dirs fail closed
+ok 5 - new: unsafe profile defaults/template paths, expressions, symlinks and ambiguous dirs fail closed
+  ---
+  duration_ms: 138.160542
+  type: 'test'
+  ...
+# Subtest: new: exclusive publication never overwrites and a failed reservation stays burned
+ok 6 - new: exclusive publication never overwrites and a failed reservation stays burned
+  ---
+  duration_ms: 534.376083
+  type: 'test'
+  ...
+# Subtest: review: exact head contract, static nonexecuting Pi metadata, explicit dirty exclusions
+ok 7 - review: exact head contract, static nonexecuting Pi metadata, explicit dirty exclusions
+  ---
+  duration_ms: 576.955125
+  type: 'test'
+  ...
+# Subtest: review: no model on empty diff; proposal isn't an empty-diff PASS
+ok 8 - review: no model on empty diff; proposal isn't an empty-diff PASS
+  ---
+  duration_ms: 869.754541
+  type: 'test'
+  ...
+# Subtest: review: malformed revisions, nonancestor and oversized packets fail before model
+ok 9 - review: malformed revisions, nonancestor and oversized packets fail before model
+  ---
+  duration_ms: 618.686167
+  type: 'test'
+  ...
+# Subtest: review: high-risk scanner and packet tampering reject before charge/spawn
+ok 10 - review: high-risk scanner and packet tampering reject before charge/spawn
+  ---
+  duration_ms: 1325.064292
+  type: 'test'
+  ...
+# Subtest: review: explicit immutable grant, single charge, exact child bytes, raw response and free cache
+ok 11 - review: explicit immutable grant, single charge, exact child bytes, raw response and free cache
+  ---
+  duration_ms: 2737.624
+  type: 'test'
+  ...
+# Subtest: review: malformed model output and contradictory criteria remain nonpassing and retained
+ok 12 - review: malformed model output and contradictory criteria remain nonpassing and retained
+  ---
+  duration_ms: 1527.467292
+  type: 'test'
+  ...
+# Subtest: review: cancellation remains charged, nonpassing and never auto-respawns
+ok 13 - review: cancellation remains charged, nonpassing and never auto-respawns
+  ---
+  duration_ms: 1718.755333
+  type: 'test'
+  ...
+# Subtest: incremental: unchanged baseline observations don't block, and blockers need exact delta lines/closure
+ok 14 - incremental: unchanged baseline observations don't block, and blockers need exact delta lines/closure
+  ---
+  duration_ms: 2102.264292
+  type: 'test'
+  ...
+# Subtest: Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute
+ok 15 - Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute
+  ---
+  duration_ms: 0.342958
+  type: 'test'
+  ...
+# Subtest: lifecycle: shared full audit, free attach/cache, ordinary report cannot close; source mutation rejected
+ok 16 - lifecycle: shared full audit, free attach/cache, ordinary report cannot close; source mutation rejected
+  ---
+  duration_ms: 4117.245625
+  type: 'test'
+  ...
+# Subtest: new: safe custom body template is versioned; kind cannot be guessed
+ok 17 - new: safe custom body template is versioned; kind cannot be guessed
+  ---
+  duration_ms: 293.707958
+  type: 'test'
+  ...
+# Subtest: review: profile/package from head and fsmonitor never executes during preparation
+ok 18 - review: profile/package from head and fsmonitor never executes during preparation
+  ---
+  duration_ms: 506.707542
+  type: 'test'
+  ...
+# Subtest: review: cached packet/raw/result tampering cannot become another cached approval
+ok 19 - review: cached packet/raw/result tampering cannot become another cached approval
+  ---
+  duration_ms: 1543.530917
+  type: 'test'
+  ...
+# Subtest: review: overflowing output is captured boundedly and never passes
+ok 20 - review: overflowing output is captured boundedly and never passes
+  ---
+  duration_ms: 1492.978625
+  type: 'test'
+  ...
+# Subtest: lifecycle: a mid-review source edit rejects even a fake PASS; ordinary approval never attaches
+ok 21 - lifecycle: a mid-review source edit rejects even a fake PASS; ordinary approval never attaches
+  ---
+  duration_ms: 3791.481208
+  type: 'test'
+  ...
+# Subtest: lifecycle: retained tamper rejects cached audit and done without another model call
+ok 22 - lifecycle: retained tamper rejects cached audit and done without another model call
+  ---
+  duration_ms: 2800.929333
+  type: 'test'
+  ...
+# Subtest: lifecycle: prepared full job checks exact diff/impl and attaches after same-content commit for free
+ok 23 - lifecycle: prepared full job checks exact diff/impl and attaches after same-content commit for free
+  ---
+  duration_ms: 3457.033833
+  type: 'test'
+  ...
+# Subtest: execution: prepared job refreshes stale unstarted settings from current timeout
+ok 24 - execution: prepared job refreshes stale unstarted settings from current timeout
+  ---
+  duration_ms: 2038.994042
+  type: 'test'
+  ...
+# Subtest: execution: running/cache reuse exposes ignored timeout without changing provenance or spending
+ok 25 - execution: running/cache reuse exposes ignored timeout without changing provenance or spending
+  ---
+  duration_ms: 2791.975292
+  type: 'test'
+  ...
+# Subtest: execution: missing bin, permission errors and invalid timeout fail before charge/spawn
+ok 26 - execution: missing bin, permission errors and invalid timeout fail before charge/spawn
+  ---
+  duration_ms: 2585.491166
+  type: 'test'
+  ...
+# Subtest: execution: no PATH pi and invalid explicit CLI are resumable preflight failures
+ok 27 - execution: no PATH pi and invalid explicit CLI are resumable preflight failures
+  ---
+  duration_ms: 2019.668083
+  type: 'test'
+  ...
+# Subtest: execution: explicit Node + trusted CLI needs no PATH pi/shim and preserves exact bytes
+ok 28 - execution: explicit Node + trusted CLI needs no PATH pi/shim and preserves exact bytes
+  ---
+  duration_ms: 1394.776084
+  type: 'test'
+  ...
+# Subtest: execution: explicit BIN shim wins over CLI and timeout failure/replay remains charged
+ok 29 - execution: explicit BIN shim wins over CLI and timeout failure/replay remains charged
+  ---
+  duration_ms: 1658.610167
+  type: 'test'
+  ...
+# Subtest: execution: PATH pi and relative explicit BIN resolve to stable absolute executables
+not ok 30 - execution: PATH pi and relative explicit BIN resolve to stable absolute executables
+  ---
+  duration_ms: 2524.336208
+  type: 'test'
+  location: 'review-execution.test.mjs:147:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + '<tmp>/specflow-execution-aKhSPi/trusted shim with spaces'
+    - '/var/folders/q_/p40dk_1j61d_0sbgryq2874h0000gn/T/specflow-execution-aKhSPi/trusted shim with spaces'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '/var/folders/q_/p40dk_1j61d_0sbgryq2874h0000gn/T/specflow-execution-aKhSPi/trusted shim with spaces'
+  actual: '<tmp>/specflow-execution-aKhSPi/trusted shim with spaces'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (review-execution.test.mjs:155:53)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: execution: lifecycle audit shares Node CLI launcher and explains cached timeout without mutation
+ok 31 - execution: lifecycle audit shares Node CLI launcher and explains cached timeout without mutation
+  ---
+  duration_ms: 2082.381792
+  type: 'test'
+  ...
+1..31
+# tests 31
+# suites 0
+# pass 30
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 31570.048792

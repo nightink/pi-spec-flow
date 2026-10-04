@@ -16,7 +16,7 @@ function check(value, message) { if (!value) throw new Error(message); }
 try {
   const action = path.join(base, "action"); const project = path.join(base, "main"); const peer = path.join(base, "agent with spaces");
   fs.mkdirSync(action); fs.mkdirSync(path.join(project, "specs"), { recursive: true });
-  for (const name of ["core.mjs", "project-profile.mjs", "workspace.mjs"]) fs.copyFileSync(path.join(source, name), path.join(action, name));
+  for (const name of ["core.mjs", "project-profile.mjs", "workspace.mjs", "review-execution.mjs"]) fs.copyFileSync(path.join(source, name), path.join(action, name));
   fs.symlinkSync(path.join(source, "node_modules"), path.join(action, "node_modules"), "dir");
   const cli = path.join(action, "core.mjs"); const env = { ...process.env, SPECFLOW_CLI: cli, PYTHONDONTWRITEBYTECODE: "1" };
   fs.mkdirSync(path.join(project, "tests")); fs.mkdirSync(path.join(project, "acceptance"));

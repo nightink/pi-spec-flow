@@ -1,0 +1,155 @@
+TAP version 13
+# Subtest: execution: prepared job refreshes stale unstarted settings from current timeout
+not ok 1 - execution: prepared job refreshes stale unstarted settings from current timeout
+  ---
+  duration_ms: 1707.077208
+  type: 'test'
+  location: 'review-execution.test.mjs:59:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'action')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (review-execution.test.mjs:67:39)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: execution: running/cache reuse exposes ignored timeout without changing provenance or spending
+not ok 2 - execution: running/cache reuse exposes ignored timeout without changing provenance or spending
+  ---
+  duration_ms: 2231.498791
+  type: 'test'
+  location: 'review-execution.test.mjs:71:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'action')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (review-execution.test.mjs:79:39)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: execution: missing bin, permission errors and invalid timeout fail before charge/spawn
+not ok 3 - execution: missing bin, permission errors and invalid timeout fail before charge/spawn
+  ---
+  duration_ms: 1135.20825
+  type: 'test'
+  location: 'review-execution.test.mjs:91:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (review-execution.test.mjs:97:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: execution: no PATH pi and invalid explicit CLI are resumable preflight failures
+not ok 4 - execution: no PATH pi and invalid explicit CLI are resumable preflight failures
+  ---
+  duration_ms: 1105.771667
+  type: 'test'
+  location: 'review-execution.test.mjs:108:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection.'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (review-execution.test.mjs:110:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: execution: explicit Node + trusted CLI needs no PATH pi/shim and preserves exact bytes
+not ok 5 - execution: explicit Node + trusted CLI needs no PATH pi/shim and preserves exact bytes
+  ---
+  duration_ms: 1100.854792
+  type: 'test'
+  location: 'review-execution.test.mjs:119:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + 'failed'
+    - 'completed'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'completed'
+  actual: 'failed'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (review-execution.test.mjs:123:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: execution: explicit BIN shim wins over CLI and timeout failure/replay remains charged
+not ok 6 - execution: explicit BIN shim wins over CLI and timeout failure/replay remains charged
+  ---
+  duration_ms: 1345.822667
+  type: 'test'
+  location: 'review-execution.test.mjs:134:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + undefined
+    - 'explicit-bin'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'explicit-bin'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (review-execution.test.mjs:138:48)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: execution: lifecycle audit shares Node CLI launcher and explains cached timeout without mutation
+not ok 7 - execution: lifecycle audit shares Node CLI launcher and explains cached timeout without mutation
+  ---
+  duration_ms: 1671.224125
+  type: 'test'
+  location: 'review-execution.test.mjs:147:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /PASS/. Input:
+
+    'Spec S1 审计结果: ❌ FAIL\n' +
+      '  sha: 4fe100344d0b2e13c1c9fdc7105fe1f16e4a7c2f\n' +
+      '  impl_hash: e21181668a68\n' +
+      '  criteria:\n' +
+      '    [?] 审计执行\n' +
+      '      审计执行失败: Review job failed: spawn pi ENOENT'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    Spec S1 审计结果: ❌ FAIL
+      sha: 4fe100344d0b2e13c1c9fdc7105fe1f16e4a7c2f
+      impl_hash: e21181668a68
+      criteria:
+        [?] 审计执行
+          审计执行失败: Review job failed: spawn pi ENOENT
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (review-execution.test.mjs:153:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 0
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10344.3575

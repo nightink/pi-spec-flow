@@ -9,6 +9,7 @@ import { parseProjectProfileData, loadProjectProfile } from "./project-profile.m
 import { findSpec, parseFrontmatter, specContractHash, runArgv, normalizeAuditResult, parseVerdictJson } from "./core.mjs";
 import { digest, privateDir, reviewStore, readPrivate, readPrivateBytes, loadJob, saveJob, reserveReviewCall } from "./review-storage.mjs";
 export { authorizeReviewBudget } from "./review-storage.mjs";
+import { resolveReviewExecution, describeReviewExecution } from "./review-execution.mjs";
 
 export const REVIEW_VERSION = 1;
 const MAX_PACKET = 512 * 1024;
@@ -307,22 +308,22 @@ export async function prepareWorkingAudit(cwd, { spec, content, profile, binding
 }
 export async function runPreparedReview(cwd, id, { budgetId, signal, onProgress } = {}) {
   const repo = gitWorkspace(cwd).root;
-  let prepared;
+  let prepared, executionInfo;
   await withWorkspaceLock(repo, `review-job:${id}`, () => {
     const { dir, job } = loadJob(repo, id);
-    if (["completed", "failed", "cancelled", "skipped"].includes(job.state)) { prepared = false; return; }
-    if (job.state === "running") { prepared = false; return; }
+    if (["completed", "failed", "cancelled", "skipped", "running"].includes(job.state)) {
+      prepared = false; executionInfo = describeReviewExecution(job); return;
+    }
     if (job.state !== "prepared") throw new Error("Invalid review job state");
     signal?.throwIfAborted();
     const packet = readPrivate(path.join(dir, "packet.md"), MAX_PACKET);
     const scan = scanReviewPacket(packet);
     if (scan.packet_sha256 !== job.packet_sha256 || scan.findings.length) throw new Error("Prepared review packet changed or is sensitive; no model call");
-    const thinking = process.env.SPECFLOW_AUDIT_THINKING || "off";
-    const timeout = Number(process.env.SPECFLOW_AUDIT_TIMEOUT) || 180000;
-    if (!["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(thinking) || !Number.isSafeInteger(timeout) || timeout < 1 || timeout > 1800000) throw new Error("Invalid review execution settings");
+    // Refresh settings only for an unstarted job; preflight never spends or runs a probe.
+    const execution = resolveReviewExecution(repo);
     job.budget = reserveReviewCall(repo, budgetId || process.env.SPECFLOW_REVIEW_BUDGET_ID, id);
     job.state = "running"; job.model_invoked = false; job.started = new Date().toISOString();
-    job.execution = { bin: process.env.SPECFLOW_AUDIT_BIN || "pi", model: process.env.SPECFLOW_AUDIT_MODEL || "", thinking, timeout };
+    job.execution = execution; executionInfo = describeReviewExecution(job, { started: true });
     saveJob(dir, job);
     const fd = fs.openSync(path.join(dir, "worker.log"), "wx", 0o600);
     const worker = spawn(process.execPath, [fileURLToPath(new URL("./review-worker.mjs", import.meta.url)), repo, id], {
@@ -330,6 +331,7 @@ export async function runPreparedReview(cwd, id, { budgetId, signal, onProgress 
     worker.on("error", (error) => { job.state = "failed"; job.error = error.message; saveJob(dir, job); });
     job.worker_pid = worker.pid; saveJob(dir, job); fs.closeSync(fd); worker.unref(); prepared = true;
   });
+  onProgress?.(executionInfo.message);
   const stop = () => {
     const { dir, job } = loadJob(repo, id);
     if (job.state !== "running") return;
@@ -341,7 +343,7 @@ export async function runPreparedReview(cwd, id, { budgetId, signal, onProgress 
     while (true) {
       signal?.throwIfAborted();
       const status = reviewStatus(repo, id);
-      if (status.state !== "running") return status;
+      if (status.state !== "running") return { ...status, executionInfo };
       onProgress?.(`Review ${id.slice(0, 8)} running; durable result survives frontend restart`);
       // Never respawn a running/unknown job. Caller can inspect status after a crash.
       if (!prepared) { try { process.kill(status.receipt.worker_pid, 0); } catch { throw new Error("Review owner unavailable; inspect retained job, do not automatically retry"); } }

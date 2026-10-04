@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 import { gitWorkspace, gitWorktrees, withWorkspaceLock, readReservations } from "./workspace.mjs";
+import { describeReviewExecution } from "./review-execution.mjs";
 import {
   applyLifecycleWrite,
   approvalProblems,
@@ -167,13 +168,13 @@ export function runSpawn(
       reject(e);
       return;
     }
-    let stdout = "", stderr = "", outputBytes = 0, tooBig = false, childError = null, killTimer = null;
+    let stdout = "", stderr = "", outputBytes = 0, tooBig = false, timedOut = false, childError = null, killTimer = null;
     const decoders = { stdout: new StringDecoder("utf8"), stderr: new StringDecoder("utf8") };
     const terminate = () => {
       child.kill("SIGTERM");
       killTimer ||= setTimeout(() => child.kill("SIGKILL"), 2000);
     };
-    const timer = timeout ? setTimeout(terminate, timeout) : null;
+    const timer = timeout ? setTimeout(() => { timedOut = true; terminate(); }, timeout) : null;
     const collect = (kind, chunk) => {
       const accepted = chunk.subarray(0, Math.max(0, maxBuffer - outputBytes));
       outputBytes += chunk.length;
@@ -193,7 +194,7 @@ export function runSpawn(
       if (killTimer) clearTimeout(killTimer);
       stdout += decoders.stdout.end(); stderr += decoders.stderr.end();
       if (childError) reject(childError);
-      else resolve({ stdout, stderr, code: code ?? 1, tooBig });
+      else resolve({ stdout, stderr, code: code ?? 1, tooBig, timedOut });
     });
   });
 }
@@ -1937,6 +1938,7 @@ async function assertRetainedAuditEvidence(repo, auditRecord) {
   if (retained.state !== "completed" || retained.mode !== "working-tree-audit" || retained.result?.verdict !== "pass" ||
       retained.receipt.packet_sha256 !== receipt.packet_sha256 || retained.receipt.raw_sha256 !== receipt.raw_sha256 ||
       sha256(stableJson(normalizeAuditResult(retained.result))) !== receipt.result_sha256) throw new Error("Retained audit evidence mismatch; no cached approval");
+  return retained;
 }
 
 async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobId } = {}) {
@@ -2011,10 +2013,15 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
     (!prev.review || (prev.review.version === 1 && prev.review.mode === "working-tree-audit" && prev.review.state === "completed" &&
       prev.review.packet_sha256 === prev.review.child_input_sha256 && prev.review.result_sha256 === sha256(stableJson(normalizedPrev))))
   ) {
-    try { await assertRetainedAuditEvidence(repo, prev); }
-    catch (error) { return `❌ ${id} — ${error.message}`; }
+    let executionInfo;
+    try {
+      const retained = await assertRetainedAuditEvidence(repo, prev);
+      executionInfo = describeReviewExecution(retained?.receipt || { state: "completed" });
+    } catch (error) { return `❌ ${id} — ${error.message}`; }
+    onProgress?.(executionInfo.message);
     const summary = [
       `Spec ${id} 审计结果: ✅ PASS（缓存复用 — 实现与合同 hash 未变）`,
+      `  ${executionInfo.message}`,
       `  sha: ${prev.sha || currentSha}`,
       `  impl_hash: ${snapshot.hash.slice(0, 12)}`,
       `  criteria:`,

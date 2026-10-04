@@ -1,0 +1,3 @@
+PASS real review CLI without PATH pi: uncharged preflight, current first-run timeout, Node+trusted CLI, exact bytes and free immutable replay
+PASS real audit CLI shares launcher, resumes uncharged prepared job with new timeout and explains cached overrides without metadata changes
+PASS timed-out CLI job retains original timeout, nonpassing result and charged budget; replay never respawns

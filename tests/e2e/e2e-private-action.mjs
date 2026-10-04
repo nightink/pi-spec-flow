@@ -22,7 +22,7 @@ try {
   // The real Action installs its locked dependencies in its own checkout. Tests
   // reuse this repository's *already installed* deps to stay offline; this still
   // runs the copied CLI from outside both source and caller, never a Pi global path.
-  for (const name of ["core.mjs", "project-profile.mjs", "workspace.mjs"]) {
+  for (const name of ["core.mjs", "project-profile.mjs", "workspace.mjs", "review-execution.mjs"]) {
     fs.copyFileSync(path.join(source, name), path.join(action, name));
   }
   fs.symlinkSync(path.join(source, "node_modules"), path.join(action, "node_modules"), "dir");

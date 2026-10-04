@@ -119,8 +119,15 @@ export default function (pi: ExtensionAPI) {
     promptGuidelines: ["Discovery/prepare never call a provider. Ask for explicit paid review authorization; this tool cannot grant/reset budgets. Delta PASS does not mean full Spec acceptance."],
     parameters: reviewParameters,
     outputSchema: Type.Object({ version: Type.Integer(), jobId: Type.String(), mode: Type.String(), state: Type.String(),
-      modelInvoked: Type.Boolean(), receipt: Type.Any(), packetPath: Type.String(), result: Type.Any() }, { additionalProperties: false }),
-    async execute(_id, params, signal, _update, ctx) { return structuredResult(await reviewSpec(ctx.cwd, params, { signal })); },
+      modelInvoked: Type.Boolean(), receipt: Type.Any(), packetPath: Type.String(), result: Type.Any(),
+      executionInfo: Type.Optional(Type.Object({ action: Type.String(), requestedTimeoutMs: Type.Union([Type.Integer(), Type.Null()]),
+        effectiveTimeoutMs: Type.Union([Type.Integer(), Type.Null()]), requestValid: Type.Boolean(),
+        timeoutApplied: Type.Boolean(), timeoutIgnored: Type.Boolean(), message: Type.String() }, { additionalProperties: false })) }, { additionalProperties: false }),
+    async execute(_id, params, signal, onUpdate, ctx) {
+      return structuredResult(await reviewSpec(ctx.cwd, params, { signal,
+        onProgress: (text: string) => onUpdate?.({ content: [{ type: "text", text: truncateToolText(text) }] }),
+      }));
+    },
   });
 
   pi.registerTool({

@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "captured_at": "2026-10-04T22:14:30.773Z",
+  "boundary": "Retained actual local command logs; two Node TAP failure logs strip trailing horizontal whitespace only for git diff --check, with exact original hashes/private raw copies retained. No model report was produced.",
+  "files": [
+    {
+      "path": "pre-fix.log",
+      "bytes": 6209,
+      "sha256": "1b0208418a72a52e4dd1cf4fcfe1df83b91caaea90f501351ff42fe88bb42579",
+      "normalization": "Removed trailing horizontal whitespace only; no lines removed.",
+      "original": {
+        "path": ".git/spec-flow/acceptance/S1.7-execution-fix/pre-fix.log",
+        "bytes": 6233,
+        "sha256": "6d6f9985257bd3b53f64cdeeef84dfc6a6d9d625b89008b1cb68fb93ed1c374e"
+      }
+    },
+    {
+      "path": "targeted.log",
+      "bytes": 7648,
+      "sha256": "96982bd2aa6587326108882edc67ec9bd18febfd7be343e66bb1e187034cc47a"
+    },
+    {
+      "path": "cli.log",
+      "bytes": 391,
+      "sha256": "e69ac8aea1bf9fa4022d7de8ee52eeea0bdc64df3506aba3c4995d22d193a0da"
+    },
+    {
+      "path": "full-check.log",
+      "bytes": 39722,
+      "sha256": "b7147fc1644429f76c910fc74ec8564fcc0dbd0722d0daefc4d0efd03c808c67"
+    },
+    {
+      "path": "pi-smoke.log",
+      "bytes": 433,
+      "sha256": "0cc41776254f8402bdcffb33cd4ca0480fcfba077c3414857facf8eab6b1bf8f"
+    },
+    {
+      "path": "parent-verification.json",
+      "bytes": 393,
+      "sha256": "a7cb1345d5c209c4a4d195799218cfa55cb367e45bf432e0d991329fc18bb3ac"
+    },
+    {
+      "path": "fixture-profile-key-failure.log",
+      "bytes": 9419,
+      "sha256": "496c06766f9b6b3801bb7fdb322f59a1ef754d4c22110118e9dff75e02de0020"
+    },
+    {
+      "path": "fixture-absolute-argv-failure.log",
+      "bytes": 9576,
+      "sha256": "e26e4dec06ebdf53da80781ab4ae70fc5f46b6f179554c9655cd4f2d3d87ee90"
+    },
+    {
+      "path": "fixture-canonical-path-failure.log",
+      "bytes": 8653,
+      "sha256": "63f2b56cbf766e70398d553be653680be4bbfa9bcfc3e501eca55cefd1dffd1f",
+      "normalization": "Removed trailing horizontal whitespace only; no lines removed.",
+      "original": {
+        "path": ".git/spec-flow/acceptance/S1.7-execution-fix/fixture-canonical-path-failure.log",
+        "bytes": 8661,
+        "sha256": "a65e409b1261987b7a19eed369fedb9769ae70e5c5adef34c223756f6a336879"
+      }
+    },
+    {
+      "path": "fixture-typebox-null-failure.log",
+      "bytes": 36546,
+      "sha256": "7734655e740d52c3e5ddb3223b87c90bf6473d8c9c59f8c1f0f207f70134d5f0"
+    },
+    {
+      "path": "final-contracts-only.log",
+      "bytes": 206,
+      "sha256": "5e711c231015b02576fa6f6d186572f4d5290c13056e4a25cd29a60a7aa70800",
+      "boundary": "Final archive-augmented contracts-only; not another product gate."
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "kind": "changed-product-source-manifest",
+  "baseline": "2164ffb65c744cdf31f448e45d7d25ad6da8af65",
+  "captured_at": "2026-10-04T22:14:30.772Z",
+  "boundary": "13 changed product/source/test/doc paths exercised by current gates; excludes mother Review journal, issue and acceptance archives. Not a full-current audit or whole-repo snapshot.",
+  "independent_model_calls": 0,
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 25123,
+      "sha256": "959e855e8e099ca30b2432e69f0dcd145a04c44fbdcfc124874dc89484627f71",
+      "executable": false
+    },
+    {
+      "path": "adapter-core.test.mjs",
+      "bytes": 10870,
+      "sha256": "fc152a6d3a7daba5d45cbfd55c3a8a9aae324cfb34d1610cd478e22198857a8c",
+      "executable": false
+    },
+    {
+      "path": "core.mjs",
+      "bytes": 115390,
+      "sha256": "c9e26a1fe697c17fe18153a2e3db1c45e06ae8c82ad056c4bc1a4eadbf5b8312",
+      "executable": false
+    },
+    {
+      "path": "index.ts",
+      "bytes": 18160,
+      "sha256": "a360aa2287d9e98f0ad895b5840a098108bc83d60355c7a618ce479f99a47d33",
+      "executable": false
+    },
+    {
+      "path": "package.json",
+      "bytes": 1824,
+      "sha256": "ac8e1e5d529303a07144c118b015fc553b8ccb132982cebc08519526f06e8ec4",
+      "executable": false
+    },
+    {
+      "path": "review-engine.mjs",
+      "bytes": 26563,
+      "sha256": "be168b5e999f799fa4863e8f661870ee13fcb7ba5eaeaf8e14af1ae68408a44a",
+      "executable": false
+    },
+    {
+      "path": "review-worker.mjs",
+      "bytes": 3533,
+      "sha256": "881fb5920ad636087366ad1d3b2a3f47f5e3a2e15fd7251061a7938e83069c38",
+      "executable": false
+    },
+    {
+      "path": "review-execution.mjs",
+      "bytes": 4060,
+      "sha256": "c80bb2ff4a54dba8df2a05c2d965833ed3a0e1960e624a48391485e41a89bf5f",
+      "executable": false
+    },
+    {
+      "path": "review-execution.test.mjs",
+      "bytes": 12858,
+      "sha256": "79bb81e9944c728ca34dec2062fd6a5873653d0ac2ec21586f6073f1af269198",
+      "executable": false
+    },
+    {
+      "path": "tests/e2e/e2e-private-action.mjs",
+      "bytes": 6797,
+      "sha256": "3e9330f0ad9125106634c162a6353f4c29f97b5ad070ef4f61317a1ced417099",
+      "executable": false
+    },
+    {
+      "path": "tests/e2e/e2e-worktrees-python.mjs",
+      "bytes": 4419,
+      "sha256": "1404d5ee9e1ff39a82226992abb786a2c23a237147aed111d466e80617cf1b2e",
+      "executable": false
+    },
+    {
+      "path": "tests/e2e/e2e-review-execution.mjs",
+      "bytes": 7400,
+      "sha256": "30758a562f41acde02d149820c99e7e6976c6b336340eb870be56f3831b7031c",
+      "executable": false
+    },
+    {
+      "path": "tests/smoke/pi-native-review.mjs",
+      "bytes": 7678,
+      "sha256": "f4d0d0a8ffcd271a9bba2d35b22f3822e3ec2865650f0d8aa7135765fec5172a",
+      "executable": false
+    }
+  ]
+}

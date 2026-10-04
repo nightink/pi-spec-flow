@@ -1,0 +1,157 @@
+TAP version 13
+# Subtest: execution: prepared job refreshes stale unstarted settings from current timeout
+not ok 1 - execution: prepared job refreshes stale unstarted settings from current timeout
+  ---
+  duration_ms: 370.988167
+  type: 'test'
+  location: 'review-execution.test.mjs:59:1'
+  failureType: 'testCodeFailure'
+  error: 'gate offline[0] must be a PATH name or in-project relative executable'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    validateArgv (project-profile.mjs:241:11)
+    project-profile.mjs:274:42
+    Array.map (<anonymous>)
+    parseGates (project-profile.mjs:267:37)
+    parseConfiguredProfile (project-profile.mjs:356:17)
+    parseProjectProfileData (project-profile.mjs:461:43)
+    prepareCommittedReview (review-engine.mjs:241:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (review-execution.test.mjs:62:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: execution: running/cache reuse exposes ignored timeout without changing provenance or spending
+not ok 2 - execution: running/cache reuse exposes ignored timeout without changing provenance or spending
+  ---
+  duration_ms: 363.573292
+  type: 'test'
+  location: 'review-execution.test.mjs:71:1'
+  failureType: 'testCodeFailure'
+  error: 'gate offline[0] must be a PATH name or in-project relative executable'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    validateArgv (project-profile.mjs:241:11)
+    project-profile.mjs:274:42
+    Array.map (<anonymous>)
+    parseGates (project-profile.mjs:267:37)
+    parseConfiguredProfile (project-profile.mjs:356:17)
+    parseProjectProfileData (project-profile.mjs:461:43)
+    prepareCommittedReview (review-engine.mjs:241:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (review-execution.test.mjs:74:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: execution: missing bin, permission errors and invalid timeout fail before charge/spawn
+not ok 3 - execution: missing bin, permission errors and invalid timeout fail before charge/spawn
+  ---
+  duration_ms: 362.166708
+  type: 'test'
+  location: 'review-execution.test.mjs:91:1'
+  failureType: 'testCodeFailure'
+  error: 'gate offline[0] must be a PATH name or in-project relative executable'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    validateArgv (project-profile.mjs:241:11)
+    project-profile.mjs:274:42
+    Array.map (<anonymous>)
+    parseGates (project-profile.mjs:267:37)
+    parseConfiguredProfile (project-profile.mjs:356:17)
+    parseProjectProfileData (project-profile.mjs:461:43)
+    prepareCommittedReview (review-engine.mjs:241:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (review-execution.test.mjs:94:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: execution: no PATH pi and invalid explicit CLI are resumable preflight failures
+not ok 4 - execution: no PATH pi and invalid explicit CLI are resumable preflight failures
+  ---
+  duration_ms: 350.595458
+  type: 'test'
+  location: 'review-execution.test.mjs:108:1'
+  failureType: 'testCodeFailure'
+  error: 'gate offline[0] must be a PATH name or in-project relative executable'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    validateArgv (project-profile.mjs:241:11)
+    project-profile.mjs:274:42
+    Array.map (<anonymous>)
+    parseGates (project-profile.mjs:267:37)
+    parseConfiguredProfile (project-profile.mjs:356:17)
+    parseProjectProfileData (project-profile.mjs:461:43)
+    prepareCommittedReview (review-engine.mjs:241:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (review-execution.test.mjs:109:86)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: execution: explicit Node + trusted CLI needs no PATH pi/shim and preserves exact bytes
+not ok 5 - execution: explicit Node + trusted CLI needs no PATH pi/shim and preserves exact bytes
+  ---
+  duration_ms: 350.273791
+  type: 'test'
+  location: 'review-execution.test.mjs:119:1'
+  failureType: 'testCodeFailure'
+  error: 'gate offline[0] must be a PATH name or in-project relative executable'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    validateArgv (project-profile.mjs:241:11)
+    project-profile.mjs:274:42
+    Array.map (<anonymous>)
+    parseGates (project-profile.mjs:267:37)
+    parseConfiguredProfile (project-profile.mjs:356:17)
+    parseProjectProfileData (project-profile.mjs:461:43)
+    prepareCommittedReview (review-engine.mjs:241:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (review-execution.test.mjs:122:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: execution: explicit BIN shim wins over CLI and timeout failure/replay remains charged
+not ok 6 - execution: explicit BIN shim wins over CLI and timeout failure/replay remains charged
+  ---
+  duration_ms: 350.160917
+  type: 'test'
+  location: 'review-execution.test.mjs:134:1'
+  failureType: 'testCodeFailure'
+  error: 'gate offline[0] must be a PATH name or in-project relative executable'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    validateArgv (project-profile.mjs:241:11)
+    project-profile.mjs:274:42
+    Array.map (<anonymous>)
+    parseGates (project-profile.mjs:267:37)
+    parseConfiguredProfile (project-profile.mjs:356:17)
+    parseProjectProfileData (project-profile.mjs:461:43)
+    prepareCommittedReview (review-engine.mjs:241:15)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (review-execution.test.mjs:137:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+  ...
+# Subtest: execution: lifecycle audit shares Node CLI launcher and explains cached timeout without mutation
+not ok 7 - execution: lifecycle audit shares Node CLI launcher and explains cached timeout without mutation
+  ---
+  duration_ms: 248.249083
+  type: 'test'
+  location: 'review-execution.test.mjs:147:1'
+  failureType: 'testCodeFailure'
+  error: 'gate offline[0] must be a PATH name or in-project relative executable'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    validateArgv (project-profile.mjs:241:11)
+    project-profile.mjs:274:42
+    Array.map (<anonymous>)
+    parseGates (project-profile.mjs:267:37)
+    parseConfiguredProfile (project-profile.mjs:356:17)
+    loadProjectProfile (project-profile.mjs:478:43)
+    loadSpecs (core.mjs:461:19)
+    findSpec (core.mjs:505:17)
+    mutateSpec (core.mjs:2825:16)
+    begin (core.mjs:2830:56)
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 0
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2443.384666

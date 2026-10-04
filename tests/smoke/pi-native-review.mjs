@@ -33,7 +33,12 @@ const factory = (pi) => {
       assert.equal(creation.isError, false, JSON.stringify(creation)); assert.equal(prepared.isError, false, JSON.stringify(prepared));
       assert.equal(creation.result.structuredContent.status, "draft"); assert.equal(creation.result.structuredContent.dryRun, true);
       assert.equal(prepared.result.structuredContent.state, "skipped"); assert.equal(prepared.result.structuredContent.modelInvoked, false);
-      return { content: [{ type: "text", text: "offline native acceptance" }], details: { creation, prepared } };
+      const replay = await ctx.executeTool("spec_review", { action: "run", jobId: prepared.result.structuredContent.jobId }, { signal });
+      assert.equal(replay.isError, false, JSON.stringify(replay));
+      assert.equal(replay.result.structuredContent.executionInfo.action, "reuse-result");
+      assert.equal(replay.result.structuredContent.executionInfo.timeoutApplied, false);
+      assert.equal(replay.result.structuredContent.modelInvoked, false);
+      return { content: [{ type: "text", text: "offline native acceptance" }], details: { creation, prepared, replay } };
     } });
   pi.registerCommand("fixture-native", { description: "Invokes real wrapped tool; no model", handler: () => {
     commandPromise = (async () => {
@@ -62,6 +67,7 @@ try {
     assert.ok(currentSession.getToolDefinition(name).outputSchema);
     assert.ok(currentSession.systemPrompt.includes(name));
   }
+  assert.ok(currentSession.getToolDefinition("spec_review").outputSchema.properties.executionInfo);
   // The nested-call pipeline needs an issuing assistant. Seed one dummy, zero-usage
   // tool call in the PRIVATE in-memory manager; it is plumbing, not model evidence.
   currentSession.sessionManager.appendMessage({ role: "assistant", api: "openai-completions", provider: "fixture-offline", model: "synthetic-plumbing",

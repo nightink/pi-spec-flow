@@ -1,0 +1,13 @@
+{
+  "node": "v22.19.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "baseline": "2164ffb65c744cdf31f448e45d7d25ad6da8af65",
+  "mother": "S1.7",
+  "historical_frontmatter_unchanged": true,
+  "semantic_contract_unchanged": true,
+  "contract_hash": "958bcca7a2b351cf91e37f7746ee343b99b6a6b3841530e1c675fd605bbcce68",
+  "record_gaps": [],
+  "independent_model_calls": 0,
+  "new_real_grants": 0
+}

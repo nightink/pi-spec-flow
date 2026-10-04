@@ -227,7 +227,7 @@ export async function withFileMutationQueue(key, fn) {
     fs.writeFileSync(join(typeboxDir, "package.json"), '{"type":"module","exports":"./index.js"}\n');
     fs.writeFileSync(
       join(typeboxDir, "index.js"),
-      "export const Type = { Object: (value) => value, Optional: (value) => value, Array: (value) => ({items:value}), Union: (value) => ({anyOf:value}), Any: () => ({}), Literal: (value) => ({const:value}), Boolean: () => ({type:'boolean'}), Integer: () => ({type:'integer'}), String: (value = {}) => ({ type: 'string', ...value }) };\n"
+      "export const Type = { Object: (value) => value, Optional: (value) => value, Array: (value) => ({items:value}), Union: (value) => ({anyOf:value}), Any: () => ({}), Null: () => ({type:'null'}), Literal: (value) => ({const:value}), Boolean: () => ({type:'boolean'}), Integer: () => ({type:'integer'}), String: (value = {}) => ({ type: 'string', ...value }) };\n"
     );
 
     const project = join(root, "project");
