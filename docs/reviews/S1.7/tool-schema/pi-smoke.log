@@ -1,0 +1,17 @@
+
+> pi-spec-flow@0.2.0 smoke:pi
+> node tests/smoke/pi-rpc-load.mjs && node tests/smoke/pi-native-review.mjs && node tests/smoke/pi-daemon-ui.mjs && node tests/smoke/pi-tool-schemas.mjs
+
+PASS real isolated Pi CLI discovered /spec
+PASS /spec completed through real isolated Pi RPC without a model call
+PASS /spec worktrees completed through real isolated Pi RPC without a model call
+PASS native default prepare/proposal/status/skipped run and 10 invalid action/field/ID requests; no grant, charge or executor spawn
+PASS trusted Pi 1.x discovers typed tools and calls them through ctx.executeTool + handled commands, no provider/production state
+PASS actual Pi SDK reproduces hasUI=true with notify missing from a prototype-method UI
+PASS actual native spec_impl emits progress and preserves passing/failed real gate evidence without notify
+PASS actual Pi tool pipeline blocks a failed commit, preserves human decline, and surfaces core audit failure without a provider
+{"native_tool_roots":{"spec_alloc":"object","spec_attest":"object","spec_audit":"object","spec_begin":"object","spec_board":"object","spec_done":"object","spec_impl":"object","spec_new":"object","spec_review":"object"}}
+{"api":"openai-completions","tools":9,"requests":0,"failures":[]}
+{"api":"openai-responses","tools":9,"requests":0,"failures":[]}
+{"api":"anthropic-messages","tools":9,"requests":0,"failures":[]}
+PASS all nine native tool object roots and exact property declarations through actual OpenAI Completions/Responses + Anthropic serializers, zero HTTP requests

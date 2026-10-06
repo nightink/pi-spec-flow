@@ -13,7 +13,7 @@
   "scripts": {
     "typecheck": "node --check core.mjs && node --check index.ts && node --check adapter-core.mjs && node --check project-profile.mjs && node --check workspace.mjs && node --check spec-creation.mjs && node --check review-engine.mjs && node --check review-execution.mjs && node --check review-storage.mjs && node --check review-worker.mjs && node --check integrations/skill-migration.mjs && node integrations/skill-migration.mjs --check",
     "test": "node --test core.test.mjs trustworthy.test.mjs adapter-core.test.mjs adapter-notifications.test.mjs project-profile.test.mjs project-contracts.test.mjs action.test.mjs workspace-project.test.mjs review-creation.test.mjs review-execution.test.mjs",
-    "smoke:pi": "node tests/smoke/pi-rpc-load.mjs && node tests/smoke/pi-native-review.mjs && node tests/smoke/pi-daemon-ui.mjs",
+    "smoke:pi": "node tests/smoke/pi-rpc-load.mjs && node tests/smoke/pi-native-review.mjs && node tests/smoke/pi-daemon-ui.mjs && node tests/smoke/pi-tool-schemas.mjs",
     "check": "npm run typecheck && npm test && node tests/e2e/e2e-commit-gate.mjs && node tests/e2e/e2e-trustworthy-closure.mjs && node tests/e2e/e2e-spec-discovery.mjs && node tests/e2e/e2e-project-governance-profile.mjs && node tests/e2e/e2e-private-action.mjs && node tests/e2e/e2e-worktrees-python.mjs && node tests/e2e/e2e-review-and-spec-new.mjs && node tests/e2e/e2e-review-execution.mjs && node core.mjs check --ci --contracts-only"
   },
   "pi": {

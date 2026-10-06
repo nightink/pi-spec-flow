@@ -1,0 +1,17 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: spec_alloc
+    at tests/smoke/pi-tool-schemas.mjs:37:89
+    at Array.map (<anonymous>)
+    at tests/smoke/pi-tool-schemas.mjs:37:23 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v22.19.0

@@ -227,7 +227,7 @@ export async function withFileMutationQueue(key, fn) {
     fs.writeFileSync(join(typeboxDir, "package.json"), '{"type":"module","exports":"./index.js"}\n');
     fs.writeFileSync(
       join(typeboxDir, "index.js"),
-      "export const Type = { Object: (value) => value, Optional: (value) => value, Array: (value) => ({items:value}), Union: (value) => ({anyOf:value}), Any: () => ({}), Null: () => ({type:'null'}), Literal: (value) => ({const:value}), Boolean: () => ({type:'boolean'}), Integer: () => ({type:'integer'}), String: (value = {}) => ({ type: 'string', ...value }) };\n"
+      "export const Type = { Object: (value, options = {}) => ({ type: 'object', properties: value, ...options }), Optional: (value) => value, Array: (value) => ({items:value}), Union: (value) => ({anyOf:value}), Any: () => ({}), Null: () => ({type:'null'}), Literal: (value) => ({const:value}), Boolean: () => ({type:'boolean'}), Integer: () => ({type:'integer'}), String: (value = {}) => ({ type: 'string', ...value }) };\n"
     );
 
     const project = join(root, "project");
@@ -271,6 +271,13 @@ evidence:
       [...tools.keys()].sort(),
       ["spec_alloc", "spec_attest", "spec_audit", "spec_begin", "spec_board", "spec_done", "spec_impl", "spec_new", "spec_review"]
     );
+    const invalidRoots = [...tools.values()].filter(tool => tool.parameters?.type !== "object").map(tool => tool.name);
+    assert.deepEqual(invalidRoots, [], "ALL native function schemas need an explicit object root, even when another tool will execute");
+    for (const tool of tools.values()) {
+      assert.equal(tool.parameters.anyOf, undefined, `${tool.name}: no root union`);
+      assert.equal(tool.parameters.oneOf, undefined, `${tool.name}: no root union`);
+      assert.equal(tool.parameters.allOf, undefined, `${tool.name}: no root composition`);
+    }
     assert.ok(commands.has("spec"));
     assert.ok(events.has("tool_call"));
     assert.ok(events.has("session_start"));

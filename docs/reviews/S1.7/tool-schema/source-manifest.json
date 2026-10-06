@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "baseline": "f8772afc43f70e2d56856b2c35c7f506b09e0c62",
+  "coverage": "seven changed product/test/doc files, not full-current audit; excludes mother/issues/archives",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 27105,
+      "sha256": "36635d9724bd36b63c2a3dc5e5431fb22df477f72f6e72bd65906eb68dba6560"
+    },
+    {
+      "path": "adapter-core.test.mjs",
+      "bytes": 11495,
+      "sha256": "21b2ecf6ea988b0f1f5379fced61ab22c3d9573a5f299d00852500e47a430de1"
+    },
+    {
+      "path": "index.ts",
+      "bytes": 19172,
+      "sha256": "3396c94ccb55d721c8bc1b7886ade180fc1815d67217cab3ac12e6e8fd8e653a"
+    },
+    {
+      "path": "package.json",
+      "bytes": 1932,
+      "sha256": "85cb7a8505efa6f81ed5948c81a684b149328ce68e37c638cc51673c06b858cc"
+    },
+    {
+      "path": "review-creation.test.mjs",
+      "bytes": 27357,
+      "sha256": "2d1a17914028fa2068126b658444b51cc1d6e9968878c3245817ed4b6e305815"
+    },
+    {
+      "path": "tests/smoke/pi-native-review.mjs",
+      "bytes": 10220,
+      "sha256": "72a95db1d930f0e4581d62597642ebc72ecef64620c6966ab47697346a926590"
+    },
+    {
+      "path": "tests/smoke/pi-tool-schemas.mjs",
+      "bytes": 6525,
+      "sha256": "5087602a7118dbe56b28ddbe0722e368819ad1412c3a50d0b76a520c8231cc7e"
+    }
+  ]
+}

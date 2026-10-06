@@ -6,7 +6,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { newSpec, findSpec, begin, impl, audit, done, checkCI, writeFrontmatter, buildAuditDiff, repositorySnapshotHash } from "./core.mjs";
 import { review, authorizeReviewBudget, reviewStatus, normalizeReviewResult, recognizePiProject, prepareWorkingAudit, runPreparedReview } from "./review-engine.mjs";
-import { loadJob, saveJob, digest } from "./review-storage.mjs";
+import { loadJob, saveJob, digest, reviewStore, readPrivate } from "./review-storage.mjs";
 import { readReservations } from "./workspace.mjs";
 const SPEC = writeFrontmatter("# Product\n\n- [ ] a changed implementation\n", { id: "S1", status: "approved", review: { decision: "approved" }, evidence: { e2e: [], migrations: [], human: [] } });
 function fixture(t, files = {}) {
@@ -123,6 +123,33 @@ test("review: no model on empty diff; proposal isn't an empty-diff PASS", async 
   assert.equal((await review(f.root, { action: "run", jobId: prepared.jobId })).state, "skipped");
   const proposal = await review(f.root, { mode: "proposal", id: "S1" });
   assert.equal(proposal.state, "prepared"); assert.equal(proposal.receipt.bindings.coverage, "proposal-only");
+});
+
+test("review: flat native declaration retains exact per-action rejection before charge/spawn", async (t) => {
+  const f = fixture(t), auditor = fake(t);
+  grant(f.root, 1); // Disposable synthetic grant only; no fake executor may run.
+  const prepared = await review(f.root, { mode: "proposal", id: "S1" });
+  const { dir } = loadJob(f.root, prepared.jobId);
+  const before = fs.readFileSync(path.join(dir, "job.json"));
+  const budget = path.join(reviewStore(f.root), "budgets/fixture.json");
+  const beforeBudget = fs.readFileSync(budget);
+  const beforeSpec = fs.readFileSync(path.join(f.root, "docs/specs/S1.md"));
+  for (const input of [
+    { action: "run" }, { action: "status" },
+    { action: "run", jobId: prepared.jobId, budgetId: "fixture", base: f.base },
+    { action: "run", jobId: prepared.jobId, budgetId: "fixture", allowDirty: true },
+    { action: "status", jobId: prepared.jobId, budgetId: "fixture" },
+    { action: "prepare", mode: "proposal", id: "S1", jobId: prepared.jobId },
+    { action: "prepare", mode: "proposal", id: "S1", budgetId: "fixture" },
+    { action: "launch", jobId: prepared.jobId },
+    { action: "run", jobId: "../outside", budgetId: "fixture" },
+    { action: "status", jobId: prepared.jobId, surprise: true },
+  ]) await assert.rejects(review(f.root, input));
+  assert.equal(JSON.parse(readPrivate(budget)).used, 0);
+  assert.deepEqual(fs.readFileSync(budget), beforeBudget);
+  assert.deepEqual(fs.readFileSync(path.join(dir, "job.json")), before);
+  assert.deepEqual(fs.readFileSync(path.join(f.root, "docs/specs/S1.md")), beforeSpec);
+  assert.equal(fs.existsSync(auditor.calls), false);
 });
 
 test("review: malformed revisions, nonancestor and oversized packets fail before model", async (t) => {

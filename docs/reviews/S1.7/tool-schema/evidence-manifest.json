@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "baseline": "f8772afc43f70e2d56856b2c35c7f506b09e0c62",
+  "boundary": "offline parent-only evidence; no independent model or production evidence",
+  "files": [
+    {
+      "path": "docs/reviews/S1.7/tool-schema/pre-fix-unit.log",
+      "command": "node --test adapter-core.test.mjs (new all-nine-root regression against baseline adapter)",
+      "node": "v22.19.0",
+      "exitCode": 1,
+      "bytes": 3441,
+      "sha256": "08400d90ff22197cb7b15facb2e3b5c78d4efb609ca08ddf2e1f7bcc3dbf8cc1",
+      "normalization": "line-end horizontal whitespace only; no lines removed",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/pre-fix-unit.log",
+      "originalBytes": 3449,
+      "originalSha256": "d34cd8233e716607b49ac117e9a38984f370b4e4a6ee00d52fb9ca04f691e6b3"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/pre-fix-wire.log",
+      "command": "SPECFLOW_PI_SDK=trusted-installed-Pi node tests/smoke/pi-tool-schemas.mjs (against baseline adapter)",
+      "node": "v22.19.0",
+      "exitCode": 1,
+      "bytes": 2073,
+      "sha256": "2f82e102581a3f2fdc08cb02ba8fbc9d7d73dad15f66ccb669e762ee9fe71411",
+      "normalization": "none",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/pre-fix-wire.log",
+      "originalBytes": 2073,
+      "originalSha256": "2f82e102581a3f2fdc08cb02ba8fbc9d7d73dad15f66ccb669e762ee9fe71411"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/targeted.log",
+      "command": "node --test adapter-core.test.mjs review-creation.test.mjs",
+      "node": "v22.19.0",
+      "exitCode": 0,
+      "bytes": 8559,
+      "sha256": "87073e8a8c54ec2e7f270383979bd4dd57da5c197fbee8ddc7b90ee11e23b404",
+      "normalization": "none",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/targeted.log",
+      "originalBytes": 8559,
+      "originalSha256": "87073e8a8c54ec2e7f270383979bd4dd57da5c197fbee8ddc7b90ee11e23b404"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/wire.log",
+      "command": "SPECFLOW_PI_SDK=trusted-installed-Pi node tests/smoke/pi-tool-schemas.mjs",
+      "node": "v22.19.0",
+      "exitCode": 0,
+      "bytes": 575,
+      "sha256": "f489641ed4132262d10c6fc828d9e3af813af34572edb9cff9fd9551d863e9a1",
+      "normalization": "none",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/wire.log",
+      "originalBytes": 575,
+      "originalSha256": "f489641ed4132262d10c6fc828d9e3af813af34572edb9cff9fd9551d863e9a1"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/native.log",
+      "command": "SPECFLOW_PI_SDK=trusted-installed-Pi node tests/smoke/pi-native-review.mjs",
+      "node": "v22.19.0",
+      "exitCode": 0,
+      "bytes": 262,
+      "sha256": "be39946d27d77fe6fb992eb1447cfb0b7c39ca58908f4325c0a1a302efcf9cc5",
+      "normalization": "none",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/native.log",
+      "originalBytes": 262,
+      "originalSha256": "be39946d27d77fe6fb992eb1447cfb0b7c39ca58908f4325c0a1a302efcf9cc5"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/full-check.log",
+      "command": "npm run check",
+      "node": "v22.19.0",
+      "exitCode": 0,
+      "bytes": 43212,
+      "sha256": "5a745977c1bfc6495c15c2205574337156a2d29591ad3aaba41e0fa7e8d01fc9",
+      "normalization": "none",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/full-check.log",
+      "originalBytes": 43212,
+      "originalSha256": "5a745977c1bfc6495c15c2205574337156a2d29591ad3aaba41e0fa7e8d01fc9"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/pi-smoke.log",
+      "command": "SPECFLOW_PI_BIN=trusted-installed-Pi SPECFLOW_PI_SDK=trusted-installed-Pi npm run smoke:pi",
+      "node": "v22.19.0",
+      "exitCode": 0,
+      "bytes": 1541,
+      "sha256": "821f261a89e509e437d70b0438c9dd6fb1e5bc3adb33e40a93fcc974ef3f6172",
+      "normalization": "none",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/pi-smoke.log",
+      "originalBytes": 1541,
+      "originalSha256": "821f261a89e509e437d70b0438c9dd6fb1e5bc3adb33e40a93fcc974ef3f6172"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/final-contracts-only.log",
+      "command": "node core.mjs check --ci --contracts-only",
+      "node": "v22.19.0",
+      "exitCode": 0,
+      "bytes": 206,
+      "sha256": "5e711c231015b02576fa6f6d186572f4d5290c13056e4a25cd29a60a7aa70800",
+      "normalization": "none",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/final-contracts.log",
+      "originalBytes": 206,
+      "originalSha256": "5e711c231015b02576fa6f6d186572f4d5290c13056e4a25cd29a60a7aa70800"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/fixture-esm-resolution-failure.log",
+      "command": "initial new SDK serializer fixture: require.resolve(import-only main)",
+      "node": "v22.19.0",
+      "exitCode": 1,
+      "bytes": 862,
+      "sha256": "22318016997ff4b3219f1f361344e6192a6dd9d1dbe6619d29304a9490369a59",
+      "normalization": "none",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/fixture-esm-resolution-failure.log",
+      "originalBytes": 862,
+      "originalSha256": "22318016997ff4b3219f1f361344e6192a6dd9d1dbe6619d29304a9490369a59"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/fixture-allowlist-failure.log",
+      "command": "initial new SDK serializer fixture: incomplete construction-time tools allowlist",
+      "node": "v22.19.0",
+      "exitCode": 1,
+      "bytes": 482,
+      "sha256": "b810c66f750fcbff9d496af069ad06eddce21618c4331bf576ac58bfa6aacc95",
+      "normalization": "none",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/fixture-inactive-tool-failure.log",
+      "originalBytes": 482,
+      "originalSha256": "b810c66f750fcbff9d496af069ad06eddce21618c4331bf576ac58bfa6aacc95"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/fixture-budget-parse-failure.log",
+      "command": "initial core negative fixture: readPrivate JSON text not parsed",
+      "node": "v22.19.0",
+      "exitCode": 1,
+      "bytes": 9197,
+      "sha256": "ba68ae03e36d61a12579590baf602848c2ae1ab94e22834f26ad13fc066dbe48",
+      "normalization": "line-end horizontal whitespace only; no lines removed",
+      "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/fixture-budget-parse-failure.log",
+      "originalBytes": 9205,
+      "originalSha256": "5e00d127a1d2f739f1af2463009ee58b7d280ca5c2b5a6cc5ba3ebd0a4bfd449"
+    },
+    {
+      "path": "docs/reviews/S1.7/tool-schema/parent-verification.json",
+      "command": "parent historical/source/runtime comparison (this archival helper)",
+      "exitCode": 0,
+      "bytes": 4643,
+      "sha256": "368f79fab4c50763feb035d0f516ac6ac9b42c4060588b46393df3b733b90c69",
+      "normalization": "none"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{"native_tool_roots":{"spec_alloc":"object","spec_attest":"object","spec_audit":"object","spec_begin":"object","spec_board":"object","spec_done":"object","spec_impl":"object","spec_new":"object","spec_review":"object"}}
+{"api":"openai-completions","tools":9,"requests":0,"failures":[]}
+{"api":"openai-responses","tools":9,"requests":0,"failures":[]}
+{"api":"anthropic-messages","tools":9,"requests":0,"failures":[]}
+PASS all nine native tool object roots and exact property declarations through actual OpenAI Completions/Responses + Anthropic serializers, zero HTTP requests

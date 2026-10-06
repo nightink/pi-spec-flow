@@ -1,0 +1,127 @@
+{
+  "version": 1,
+  "baseline": "f8772afc43f70e2d56856b2c35c7f506b09e0c62",
+  "maintenance": "S1.7 native object-root tool schema; parent-only",
+  "historical": [
+    {
+      "id": "S1.7",
+      "path": "docs/specs/S1.7-unified-review-and-spec-creation.md",
+      "frontmatterBytesUnchanged": true,
+      "frontmatterDataUnchanged": true,
+      "frontmatterSha256": "db52966bfa90193f403dd0c191062b83293ee21f030128a707a3ed135f0d630c",
+      "contractUnchanged": true,
+      "contractHash": "958bcca7a2b351cf91e37f7746ee343b99b6a6b3841530e1c675fd605bbcce68",
+      "historicalRecordConsistencyGaps": []
+    },
+    {
+      "id": "S1.2",
+      "path": "docs/specs/S1.2-trustworthy-gates-and-closure.md",
+      "frontmatterBytesUnchanged": true,
+      "frontmatterDataUnchanged": true,
+      "frontmatterSha256": "82e48afa1f1db58651c085ffce6e4aacef498a42279828cd46a1f2d222af5879",
+      "contractUnchanged": true,
+      "contractHash": "e370e8c9cd5b83aa65910100a6b16ba6a40d5b874e8d29ea2929143f41ed258f",
+      "historicalRecordConsistencyGaps": []
+    }
+  ],
+  "unchangedSharedSources": [
+    {
+      "path": "core.mjs",
+      "sha256": "c9e26a1fe697c17fe18153a2e3db1c45e06ae8c82ad056c4bc1a4eadbf5b8312",
+      "unchanged": true
+    },
+    {
+      "path": "review-engine.mjs",
+      "sha256": "be168b5e999f799fa4863e8f661870ee13fcb7ba5eaeaf8e14af1ae68408a44a",
+      "unchanged": true
+    },
+    {
+      "path": "review-execution.mjs",
+      "sha256": "c80bb2ff4a54dba8df2a05c2d965833ed3a0e1960e624a48391485e41a89bf5f",
+      "unchanged": true
+    },
+    {
+      "path": "review-storage.mjs",
+      "sha256": "45ec2e339086a2af9983c82b6c36e04c2cfda7f6b7dd4b93ccd0210b59077ccb",
+      "unchanged": true
+    },
+    {
+      "path": "review-worker.mjs",
+      "sha256": "881fb5920ad636087366ad1d3b2a3f47f5e3a2e15fd7251061a7938e83069c38",
+      "unchanged": true
+    },
+    {
+      "path": "adapter-core.mjs",
+      "sha256": "8b77c2f0c6c6f32f8f103612a12bc22cea2895b07e61f9d8fb45cdbdc59396d2",
+      "unchanged": true
+    },
+    {
+      "path": ".spec-flow.json",
+      "sha256": "05ed000b1dad75c82ebe541e2a6a1b1c61dc597dcfe80f0746f08c94396344d8",
+      "unchanged": true
+    }
+  ],
+  "indexUnchangedOutsideReviewDeclaration": true,
+  "runtime": {
+    "node": "v22.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "sdkVersion": "1.0.0",
+    "piAiVersion": "1.0.0",
+    "readOnlyInstalledSources": [
+      {
+        "path": "<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/api/openai-completions.js",
+        "bytes": 64543,
+        "sha256": "8167bfe47b0c9cc99a653d84f24ad055128e66888429f9f954e063918c074ea0"
+      },
+      {
+        "path": "<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js",
+        "bytes": 14526,
+        "sha256": "8a294f760ea70459c6d41c83878a8d0cda5dd4780c46b490c85e0d3495471e3e"
+      },
+      {
+        "path": "<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js",
+        "bytes": 32201,
+        "sha256": "8744ad2ce9ce2512993360600760f5bcdbeb520d0a641c655b2a0b7cbe9db10a"
+      },
+      {
+        "path": "<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js",
+        "bytes": 58290,
+        "sha256": "a0644ab05cf7ee3e4d566f21113d5b6c2361588237c999a45fa0d7935b68af10"
+      },
+      {
+        "path": "<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/dist/api/constrained-sampling.js",
+        "bytes": 9887,
+        "sha256": "3364d03ce8f7ef17ac336e35a134bf3b3b7582430a3841ac78bbf5ca216010d0"
+      }
+    ]
+  },
+  "checks": {
+    "unitRootInspected": 9,
+    "actualSdkToolsInspected": 9,
+    "preNetworkApis": [
+      "openai-completions",
+      "openai-responses",
+      "anthropic-messages"
+    ],
+    "httpRequests": 0,
+    "coreSyntheticGrantUsed": 0,
+    "nativeRejectedInputs": 10,
+    "targetedUnits": 37,
+    "authorityUnits": 184,
+    "authorityE2eGroups": 8
+  },
+  "boundaries": {
+    "independentReviewPerformed": false,
+    "newRealGrants": 0,
+    "modelCalls": 0,
+    "realExecutorReplay": false,
+    "productionAdoptionVerified": false,
+    "productionRestart": false,
+    "exampleAppCodeModified": false,
+    "globalResourcesModified": false,
+    "installedSdkModified": false,
+    "dependencyInstall": false,
+    "remoteOperation": false
+  }
+}

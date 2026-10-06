@@ -140,6 +140,14 @@ spec-flow 会扫描 `docs/specs/`、`docs/spec/`、`specs/`、`spec/` 四个显�
 
 Pi 的 begin/impl/audit/attest/done 仍使用 `withFileMutationQueue()`；核心还在 Git common directory 使用按 Spec ID 的跨进程锁，CLI/多 Pi 会话/多个 worktree 也受保护。冲突报 busy 并给 owner/锁路径，不静默覆盖；正常异常/取消释放锁，SIGKILL 等留下的锁**不会自动抢占**，须确认 owner 已退出后由用户清理。写回前重验 spec 文件，保留门禁期间的并发人工改动。工具失败通过 throw 呈现为真实错误，长输出会明确标记截断。
 
+### 模型请求中的工具 schema
+
+九个原生工具的输入 schema 均为显式 `type: "object"` 根节点；`spec_review` 不使用顶层 action union。模型请求会携带整个工具清单：一个声明不兼容可使**其他工具的请求**也在执行前被 HTTP 400 拒绝，不能只验工具注册或本地调用。
+
+`spec_review` 缺省 action 为 prepare；run/status 必须有 jobId，prepare-only 字段不能混入 run/status，budgetId 仅用于 run。平铺声明不取代共享引擎的逐 action 精确校验：非法字段/动作/ID 不被静默丢弃，不消耗授权或启动执行器。现有宿主与 executor 可能缓存旧声明；owner 需按实际加载机制 reload/rebind，源码修复不等于生产已采用，也不会自动重试原请求。
+
+`smoke:pi` 使用实际已安装 Pi SDK，在 OpenAI Completions/Responses 与 Anthropic 的 onPayload 边界检查全部声明、随后中止并以 fetch guard 禁止发送。它是零 HTTP 的离线序列化验收，不是远端 provider 成功或独立模型审查。
+
 ### SDK / daemon 的可选通知
 
 `ctx.hasUI` 不保证自定义宿主的每个 UI 方法都可调用。例如 class 型 UI 经对象展开包装后，原型上的 `notify` 可能丢失，但 `hasUI` 仍为 true。`spec_impl` 将门禁/诊断进度发送到工具 `onUpdate`，并仅在实际有 callable `notify` 时尝试通知。通知和进度传输失败只影响展示，不中断门禁、不改变 `impl.pass`；审计、提交拦截、命令和启动通知使用同一防护。真实核心异常仍传播，失败门禁仍阻止提交。
@@ -300,7 +308,7 @@ Pi 的 `tool_call` 拦截器识别 `git commit`、`git -C … commit` 和常见 
 - run: npm audit --omit=dev
 ```
 
-本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/unit/七组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
+本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/unit/八组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
 
 Legacy 行为：
 
@@ -320,6 +328,6 @@ node tests/e2e/e2e-worktrees-python.mjs  # 真实 Python + linked worktree + Act
 node tests/e2e/e2e-review-and-spec-new.mjs # 创建竞争 / finite grant / frontend loss / cache
 npm run check                    # 权威本地门禁
 SPECFLOW_PI_BIN=/trusted/installed/pi SPECFLOW_PI_SDK=/trusted/installed/pi-package npm run smoke:pi
-# 私有临时 agent/project：真实 RPC /spec + Pi 1.x typed tools/ctx.executeTool/handled commands；无 provider
+# 私有临时 agent/project：真实 RPC /spec、typed native/partial-UI、三种 API 的 pre-network 工具声明；无 provider 请求
 node integrations/skill-migration.mjs --check  # 只校验 tracked bundle，不读全局安装
 ```

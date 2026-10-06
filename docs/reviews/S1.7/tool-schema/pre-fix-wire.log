@@ -1,0 +1,42 @@
+{"native_tool_roots":{"spec_alloc":"object","spec_attest":"object","spec_audit":"object","spec_begin":"object","spec_board":"object","spec_done":"object","spec_impl":"object","spec_new":"object","spec_review":null}}
+{"api":"openai-completions","tools":9,"requests":0,"failures":["spec_review: root type=null","spec_review: root composition","spec_review: action declaration lost"]}
+{"api":"openai-responses","tools":9,"requests":0,"failures":["spec_review: root type=null","spec_review: root composition","spec_review: action declaration lost"]}
+{"api":"anthropic-messages","tools":9,"requests":0,"failures":["spec_review: action declaration lost"]}
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: model-facing schemas must survive actual provider serialization; valid JSON Schema alone is insufficient
++ actual - expected
+
++ [
++   'native:spec_review: root is not a plain explicit object',
++   'openai-completions:spec_review: root type=null',
++   'openai-completions:spec_review: root composition',
++   'openai-completions:spec_review: action declaration lost',
++   'openai-responses:spec_review: root type=null',
++   'openai-responses:spec_review: root composition',
++   'openai-responses:spec_review: action declaration lost',
++   'anthropic-messages:spec_review: action declaration lost'
++ ]
+- []
+
+    at tests/smoke/pi-tool-schemas.mjs:80:10 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: [
+    'native:spec_review: root is not a plain explicit object',
+    'openai-completions:spec_review: root type=null',
+    'openai-completions:spec_review: root composition',
+    'openai-completions:spec_review: action declaration lost',
+    'openai-responses:spec_review: root type=null',
+    'openai-responses:spec_review: root composition',
+    'openai-responses:spec_review: action declaration lost',
+    'anthropic-messages:spec_review: action declaration lost'
+  ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.19.0

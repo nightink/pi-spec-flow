@@ -1,0 +1,232 @@
+TAP version 13
+# Subtest: gate: allow — 用户确认后放行，透传 signal 且展示 item+note
+ok 1 - gate: allow — 用户确认后放行，透传 signal 且展示 item+note
+  ---
+  duration_ms: 0.862583
+  type: 'test'
+  ...
+# Subtest: gate: allow — 无可用 signal 时不传 opts
+ok 2 - gate: allow — 无可用 signal 时不传 opts
+  ---
+  duration_ms: 0.137375
+  type: 'test'
+  ...
+# Subtest: gate: deny — confirm 返回 false 时不放行
+ok 3 - gate: deny — confirm 返回 false 时不放行
+  ---
+  duration_ms: 0.069542
+  type: 'test'
+  ...
+# Subtest: gate: deny — confirm 返回 undefined（取消）时不放行
+ok 4 - gate: deny — confirm 返回 undefined（取消）时不放行
+  ---
+  duration_ms: 0.085125
+  type: 'test'
+  ...
+# Subtest: gate: no-ui — hasUI=false 拒绝且不调用 confirm
+ok 5 - gate: no-ui — hasUI=false 拒绝且不调用 confirm
+  ---
+  duration_ms: 0.059166
+  type: 'test'
+  ...
+# Subtest: gate: no-ui — hasUI=true 但没有 confirm 实现时同样拒绝
+ok 6 - gate: no-ui — hasUI=true 但没有 confirm 实现时同样拒绝
+  ---
+  duration_ms: 0.047792
+  type: 'test'
+  ...
+# Subtest: gate: confirm 抛错时向上抛出（不伪造放行/拒绝）
+ok 7 - gate: confirm 抛错时向上抛出（不伪造放行/拒绝）
+  ---
+  duration_ms: 0.202
+  type: 'test'
+  ...
+# Subtest: formatAttestationPrompt 同时包含 item 与 note，超长 note 有明确上限
+ok 8 - formatAttestationPrompt 同时包含 item 与 note，超长 note 有明确上限
+  ---
+  duration_ms: 0.094
+  type: 'test'
+  ...
+# Subtest: truncateToolText 短文本原样返回、长文本截断并标记
+ok 9 - truncateToolText 短文本原样返回、长文本截断并标记
+  ---
+  duration_ms: 0.260042
+  type: 'test'
+  ...
+# Subtest: index.ts: begin/impl/audit/attest/done 都在 mutation queue 包裹内
+ok 10 - index.ts: begin/impl/audit/attest/done 都在 mutation queue 包裹内
+  ---
+  duration_ms: 0.462042
+  type: 'test'
+  ...
+# Subtest: index.ts: 工具错误直接 throw，不返回伪造的 isError 字段
+ok 11 - index.ts: 工具错误直接 throw，不返回伪造的 isError 字段
+  ---
+  duration_ms: 0.114416
+  type: 'test'
+  ...
+# Subtest: index.ts: 已移除无用 imports（migrateAlloc/checkCI/parseFrontmatter）
+ok 12 - index.ts: 已移除无用 imports（migrateAlloc/checkCI/parseFrontmatter）
+  ---
+  duration_ms: 0.414042
+  type: 'test'
+  ...
+# Subtest: index.ts: fake Pi 可加载注册，且并发 begin 由真实 spec path 串行化
+ok 13 - index.ts: fake Pi 可加载注册，且并发 begin 由真实 spec path 串行化
+  ---
+  duration_ms: 577.780583
+  type: 'test'
+  ...
+# Subtest: new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID
+ok 14 - new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID
+  ---
+  duration_ms: 486.423542
+  type: 'test'
+  ...
+# Subtest: new: strict creation-only numeric profile makes a CI-clean unapproved draft
+ok 15 - new: strict creation-only numeric profile makes a CI-clean unapproved draft
+  ---
+  duration_ms: 352.980417
+  type: 'test'
+  ...
+# Subtest: new: custom lifecycle mappings and kind defaults are respected
+ok 16 - new: custom lifecycle mappings and kind defaults are respected
+  ---
+  duration_ms: 298.985833
+  type: 'test'
+  ...
+# Subtest: new: explicit no-draft lifecycle, unfillable metadata and unknown keys fail before reservation
+ok 17 - new: explicit no-draft lifecycle, unfillable metadata and unknown keys fail before reservation
+  ---
+  duration_ms: 170.464084
+  type: 'test'
+  ...
+# Subtest: new: unsafe profile defaults/template paths, expressions, symlinks and ambiguous dirs fail closed
+ok 18 - new: unsafe profile defaults/template paths, expressions, symlinks and ambiguous dirs fail closed
+  ---
+  duration_ms: 135.124542
+  type: 'test'
+  ...
+# Subtest: new: exclusive publication never overwrites and a failed reservation stays burned
+ok 19 - new: exclusive publication never overwrites and a failed reservation stays burned
+  ---
+  duration_ms: 526.61125
+  type: 'test'
+  ...
+# Subtest: review: exact head contract, static nonexecuting Pi metadata, explicit dirty exclusions
+ok 20 - review: exact head contract, static nonexecuting Pi metadata, explicit dirty exclusions
+  ---
+  duration_ms: 538.757125
+  type: 'test'
+  ...
+# Subtest: review: no model on empty diff; proposal isn't an empty-diff PASS
+ok 21 - review: no model on empty diff; proposal isn't an empty-diff PASS
+  ---
+  duration_ms: 825.650333
+  type: 'test'
+  ...
+# Subtest: review: flat native declaration retains exact per-action rejection before charge/spawn
+ok 22 - review: flat native declaration retains exact per-action rejection before charge/spawn
+  ---
+  duration_ms: 509.740833
+  type: 'test'
+  ...
+# Subtest: review: malformed revisions, nonancestor and oversized packets fail before model
+ok 23 - review: malformed revisions, nonancestor and oversized packets fail before model
+  ---
+  duration_ms: 615.771541
+  type: 'test'
+  ...
+# Subtest: review: high-risk scanner and packet tampering reject before charge/spawn
+ok 24 - review: high-risk scanner and packet tampering reject before charge/spawn
+  ---
+  duration_ms: 1253.125875
+  type: 'test'
+  ...
+# Subtest: review: explicit immutable grant, single charge, exact child bytes, raw response and free cache
+ok 25 - review: explicit immutable grant, single charge, exact child bytes, raw response and free cache
+  ---
+  duration_ms: 2662.6985
+  type: 'test'
+  ...
+# Subtest: review: malformed model output and contradictory criteria remain nonpassing and retained
+ok 26 - review: malformed model output and contradictory criteria remain nonpassing and retained
+  ---
+  duration_ms: 1517.827625
+  type: 'test'
+  ...
+# Subtest: review: cancellation remains charged, nonpassing and never auto-respawns
+ok 27 - review: cancellation remains charged, nonpassing and never auto-respawns
+  ---
+  duration_ms: 1693.525
+  type: 'test'
+  ...
+# Subtest: incremental: unchanged baseline observations don't block, and blockers need exact delta lines/closure
+ok 28 - incremental: unchanged baseline observations don't block, and blockers need exact delta lines/closure
+  ---
+  duration_ms: 2060.861959
+  type: 'test'
+  ...
+# Subtest: Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute
+ok 29 - Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute
+  ---
+  duration_ms: 0.32175
+  type: 'test'
+  ...
+# Subtest: lifecycle: shared full audit, free attach/cache, ordinary report cannot close; source mutation rejected
+ok 30 - lifecycle: shared full audit, free attach/cache, ordinary report cannot close; source mutation rejected
+  ---
+  duration_ms: 3995.364291
+  type: 'test'
+  ...
+# Subtest: new: safe custom body template is versioned; kind cannot be guessed
+ok 31 - new: safe custom body template is versioned; kind cannot be guessed
+  ---
+  duration_ms: 296.942542
+  type: 'test'
+  ...
+# Subtest: review: profile/package from head and fsmonitor never executes during preparation
+ok 32 - review: profile/package from head and fsmonitor never executes during preparation
+  ---
+  duration_ms: 514.696209
+  type: 'test'
+  ...
+# Subtest: review: cached packet/raw/result tampering cannot become another cached approval
+ok 33 - review: cached packet/raw/result tampering cannot become another cached approval
+  ---
+  duration_ms: 1544.34325
+  type: 'test'
+  ...
+# Subtest: review: overflowing output is captured boundedly and never passes
+ok 34 - review: overflowing output is captured boundedly and never passes
+  ---
+  duration_ms: 1537.028334
+  type: 'test'
+  ...
+# Subtest: lifecycle: a mid-review source edit rejects even a fake PASS; ordinary approval never attaches
+ok 35 - lifecycle: a mid-review source edit rejects even a fake PASS; ordinary approval never attaches
+  ---
+  duration_ms: 3819.53
+  type: 'test'
+  ...
+# Subtest: lifecycle: retained tamper rejects cached audit and done without another model call
+ok 36 - lifecycle: retained tamper rejects cached audit and done without another model call
+  ---
+  duration_ms: 2807.816833
+  type: 'test'
+  ...
+# Subtest: lifecycle: prepared full job checks exact diff/impl and attaches after same-content commit for free
+ok 37 - lifecycle: prepared full job checks exact diff/impl and attaches after same-content commit for free
+  ---
+  duration_ms: 3475.289083
+  type: 'test'
+  ...
+1..37
+# tests 37
+# suites 0
+# pass 37
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 31690.13575

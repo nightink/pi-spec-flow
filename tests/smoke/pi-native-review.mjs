@@ -6,6 +6,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { writeFrontmatter } from "../../core.mjs";
+import { reviewStore } from "../../review-storage.mjs";
 const sdkRoot = process.env.SPECFLOW_PI_SDK;
 if (!sdkRoot) throw new Error("Set SPECFLOW_PI_SDK to an already-installed trusted Pi 1.x package; never auto-install");
 const { createAgentSession, DefaultResourceLoader, SettingsManager, SessionManager, ModelRuntime } = await import(pathToFileURL(path.join(sdkRoot, "dist/index.js")).href);
@@ -38,7 +39,39 @@ const factory = (pi) => {
       assert.equal(replay.result.structuredContent.executionInfo.action, "reuse-result");
       assert.equal(replay.result.structuredContent.executionInfo.timeoutApplied, false);
       assert.equal(replay.result.structuredContent.modelInvoked, false);
-      return { content: [{ type: "text", text: "offline native acceptance" }], details: { creation, prepared, replay } };
+      const defaulted = await ctx.executeTool("spec_review", { id: "S1", base: sha, head: sha }, { signal });
+      const status = await ctx.executeTool("spec_review", { action: "status", jobId: prepared.result.structuredContent.jobId }, { signal });
+      const proposal = await ctx.executeTool("spec_review", { mode: "proposal", id: "S1" }, { signal });
+      for (const result of [defaulted, status, proposal]) {
+        assert.equal(result.isError, false, JSON.stringify(result));
+        assert.equal(result.result.structuredContent.modelInvoked, false);
+      }
+      assert.equal(defaulted.result.structuredContent.state, "skipped");
+      assert.equal(status.result.structuredContent.state, "skipped");
+      assert.equal(proposal.result.structuredContent.state, "prepared");
+      const jobId = proposal.result.structuredContent.jobId;
+      const store = reviewStore(ctx.cwd), jobs = fs.readdirSync(path.join(store, "jobs")).sort();
+      const beforeSpec = fs.readFileSync(path.join(cwd, "docs/specs/S1.md"));
+      const beforeJob = fs.readFileSync(path.join(store, "jobs", jobId, "job.json"));
+      const invalid = [
+        { action: "run" }, { action: "status" },
+        { action: "run", jobId, base: sha, budgetId: "not-authorized" },
+        { action: "status", jobId, budgetId: "not-authorized" },
+        { mode: "proposal", id: "S1", budgetId: "not-authorized" },
+        { action: "prepare", mode: "proposal", id: "S1", jobId },
+        { action: "launch", jobId }, { action: "run", jobId: "../outside" },
+        { action: "status", jobId, surprise: true },
+        { action: "prepare", mode: "working-tree-audit", id: "S1" },
+      ];
+      for (const args of invalid) {
+        const result = await ctx.executeTool("spec_review", args, { signal });
+        assert.equal(result.isError, true, JSON.stringify({ args, result }));
+      }
+      assert.deepEqual(fs.readdirSync(path.join(store, "jobs")).sort(), jobs);
+      assert.deepEqual(fs.readFileSync(path.join(cwd, "docs/specs/S1.md")), beforeSpec);
+      assert.deepEqual(fs.readFileSync(path.join(store, "jobs", jobId, "job.json")), beforeJob);
+      assert.equal(fs.existsSync(path.join(store, "budgets")), false);
+      return { content: [{ type: "text", text: "offline native acceptance" }], details: { creation, prepared, replay, defaulted, status, proposal, rejectedInputs: invalid.length } };
     } });
   pi.registerCommand("fixture-native", { description: "Invokes real wrapped tool; no model", handler: () => {
     commandPromise = (async () => {
@@ -75,6 +108,8 @@ try {
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } });
   currentSession.refreshContext();
   await currentSession.prompt("/fixture-native"); await commandPromise; assert.ok(outcome);
+  assert.equal(outcome.details?.rejectedInputs, 10, JSON.stringify(outcome));
+  console.log("PASS native default prepare/proposal/status/skipped run and 10 invalid action/field/ID requests; no grant, charge or executor spawn");
   assert.ok(seen.some((event) => event.type === "tool_execution_start" && event.toolName === "spec_new" && event.parentToolCallId));
   await currentSession.prompt('/spec new {"title":"Command-created draft","prefix":"S"}');
   assert.ok(fs.existsSync(path.join(cwd, "docs/specs/S2-spec.md")));

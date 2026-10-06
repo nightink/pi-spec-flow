@@ -1,0 +1,16 @@
+node:internal/modules/esm/resolve:313
+  return new ERR_PACKAGE_PATH_NOT_EXPORTED(
+         ^
+
+Error [ERR_PACKAGE_PATH_NOT_EXPORTED]: No "exports" main defined in <home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/package.json
+    at exportsNotFound (node:internal/modules/esm/resolve:313:10)
+    at packageExportsResolve (node:internal/modules/esm/resolve:603:13)
+    at resolveExports (node:internal/modules/cjs/loader:650:36)
+    at Function._findPath (node:internal/modules/cjs/loader:717:31)
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1369:27)
+    at Function.resolve (node:internal/modules/helpers:157:19)
+    at tests/smoke/pi-tool-schemas.mjs:13:33 {
+  code: 'ERR_PACKAGE_PATH_NOT_EXPORTED'
+}
+
+Node.js v22.19.0

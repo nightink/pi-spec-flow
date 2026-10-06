@@ -68,16 +68,23 @@ const newParameters = Type.Object({
   dependencies: Type.Optional(Type.Array(Type.Union([Type.String(), Type.Integer({ minimum: 0 })]), { maxItems: 100 })),
   dryRun: Type.Optional(Type.Boolean()),
 }, { additionalProperties: false });
-const reviewParameters = Type.Union([
-  Type.Object({ action: Type.Optional(Type.Literal("prepare")),
-    mode: Type.Optional(Type.Union([Type.Literal("proposal"), Type.Literal("committed"), Type.Literal("incremental")])),
-    id: Type.Optional(Type.String()), specPath: Type.Optional(Type.String()),
-    base: Type.Optional(Type.String()), head: Type.Optional(Type.String()), previousReview: Type.Optional(Type.String()),
-    allowDirty: Type.Optional(Type.Boolean()),
-  }, { additionalProperties: false }),
-  Type.Object({ action: Type.Literal("run"), jobId: Type.String(), budgetId: Type.Optional(Type.String()) }, { additionalProperties: false }),
-  Type.Object({ action: Type.Literal("status"), jobId: Type.String() }, { additionalProperties: false }),
-]);
+// Providers require an explicit object root, not a root union of action objects.
+// Keep action-specific required/forbidden fields enforced by the shared engine;
+// do not drop fields here or a malformed request could become a paid run.
+const reviewParameters = Type.Object({
+  action: Type.Optional(Type.Union([Type.Literal("prepare"), Type.Literal("run"), Type.Literal("status")], {
+    description: "Default prepare. run/status require jobId. Only prepare accepts mode/id/specPath/base/head/previousReview/allowDirty; only run accepts budgetId.",
+  })),
+  mode: Type.Optional(Type.Union([Type.Literal("proposal"), Type.Literal("committed"), Type.Literal("incremental")], { description: "prepare only; default committed" })),
+  id: Type.Optional(Type.String({ description: "prepare only; Spec ID or use specPath" })),
+  specPath: Type.Optional(Type.String({ description: "prepare only; governing Spec path" })),
+  base: Type.Optional(Type.String({ description: "prepare only; required with head for committed/incremental" })),
+  head: Type.Optional(Type.String({ description: "prepare only; required with base for committed/incremental" })),
+  previousReview: Type.Optional(Type.String({ description: "prepare only; prior job for incremental review" })),
+  allowDirty: Type.Optional(Type.Boolean({ description: "prepare only; explicitly accept committed-only dirty exclusions" })),
+  jobId: Type.Optional(Type.String({ description: "Required for run/status; forbidden for prepare" })),
+  budgetId: Type.Optional(Type.String({ description: "run only; existing user-authorized delivery-cycle grant, never a new authorization" })),
+}, { additionalProperties: false });
 
 export default function (pi: ExtensionAPI) {
   // ─── Register tools ──────────────────────────────────────────────────────
