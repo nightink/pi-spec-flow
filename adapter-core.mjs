@@ -1,11 +1,9 @@
 // spec-flow adapter-core.mjs — host-free helpers for the Pi adapter (index.ts).
 //
 // This module deliberately has zero host dependencies (no Pi package, no
-// typebox, no core.mjs) so the human-confirmation gate can be unit-tested with
-// plain Node:  node --test adapter-core.test.mjs
-//
-// index.ts stays the thin host shell: it injects ctx.ui.confirm / ctx.hasUI
-// and applies the resulting decision.
+// typebox, no core.mjs) so confirmation and optional presentation can be tested
+// with plain Node. index.ts stays the thin host shell: notifications never
+// decide gate/evidence success, while human confirmation remains fail-closed.
 
 /** Hard cap for text returned to the LLM by spec-flow tools. */
 export const TOOL_TEXT_LIMIT = 12000;
@@ -23,6 +21,40 @@ export function truncateToolText(text, limit = TOOL_TEXT_LIMIT) {
     return value;
   }
   return `${value.slice(0, limit)}\n…[spec-flow] 输出已截断 ${value.length - limit} 字符`;
+}
+
+// Pi feedback APIs are void, but custom hosts may return rejected promises.
+// Observe those without awaiting a disconnected presentation transport.
+function observeFeedback(result) {
+  if (result && typeof result.then === "function") Promise.resolve(result).catch(() => {});
+}
+
+/**
+ * Best-effort notification. hasUI alone does not guarantee notify exists in a
+ * custom SDK host. Preserve `this`, bound text, and isolate only presentation
+ * failures (including async rejections). true means attempted, not delivered.
+ */
+export function notifySafely(ctx, text, level = "info") {
+  try {
+    if (ctx?.hasUI !== true) return false;
+    const ui = ctx.ui, notify = ui?.notify;
+    if (typeof notify !== "function") return false;
+    observeFeedback(notify.call(ui, truncateToolText(text), level));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Tool progress is independent of optional UI notifications; not evidence. */
+export function updateToolProgress(onUpdate, text) {
+  if (typeof onUpdate !== "function") return false;
+  try {
+    observeFeedback(onUpdate({ content: [{ type: "text", text: truncateToolText(text) }], details: {} }));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Dialog body builder: always shows both the evidence item and the note. */

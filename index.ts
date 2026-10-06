@@ -30,7 +30,7 @@ import {
   renderBoard,
   renderSpecDetail,
 } from "./core.mjs";
-import { attestationGate, truncateToolText } from "./adapter-core.mjs";
+import { attestationGate, notifySafely, truncateToolText, updateToolProgress } from "./adapter-core.mjs";
 
 // Track latest session cwd — command completions have no ctx
 let lastCwd = process.cwd();
@@ -125,7 +125,7 @@ export default function (pi: ExtensionAPI) {
         timeoutApplied: Type.Boolean(), timeoutIgnored: Type.Boolean(), message: Type.String() }, { additionalProperties: false })) }, { additionalProperties: false }),
     async execute(_id, params, signal, onUpdate, ctx) {
       return structuredResult(await reviewSpec(ctx.cwd, params, { signal,
-        onProgress: (text: string) => onUpdate?.({ content: [{ type: "text", text: truncateToolText(text) }] }),
+        onProgress: (text: string) => updateToolProgress(onUpdate, text),
       }));
     },
   });
@@ -152,17 +152,19 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
     }),
-    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, onUpdate, ctx) {
       const output = await runSpecMutation(ctx.cwd, params.id, () =>
         impl(ctx.cwd, params.id, {
           signal,
           onGate: (name) => {
-            if (ctx.hasUI) {
-              ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info");
-            }
+            const text = `⏳ spec-flow: 门禁 ${name} 运行中…`;
+            updateToolProgress(onUpdate, text);
+            notifySafely(ctx, text, "info");
           },
           onDiagnostic: (message: string) => {
-            if (ctx.hasUI) ctx.ui.notify(`⚠️ spec-flow: ${message}`, "warning");
+            const text = `⚠️ spec-flow: ${message}`;
+            updateToolProgress(onUpdate, text);
+            notifySafely(ctx, text, "warning");
           },
         })
       );
@@ -180,28 +182,20 @@ export default function (pi: ExtensionAPI) {
       reviewJobId: Type.Optional(Type.String({ description: "Matching prepared/completed full working-tree audit job to resume/attach, without duplicate invocation" })),
     }),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      if (ctx.hasUI) {
-        ctx.ui.notify(
-          "🔍 spec-flow: 独立审计运行中（可 Esc 中断，输入会排队到结束后处理）…",
-          "info"
-        );
-      }
+      const notice = "🔍 spec-flow: 独立审计运行中（可 Esc 中断，输入会排队到结束后处理）…";
+      notifySafely(ctx, notice, "info");
+      updateToolProgress(onUpdate, notice);
       // Heartbeat: keep the tool view alive so it never looks frozen
       const started = Date.now();
       const heartbeat = setInterval(() => {
         const secs = Math.round((Date.now() - started) / 1000);
-        onUpdate?.({
-          content: [{ type: "text", text: `⏳ 审计运行中 ${secs}s…（Esc 可中断）` }],
-        });
+        updateToolProgress(onUpdate, `⏳ 审计运行中 ${secs}s…（Esc 可中断）`);
       }, 5000);
       try {
         const output = await runSpecMutation(ctx.cwd, params.id, () =>
           audit(ctx.cwd, params.id, {
             signal, budgetId: params.budgetId, reviewJobId: params.reviewJobId,
-            onProgress: (text) =>
-              onUpdate?.({
-                content: [{ type: "text", text: truncateToolText(text) }],
-              }),
+            onProgress: (text) => updateToolProgress(onUpdate, text),
           })
         );
         return toolResult(output);
@@ -225,9 +219,11 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       // Human gate: reject without a real UI; otherwise show item+note and ask.
       // The dialog stays OUTSIDE the mutation queue (a user may take minutes).
+      const ui = ctx.hasUI ? ctx.ui : undefined;
+      const confirm = ui?.confirm;
       const gate = await attestationGate({
         hasUI: ctx.hasUI,
-        confirm: ctx.ui?.confirm?.bind(ctx.ui),
+        confirm: typeof confirm === "function" ? confirm.bind(ui) : undefined,
         id: params.id,
         item: params.item,
         note: params.note,
@@ -303,7 +299,7 @@ export default function (pi: ExtensionAPI) {
           if (split < 0) throw new Error("Use /spec new <JSON> or /spec review <JSON>");
           const input = JSON.parse(arg.slice(split + 1));
           const result = arg.slice(0, split) === "new" ? await newSpec(ctx.cwd, input) : await reviewSpec(ctx.cwd, input, { signal: ctx.signal });
-          ctx.ui.notify(truncateToolText(JSON.stringify(result, null, 2)), "info");
+          notifySafely(ctx, JSON.stringify(result, null, 2), "info");
           return;
         }
         const text =
@@ -312,14 +308,14 @@ export default function (pi: ExtensionAPI) {
             ? await renderSpecDetail(ctx.cwd, arg, ctx.signal)
             : await renderBoard(ctx.cwd, ctx.signal);
         if (text === null) {
-          ctx.ui.notify(`spec-flow: 未找到 spec ${arg}`, "warning");
+          notifySafely(ctx, `spec-flow: 未找到 spec ${arg}`, "warning");
         } else if (text === "") {
-          ctx.ui.notify("spec-flow: 当前项目无支持的 spec/ 目录（docs/spec(s)、spec(s)）", "warning");
+          notifySafely(ctx, "spec-flow: 当前项目无支持的 spec/ 目录（docs/spec(s)、spec(s)）", "warning");
         } else {
-          ctx.ui.notify(truncateToolText(text), "info");
+          notifySafely(ctx, text, "info");
         }
       } catch (e: any) {
-        ctx.ui.notify(`spec-flow: ${e.message}`, "error");
+        notifySafely(ctx, `spec-flow: ${e.message}`, "error");
       }
     },
   });
@@ -342,10 +338,10 @@ export default function (pi: ExtensionAPI) {
       const decision = await commitGateDecision(ctx.cwd, command, {
         signal: ctx.signal,
         onGate: (name: string) =>
-          ctx.ui.notify(`⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
+          notifySafely(ctx, `⏳ spec-flow: 门禁 ${name} 运行中…`, "info"),
       });
       for (const message of decision.diagnostics || []) {
-        ctx.ui.notify(`⚠️ spec-flow: ${message}`, "warning");
+        notifySafely(ctx, `⚠️ spec-flow: ${message}`, "warning");
       }
 
       // Ledger write helper: write to the target repo, fall back to session cwd.
@@ -366,7 +362,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       if (decision.action === "bypass") {
-        ctx.ui.notify(
+        notifySafely(ctx,
           "⚠️ spec-flow: SPECFLOW_BYPASS=1 detected, allowing commit despite gate failures",
           "warning"
         );
@@ -381,7 +377,7 @@ export default function (pi: ExtensionAPI) {
       // block — reason already includes failed gate names + tail summaries
       return { block: true, reason: decision.reason };
     } catch (e: any) {
-      ctx.ui.notify?.(
+      notifySafely(ctx,
         `⚠️ spec-flow 拦截器故障（已放行本次 bash）：${e?.message ?? e}`,
         "warning"
       );
@@ -410,7 +406,7 @@ export default function (pi: ExtensionAPI) {
         const suggestion = await nextStep(ctx.cwd, spec, ctx.signal);
         lines.push(`  • ${id} (base=${baseSha}) — ${suggestion}`);
       }
-      ctx.ui.notify(lines.join("\n"), "info");
+      notifySafely(ctx, lines.join("\n"), "info");
     } catch {
       // silent on error
     }

@@ -140,6 +140,12 @@ spec-flow 会扫描 `docs/specs/`、`docs/spec/`、`specs/`、`spec/` 四个显�
 
 Pi 的 begin/impl/audit/attest/done 仍使用 `withFileMutationQueue()`；核心还在 Git common directory 使用按 Spec ID 的跨进程锁，CLI/多 Pi 会话/多个 worktree 也受保护。冲突报 busy 并给 owner/锁路径，不静默覆盖；正常异常/取消释放锁，SIGKILL 等留下的锁**不会自动抢占**，须确认 owner 已退出后由用户清理。写回前重验 spec 文件，保留门禁期间的并发人工改动。工具失败通过 throw 呈现为真实错误，长输出会明确标记截断。
 
+### SDK / daemon 的可选通知
+
+`ctx.hasUI` 不保证自定义宿主的每个 UI 方法都可调用。例如 class 型 UI 经对象展开包装后，原型上的 `notify` 可能丢失，但 `hasUI` 仍为 true。`spec_impl` 将门禁/诊断进度发送到工具 `onUpdate`，并仅在实际有 callable `notify` 时尝试通知。通知和进度传输失败只影响展示，不中断门禁、不改变 `impl.pass`；审计、提交拦截、命令和启动通知使用同一防护。真实核心异常仍传播，失败门禁仍阻止提交。
+
+这不是自动补齐宿主全部 UI API，也不降低人工核验要求：`spec_attest` 仍需 callable `confirm` 和用户明确同意，缺少确认能力时拒绝且不写入。源码更新不等于运行中 daemon 已采用新版；宿主 owner 需按其加载机制 reload/rebind，spec-flow 不自动重启生产进程。
+
 ### 并行 Git worktree
 
 ```bash
@@ -305,7 +311,7 @@ Legacy 行为：
 ## 自测
 
 ```bash
-npm test                         # unit + adapter fake-Pi integration
+npm test                         # unit + adapter fake-Pi integration / partial-UI real gates
 node tests/e2e/e2e-commit-gate.mjs
 node tests/e2e/e2e-trustworthy-closure.mjs
 node tests/e2e/e2e-spec-discovery.mjs

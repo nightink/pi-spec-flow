@@ -1,0 +1,3 @@
+PASS actual Pi SDK reproduces hasUI=true with notify missing from a prototype-method UI
+PASS actual native spec_impl emits progress and preserves passing/failed real gate evidence without notify
+PASS actual Pi tool pipeline blocks a failed commit, preserves human decline, and surfaces core audit failure without a provider

@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "baseline": "1b2b4069c67073fbe14f005c3598e59827d6c083",
+  "scope": "Six changed product/test/doc files; excludes maintenance journal/issues/archives. Not a full-current audit or historical snapshot rebinding.",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 26025,
+      "sha256": "69a7121fe026069e567c8d58037888d517059773588f5bff6c22844654f4281c",
+      "executable": false
+    },
+    {
+      "path": "adapter-core.mjs",
+      "bytes": 3836,
+      "sha256": "8b77c2f0c6c6f32f8f103612a12bc22cea2895b07e61f9d8fb45cdbdc59396d2",
+      "executable": false
+    },
+    {
+      "path": "adapter-notifications.test.mjs",
+      "bytes": 13905,
+      "sha256": "ce724668aa79b0555c390e42c5661b69f9b002d1525d6e0f9ce1b4a7e16fcab1",
+      "executable": false
+    },
+    {
+      "path": "index.ts",
+      "bytes": 18265,
+      "sha256": "6468347d6ea44d0fc49103c1c170b93c26bc00cb5fadba5d584611621f54d282",
+      "executable": false
+    },
+    {
+      "path": "package.json",
+      "bytes": 1892,
+      "sha256": "676f77b05c7bae6ab19b226339b489159f6c2fbb41b8f691625ef7f1aac9e369",
+      "executable": false
+    },
+    {
+      "path": "tests/smoke/pi-daemon-ui.mjs",
+      "bytes": 9245,
+      "sha256": "6ad678fbe00d9306c8c303d2089082c2ae1a302f0a304e610d266508faed7752",
+      "executable": false
+    }
+  ]
+}

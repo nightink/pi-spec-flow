@@ -1,0 +1,24 @@
+PASS actual Pi SDK reproduces hasUI=true with notify missing from a prototype-method UI
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: {"toolCall":{"type":"toolCall","id":"daemon-ui-fixture/2","name":"spec_impl","arguments":{"id":"S1"}},"result":{"content":[{"type":"text","text":"ctx.ui.notify is not a function"}],"details":{}},"isError":true}
+
+true !== false
+
+    at Object.execute (tests/smoke/pi-daemon-ui.mjs:47:14)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async tests/smoke/pi-daemon-ui.mjs:77:17
+    at async AgentSession._tryExecuteExtensionCommand (file://<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1611:13)
+    at async AgentSession.prompt (file://<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1491:29)
+    at async tests/smoke/pi-daemon-ui.mjs:117:3 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: true,
+  expected: false,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.19.0

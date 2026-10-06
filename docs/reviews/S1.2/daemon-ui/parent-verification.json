@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "kind": "parent-only maintenance; not independent review",
+  "baseline": "1b2b4069c67073fbe14f005c3598e59827d6c083",
+  "governingSpec": "docs/specs/S1.2-trustworthy-gates-and-closure.md",
+  "frontmatterUnchanged": true,
+  "frontmatterBytesUnchanged": true,
+  "frontmatterSha256": "82e48afa1f1db58651c085ffce6e4aacef498a42279828cd46a1f2d222af5879",
+  "contractUnchanged": true,
+  "contractHash": "e370e8c9cd5b83aa65910100a6b16ba6a40d5b874e8d29ea2929143f41ed258f",
+  "historicalRecordConsistencyGaps": [],
+  "unchangedCoreSha256": "c9e26a1fe697c17fe18153a2e3db1c45e06ae8c82ad056c4bc1a4eadbf5b8312",
+  "host": {
+    "node": "v22.19.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "sdkVersion": "1.0.0",
+    "sdkPackage": "<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent"
+  },
+  "sourceDiagnosis": [
+    {
+      "path": "<home>/.pi/agent/extensions/example-app/packages/server/src/runtime/ui-context-adapter.ts",
+      "lines": "24, 107-109",
+      "role": "Prototype notify declaration (read-only)",
+      "bytes": 6378,
+      "sha256": "b4dd6f43ecc8daa4015a12a9a353be77e98a3dba310679721f44fb2970b2a152",
+      "executable": false
+    },
+    {
+      "path": "<home>/.pi/agent/extensions/example-app/packages/server/src/runtime/sdk-primary-runtime.ts",
+      "lines": "256-258",
+      "role": "Instance passed to bindExtensions including rebound sessions (read-only)",
+      "bytes": 22433,
+      "sha256": "ae0700696479d376ab96fabd99ba6c827e096f77419d823ccdc781f87d4cc943",
+      "executable": false
+    },
+    {
+      "path": "<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/runner.js",
+      "lines": "355-368, 404-405",
+      "role": "Actual installed Pi 1.0.0 object-spread/UI-capability boundary (read-only)",
+      "bytes": 52011,
+      "sha256": "7583772d6d29a23c06496b6e0b4764ace220fb4289d5523916323642efa50306",
+      "executable": false
+    }
+  ],
+  "reviewModelCalls": 0,
+  "newRealGrants": 0,
+  "productionDaemonVerified": false,
+  "realSpec70Modified": false,
+  "exampleAppCodeModified": false,
+  "remoteOperation": false,
+  "limitations": [
+    "SDK UI is a disposable prototype-method fixture, not a production example-app daemon",
+    "Synthetic tool issuer/audit precondition are mechanical only, not model or human evidence",
+    "Historical S1.2 audit and done do not cover changed maintenance source",
+    "Source adoption/reload and upstream preservation of other UI methods remain owner actions"
+  ]
+}

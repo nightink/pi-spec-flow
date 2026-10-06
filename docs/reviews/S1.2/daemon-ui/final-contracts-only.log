@@ -1,0 +1,4 @@
+⚠️ 警告:
+  ! S1.1: legacy done spec，仅做只读兼容
+  ! 仅校验 Spec 合同/证据；项目门禁未运行（contracts-only）
+✅ check --ci --contracts-only 通过（项目门禁未运行）

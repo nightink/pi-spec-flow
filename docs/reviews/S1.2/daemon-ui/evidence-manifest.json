@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "baseline": "1b2b4069c67073fbe14f005c3598e59827d6c083",
+  "kind": "Parent verification, pre-fix/final gates and mechanical host acceptance only",
+  "files": [
+    {
+      "path": "pre-fix.log",
+      "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH node --test adapter-notifications.test.mjs",
+      "exitCode": 1,
+      "proves": "14 expected regression failures, before adapter repair; not a passing gate",
+      "bytes": 16707,
+      "sha256": "79be386bf48ea974e003f4fe351e26fdbe81a9035968638ff1ad59ed33e1ef05",
+      "raw_bytes": 16739,
+      "raw_sha256": "fe132725719f4e7abecf0451daa39e9b158f3d4bba18119531d79cc47704dfaa",
+      "normalization": "line-end horizontal whitespace only; no lines removed",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/pre-fix.log"
+    },
+    {
+      "path": "pre-fix-sdk.log",
+      "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH SPECFLOW_PI_SDK=<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent node tests/smoke/pi-daemon-ui.mjs",
+      "exitCode": 1,
+      "proves": "Actual installed Pi SDK native spec_impl returned the exact missing-notify TypeError",
+      "bytes": 1307,
+      "sha256": "c6880edc172938d2c2a3e81c88b6ff0b1501d9376e81e4790099dade1632e9b5",
+      "raw_bytes": 1307,
+      "raw_sha256": "c6880edc172938d2c2a3e81c88b6ff0b1501d9376e81e4790099dade1632e9b5",
+      "normalization": "none",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/pre-fix-sdk.log"
+    },
+    {
+      "path": "targeted.log",
+      "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH node --test adapter-core.test.mjs adapter-notifications.test.mjs",
+      "exitCode": 0,
+      "proves": "27/27; 13 original adapter tests and 14 new partial-UI tests with real core gates",
+      "bytes": 5955,
+      "sha256": "d120271950b00832b63e9babb38511e3810268dc91ef105a9f2598ce5637bc8f",
+      "raw_bytes": 5955,
+      "raw_sha256": "d120271950b00832b63e9babb38511e3810268dc91ef105a9f2598ce5637bc8f",
+      "normalization": "none",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/targeted.log"
+    },
+    {
+      "path": "sdk.log",
+      "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH SPECFLOW_PI_SDK=<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent node tests/smoke/pi-daemon-ui.mjs",
+      "exitCode": 0,
+      "proves": "Actual SDK daemon-shaped fixture passes all three reported acceptance paths",
+      "bytes": 324,
+      "sha256": "de08f5c782f17857711891c1822928f030e806b95cec96268dde8e73ecc720e0",
+      "raw_bytes": 324,
+      "raw_sha256": "de08f5c782f17857711891c1822928f030e806b95cec96268dde8e73ecc720e0",
+      "normalization": "none",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/sdk.log"
+    },
+    {
+      "path": "full-check.log",
+      "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH npm run check",
+      "exitCode": 0,
+      "proves": "183/183, eight E2E groups and contracts-only endpoint; syntax/static parse, not full tsc",
+      "bytes": 42962,
+      "sha256": "fdd2a6c30ae21b41b901f3f420b3337577ed7280748c726fc4233b3d2568eab2",
+      "raw_bytes": 42962,
+      "raw_sha256": "fdd2a6c30ae21b41b901f3f420b3337577ed7280748c726fc4233b3d2568eab2",
+      "normalization": "none",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/full-check.log"
+    },
+    {
+      "path": "pi-smoke.log",
+      "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH SPECFLOW_PI_BIN=<home>/.pi/worktrees/example-app/node_modules/.bin/pi SPECFLOW_PI_SDK=<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent npm run smoke:pi",
+      "exitCode": 0,
+      "proves": "Real CLI/RPC load, native creation/review and daemon-shaped native tool pipeline; zero provider calls",
+      "bytes": 794,
+      "sha256": "5f8d4f40ff0bf2e7d20d05de45fbc30c150ab4d06d74c29ee07b88aab423d40a",
+      "raw_bytes": 794,
+      "raw_sha256": "5f8d4f40ff0bf2e7d20d05de45fbc30c150ab4d06d74c29ee07b88aab423d40a",
+      "normalization": "none",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/pi-smoke.log"
+    },
+    {
+      "path": "final-contracts-only.log",
+      "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH node core.mjs check --ci --contracts-only",
+      "exitCode": 0,
+      "proves": "Final docs-only mother/archival contract consistency; does not run product gates again",
+      "bytes": 206,
+      "sha256": "5e711c231015b02576fa6f6d186572f4d5290c13056e4a25cd29a60a7aa70800",
+      "raw_bytes": 206,
+      "raw_sha256": "5e711c231015b02576fa6f6d186572f4d5290c13056e4a25cd29a60a7aa70800",
+      "normalization": "none",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/final-contracts-only.log"
+    },
+    {
+      "path": "fixture-import-failure.log",
+      "command": "First development attempt at node --test adapter-notifications.test.mjs",
+      "exitCode": 1,
+      "proves": "Test setup mistakenly imported loadProjectProfile from core; fixed to project-profile before final pre-fix reproduction. Not a product defect",
+      "bytes": 1089,
+      "sha256": "ed430321f912e56eec9e703f1f9557fcf757011aba429bfa9eaa098e537b3902",
+      "raw_bytes": 1089,
+      "raw_sha256": "ed430321f912e56eec9e703f1f9557fcf757011aba429bfa9eaa098e537b3902",
+      "normalization": "none",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/fixture-import-failure.log"
+    },
+    {
+      "path": "parent-verification.json",
+      "command": "Parent hash/frontmatter/record comparison and read-only external source hashes",
+      "exitCode": 0,
+      "proves": "Historical mother contract/frontmatter unchanged, gaps=[]; not new current audit",
+      "bytes": 2528,
+      "sha256": "fa0f3a2de72d8834f65a02a194e96ad7716b278c518ebe1eb19835ecf35c930e",
+      "executable": false
+    }
+  ]
+}

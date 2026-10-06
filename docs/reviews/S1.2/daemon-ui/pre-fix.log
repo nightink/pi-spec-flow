@@ -1,0 +1,319 @@
+TAP version 13
+# Subtest: native impl: missing notify does not interrupt real gates or tool progress
+not ok 1 - native impl: missing notify does not interrupt real gates or tool progress
+  ---
+  duration_ms: 401.353375
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:86:3'
+  failureType: 'testCodeFailure'
+  error: 'ctx.ui.notify is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    onGate (file://<tmp>/specflow-partial-ui-eTShzz/index.ts:161:22)
+    runGates (core.mjs:1082:13)
+    implUnlocked (core.mjs:1615:29)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Object.execute (file://<tmp>/specflow-partial-ui-eTShzz/index.ts:156:22)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:88:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: native impl: non-callable notify does not interrupt real gates or tool progress
+not ok 2 - native impl: non-callable notify does not interrupt real gates or tool progress
+  ---
+  duration_ms: 367.62325
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:86:3'
+  failureType: 'testCodeFailure'
+  error: 'ctx.ui.notify is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    onGate (file://<tmp>/specflow-partial-ui-os7oz4/index.ts:161:22)
+    runGates (core.mjs:1082:13)
+    implUnlocked (core.mjs:1615:29)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Object.execute (file://<tmp>/specflow-partial-ui-os7oz4/index.ts:156:22)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:88:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: native impl: absent ui does not interrupt real gates or tool progress
+not ok 3 - native impl: absent ui does not interrupt real gates or tool progress
+  ---
+  duration_ms: 366.496583
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:86:3'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'notify')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    onGate (file://<tmp>/specflow-partial-ui-qhxXbK/index.ts:161:22)
+    runGates (core.mjs:1082:13)
+    implUnlocked (core.mjs:1615:29)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Object.execute (file://<tmp>/specflow-partial-ui-qhxXbK/index.ts:156:22)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:88:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: native impl: throwing notify does not interrupt real gates or tool progress
+not ok 4 - native impl: throwing notify does not interrupt real gates or tool progress
+  ---
+  duration_ms: 360.766333
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:86:3'
+  failureType: 'testCodeFailure'
+  error: 'transport unavailable'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    Object.notify (adapter-notifications.test.mjs:83:61)
+    onGate (file://<tmp>/specflow-partial-ui-GJHeen/index.ts:161:22)
+    runGates (core.mjs:1082:13)
+    implUnlocked (core.mjs:1615:29)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Object.execute (file://<tmp>/specflow-partial-ui-GJHeen/index.ts:156:22)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:88:20)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: native impl: headless does not interrupt real gates or tool progress
+not ok 5 - native impl: headless does not interrupt real gates or tool progress
+  ---
+  duration_ms: 457.416625
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:86:3'
+  failureType: 'testCodeFailure'
+  error: 'gate progress must reach tool updates, not only UI notify'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (adapter-notifications.test.mjs:92:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: native impl: missing notify cannot hide a real failed gate
+not ok 6 - native impl: missing notify cannot hide a real failed gate
+  ---
+  duration_ms: 368.376833
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:96:1'
+  failureType: 'testCodeFailure'
+  error: 'ctx.ui.notify is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    onGate (file://<tmp>/specflow-partial-ui-OSmmhJ/index.ts:161:22)
+    runGates (core.mjs:1082:13)
+    implUnlocked (core.mjs:1615:29)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Object.execute (file://<tmp>/specflow-partial-ui-OSmmhJ/index.ts:156:22)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:99:18)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: native impl: cache diagnostics reach tool progress when notify is unavailable
+not ok 7 - native impl: cache diagnostics reach tool progress when notify is unavailable
+  ---
+  duration_ms: 415.409834
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:108:1'
+  failureType: 'testCodeFailure'
+  error: 'ctx.ui.notify is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    onDiagnostic (file://<tmp>/specflow-partial-ui-jvTgMZ/index.ts:165:35)
+    onDiagnostic (core.mjs:1620:21)
+    runGates (core.mjs:1074:23)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async implUnlocked (core.mjs:1615:23)
+    async Object.execute (file://<tmp>/specflow-partial-ui-jvTgMZ/index.ts:156:22)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:123:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: native impl: throwing tool update transports cannot replace gate evidence
+not ok 8 - native impl: throwing tool update transports cannot replace gate evidence
+  ---
+  duration_ms: 359.998167
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:130:1'
+  failureType: 'testCodeFailure'
+  error: 'ctx.ui.notify is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    onGate (file://<tmp>/specflow-partial-ui-BtX9Im/index.ts:161:22)
+    runGates (core.mjs:1082:13)
+    implUnlocked (core.mjs:1615:29)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Object.execute (file://<tmp>/specflow-partial-ui-BtX9Im/index.ts:156:22)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:132:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: commit interception: unavailable/throwing notify still executes gates and blocks a failure
+not ok 9 - commit interception: unavailable/throwing notify still executes gates and blocks a failure
+  ---
+  duration_ms: 187.353958
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:140:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    notification failure must not cause the interceptor's fail-open exception fallback
+    + actual - expected
+
+    + undefined
+    - true
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (adapter-notifications.test.mjs:145:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: native audit: missing notify reaches core validation, not a UI TypeError or paid spawn
+not ok 10 - native audit: missing notify reaches core validation, not a UI TypeError or paid spawn
+  ---
+  duration_ms: 190.745459
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:159:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /impl is not explicitly passing/. Input:
+
+    'TypeError: ctx.ui.notify is not a function'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'ctx.ui.notify is not a function'
+  name: 'TypeError'
+  stack: |-
+    Object.execute (file://<tmp>/specflow-partial-ui-3DLVOL/index.ts:184:16)
+    Object.call (adapter-notifications.test.mjs:72:83)
+    TestContext.<anonymous> (adapter-notifications.test.mjs:162:26)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:162:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: native commands/startup: all notifications tolerate partial and throwing UI
+not ok 11 - native commands/startup: all notifications tolerate partial and throwing UI
+  ---
+  duration_ms: 186.505292
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:165:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'notify')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    Object.handler (file://<tmp>/specflow-partial-ui-flOgfW/index.ts:322:16)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:170:7)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: native attestation: no callable confirmation stays fail-closed; missing notify alone does not deny a human
+not ok 12 - native attestation: no callable confirmation stays fail-closed; missing notify alone does not deny a human
+  ---
+  duration_ms: 361.596625
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:176:1'
+  failureType: 'testCodeFailure'
+  error: 'ctx.ui.notify is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    onGate (file://<tmp>/specflow-partial-ui-WCcQBI/index.ts:161:22)
+    runGates (core.mjs:1082:13)
+    implUnlocked (core.mjs:1615:29)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Object.execute (file://<tmp>/specflow-partial-ui-WCcQBI/index.ts:156:22)
+    async TestContext.<anonymous> (adapter-notifications.test.mjs:178:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: safe feedback helpers: capability/receiver/caps and sync/async transport failures
+not ok 13 - safe feedback helpers: capability/receiver/caps and sync/async transport failures
+  ---
+  duration_ms: 0.353583
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:203:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + 'undefined'
+    - 'function'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'function'
+  actual: 'undefined'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (adapter-notifications.test.mjs:204:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: adapter source: no direct notify invocation bypasses the capability guard
+not ok 14 - adapter source: no direct notify invocation bypasses the capability guard
+  ---
+  duration_ms: 0.208375
+  type: 'test'
+  location: 'adapter-notifications.test.mjs:224:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    direct calls bypass the presentation capability guard
+
+    13 !== 0
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: 13
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (adapter-notifications.test.mjs:227:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 0
+# fail 14
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4068.321375
