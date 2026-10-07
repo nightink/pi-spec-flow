@@ -1,0 +1,173 @@
+TAP version 13
+# Subtest: repair: versioned lossless known scope observations; legacy normalization stays byte-equivalent
+not ok 1 - repair: versioned lossless known scope observations; legacy normalization stays byte-equivalent
+  ---
+  duration_ms: 1.006334
+  type: 'test'
+  location: 'review-repair.test.mjs:55:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    'fail' !== 'pass'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'pass'
+  actual: 'fail'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (review-repair.test.mjs:60:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: repair: new packet explicitly types scope items and pins prompt/result versions
+not ok 2 - repair: new packet explicitly types scope items and pins prompt/result versions
+  ---
+  duration_ms: 443.918125
+  type: 'test'
+  location: 'review-repair.test.mjs:69:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    undefined !== 2
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (review-repair.test.mjs:71:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: repair: exhausted grant permits explicit derived repair/free replay, not original rewriting or respawn
+not ok 3 - repair: exhausted grant permits explicit derived repair/free replay, not original rewriting or respawn
+  ---
+  duration_ms: 1578.450541
+  type: 'test'
+  location: 'review-repair.test.mjs:76:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'category')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (review-repair.test.mjs:80:34)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: repair: unknown fields, semantic fabrication parameters and incomplete/cancelled sources reject free
+not ok 4 - repair: unknown fields, semantic fabrication parameters and incomplete/cancelled sources reject free
+  ---
+  duration_ms: 1604.537708
+  type: 'test'
+  location: 'review-repair.test.mjs:94:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'repairable')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (review-repair.test.mjs:97:63)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: repair: genuine product FAIL remains FAIL after protocol correction
+not ok 5 - repair: genuine product FAIL remains FAIL after protocol correction
+  ---
+  duration_ms: 1547.608208
+  type: 'test'
+  location: 'review-repair.test.mjs:109:1'
+  failureType: 'testCodeFailure'
+  error: 'Unknown review action'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    review (review-engine.mjs:362:9)
+    TestContext.<anonymous> (review-repair.test.mjs:111:60)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: repair: derived proof rejects tampered source metadata/raw/packet/result and derived bindings
+not ok 6 - repair: derived proof rejects tampered source metadata/raw/packet/result and derived bindings
+  ---
+  duration_ms: 1547.745583
+  type: 'test'
+  location: 'review-repair.test.mjs:117:1'
+  failureType: 'testCodeFailure'
+  error: 'Unknown review action'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    review (review-engine.mjs:362:9)
+    TestContext.<anonymous> (review-repair.test.mjs:118:76)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: repair: full lifecycle protocol error gives actionable free fix, repaired bound proof can attach/attest/done
+not ok 7 - repair: full lifecycle protocol error gives actionable free fix, repaired bound proof can attach/attest/done
+  ---
+  duration_ms: 2617.004166
+  type: 'test'
+  location: 'review-repair.test.mjs:131:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /协议|PROTOCOL|工具/. Input:
+
+    'Spec S1 审计结果: ❌ FAIL\n' +
+      '  sha: c735a8bec54f6a77d7455d2c65c8f9503f48899e\n' +
+      '  impl_hash: a4c9010edbd6\n' +
+      '  criteria:\n' +
+      '    [✓] product\n' +
+      '      code.txt supplied diff\n' +
+      '    [?] 审计 scope_deviations 结构校验\n' +
+      '      scope_deviations 必须是字符串数组（可为空）\n' +
+      '    [✗] verdict 与 criteria 一致性\n' +
+      '      verdict=pass 但至少一个 criterion 不是 pass'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    Spec S1 审计结果: ❌ FAIL
+      sha: c735a8bec54f6a77d7455d2c65c8f9503f48899e
+      impl_hash: a4c9010edbd6
+      criteria:
+        [✓] product
+          code.txt supplied diff
+        [?] 审计 scope_deviations 结构校验
+          scope_deviations 必须是字符串数组（可为空）
+        [✗] verdict 与 criteria 一致性
+          verdict=pass 但至少一个 criterion 不是 pass
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (review-repair.test.mjs:133:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: repair: ordinary proof cannot attach and changed contract/implementation never inherits historical PASS
+not ok 8 - repair: ordinary proof cannot attach and changed contract/implementation never inherits historical PASS
+  ---
+  duration_ms: 2037.599791
+  type: 'test'
+  location: 'review-repair.test.mjs:144:1'
+  failureType: 'testCodeFailure'
+  error: 'Ordinary review cannot execute or attach lifecycle audit jobs'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    review (review-engine.mjs:360:51)
+    TestContext.<anonymous> (review-repair.test.mjs:145:71)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 0
+# fail 8
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11432.114334

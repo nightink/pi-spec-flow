@@ -6,7 +6,8 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { writeFrontmatter } from "../../core.mjs";
-import { reviewStore } from "../../review-storage.mjs";
+import { reviewStore, loadJob, saveJob, digest } from "../../review-storage.mjs";
+import { normalizeReviewResult } from "../../review-engine.mjs";
 const sdkRoot = process.env.SPECFLOW_PI_SDK;
 if (!sdkRoot) throw new Error("Set SPECFLOW_PI_SDK to an already-installed trusted Pi 1.x package; never auto-install");
 const { createAgentSession, DefaultResourceLoader, SettingsManager, SessionManager, ModelRuntime } = await import(pathToFileURL(path.join(sdkRoot, "dist/index.js")).href);
@@ -71,7 +72,27 @@ const factory = (pi) => {
       assert.deepEqual(fs.readFileSync(path.join(cwd, "docs/specs/S1.md")), beforeSpec);
       assert.deepEqual(fs.readFileSync(path.join(store, "jobs", jobId, "job.json")), beforeJob);
       assert.equal(fs.existsSync(path.join(store, "budgets")), false);
-      return { content: [{ type: "text", text: "offline native acceptance" }], details: { creation, prepared, replay, defaulted, status, proposal, rejectedInputs: invalid.length } };
+      // Synthetic completed legacy precondition in a PRIVATE fixture, not a
+      // provider response. Exercise native repair + validation without any model.
+      const seededRaw = { verdict: "pass", criteria: [{ criterion: "mechanical protocol", status: "pass", evidence: "Synthetic fixture only" }],
+        scope_deviations: [{ file: "outside.txt", note: "Synthetic observation only" }] };
+      const retained = loadJob(ctx.cwd, jobId), seededBytes = JSON.stringify(seededRaw);
+      delete retained.job.result_protocol_version; delete retained.job.prompt_version;
+      Object.assign(retained.job, { state: "completed", model_invoked: true, raw_verdict: "pass", raw_sha256: digest(seededBytes), child_input_sha256: retained.job.packet_sha256 });
+      retained.job.result = normalizeReviewResult(seededRaw, retained.job);
+      fs.writeFileSync(path.join(retained.dir, "stdout.txt"), seededBytes, { mode: 0o600 }); saveJob(retained.dir, retained.job);
+      const sourceBytes = fs.readFileSync(path.join(retained.dir, "job.json"));
+      const repaired = await ctx.executeTool("spec_review", { action: "repair", jobId }, { signal });
+      assert.equal(repaired.isError, false, JSON.stringify(repaired));
+      assert.equal(repaired.result.structuredContent.modelInvoked, false);
+      assert.equal(repaired.result.structuredContent.result.verdict, "pass");
+      assert.equal(repaired.result.structuredContent.receipt.recovery.source_job_id, jobId);
+      const denied = await ctx.executeTool("spec_review", { action: "repair", jobId, budgetId: "not-authorized" }, { signal });
+      assert.equal(denied.isError, true);
+      assert.deepEqual(fs.readFileSync(path.join(retained.dir, "job.json")), sourceBytes);
+      assert.deepEqual(fs.readFileSync(path.join(cwd, "docs/specs/S1.md")), beforeSpec);
+      assert.equal(fs.existsSync(path.join(store, "budgets")), false);
+      return { content: [{ type: "text", text: "offline native acceptance" }], details: { creation, prepared, replay, defaulted, status, proposal, repaired, rejectedInputs: invalid.length } };
     } });
   pi.registerCommand("fixture-native", { description: "Invokes real wrapped tool; no model", handler: () => {
     commandPromise = (async () => {
@@ -109,7 +130,7 @@ try {
   currentSession.refreshContext();
   await currentSession.prompt("/fixture-native"); await commandPromise; assert.ok(outcome);
   assert.equal(outcome.details?.rejectedInputs, 10, JSON.stringify(outcome));
-  console.log("PASS native default prepare/proposal/status/skipped run and 10 invalid action/field/ID requests; no grant, charge or executor spawn");
+  console.log("PASS native default prepare/proposal/status/skipped run, retained-output repair and invalid action/repair-budget requests; no grant, charge or executor spawn");
   assert.ok(seen.some((event) => event.type === "tool_execution_start" && event.toolName === "spec_new" && event.parentToolCallId));
   await currentSession.prompt('/spec new {"title":"Command-created draft","prefix":"S"}');
   assert.ok(fs.existsSync(path.join(cwd, "docs/specs/S2-spec.md")));

@@ -72,8 +72,8 @@ const newParameters = Type.Object({
 // Keep action-specific required/forbidden fields enforced by the shared engine;
 // do not drop fields here or a malformed request could become a paid run.
 const reviewParameters = Type.Object({
-  action: Type.Optional(Type.Union([Type.Literal("prepare"), Type.Literal("run"), Type.Literal("status")], {
-    description: "Default prepare. run/status require jobId. Only prepare accepts mode/id/specPath/base/head/previousReview/allowDirty; only run accepts budgetId.",
+  action: Type.Optional(Type.Union([Type.Literal("prepare"), Type.Literal("run"), Type.Literal("status"), Type.Literal("repair")], {
+    description: "Default prepare. run/status/repair require jobId. repair is zero-model, lossless retained-output recovery, with no budget or semantic edits. Only prepare accepts mode/id/specPath/base/head/previousReview/allowDirty; only run accepts budgetId.",
   })),
   mode: Type.Optional(Type.Union([Type.Literal("proposal"), Type.Literal("committed"), Type.Literal("incremental")], { description: "prepare only; default committed" })),
   id: Type.Optional(Type.String({ description: "prepare only; Spec ID or use specPath" })),
@@ -82,7 +82,7 @@ const reviewParameters = Type.Object({
   head: Type.Optional(Type.String({ description: "prepare only; required with base for committed/incremental" })),
   previousReview: Type.Optional(Type.String({ description: "prepare only; prior job for incremental review" })),
   allowDirty: Type.Optional(Type.Boolean({ description: "prepare only; explicitly accept committed-only dirty exclusions" })),
-  jobId: Type.Optional(Type.String({ description: "Required for run/status; forbidden for prepare" })),
+  jobId: Type.Optional(Type.String({ description: "Required for run/status/repair; forbidden for prepare" })),
   budgetId: Type.Optional(Type.String({ description: "run only; existing user-authorized delivery-cycle grant, never a new authorization" })),
 }, { additionalProperties: false });
 
@@ -121,12 +121,16 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerTool({
     name: "spec_review", label: "Spec Review",
-    description: "Read-only isolated proposal/explicit committed hash-diff/incremental review. prepare/status are free; run consumes an existing user-authorized delivery-cycle grant once. Never writes lifecycle audit or closes a Spec.",
-    promptSnippet: "Prepare/run/inspect a sealed, hash-bound independent review without changing Spec lifecycle.",
+    description: "Project-read-only isolated proposal/committed/incremental review. prepare/status/repair are free; repair creates a lossless derived receipt from retained protocol errors without a model call or budget change. run consumes an existing authorized grant. Never writes lifecycle audit or closes a Spec.",
+    promptSnippet: "Prepare/run/inspect or freely repair a retained review protocol error without changing Spec lifecycle.",
     promptGuidelines: ["Discovery/prepare never call a provider. Ask for explicit paid review authorization; this tool cannot grant/reset budgets. Delta PASS does not mean full Spec acceptance."],
     parameters: reviewParameters,
     outputSchema: Type.Object({ version: Type.Integer(), jobId: Type.String(), mode: Type.String(), state: Type.String(),
       modelInvoked: Type.Boolean(), receipt: Type.Any(), packetPath: Type.String(), result: Type.Any(),
+      outputInfo: Type.Optional(Type.Object({ category: Type.String(), code: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+        repairable: Type.Boolean(), rawVerdict: Type.Optional(Type.Any()), productCriteria: Type.Optional(Type.Integer()),
+        compatibilityApplied: Type.Optional(Type.Boolean()), issues: Type.Optional(Type.Array(Type.String())), message: Type.String(),
+        repairInput: Type.Optional(Type.Object({ action: Type.Literal("repair"), jobId: Type.String() }, { additionalProperties: false })) }, { additionalProperties: false })),
       executionInfo: Type.Optional(Type.Object({ action: Type.String(), requestedTimeoutMs: Type.Union([Type.Integer(), Type.Null()]),
         effectiveTimeoutMs: Type.Union([Type.Integer(), Type.Null()]), requestValid: Type.Boolean(),
         timeoutApplied: Type.Boolean(), timeoutIgnored: Type.Boolean(), message: Type.String() }, { additionalProperties: false })) }, { additionalProperties: false }),

@@ -1,0 +1,145 @@
+{
+  "kind": "parent-only maintenance verification; not independent review/normal Spec close",
+  "baseline": "988110bcb6c00771d47ead640dd5090ebfda94bc",
+  "node": "v22.19.0",
+  "platform": "darwin",
+  "arch": "arm64",
+  "targeted": {
+    "tests": 116,
+    "pass": 116
+  },
+  "authority": {
+    "command": "npm run check",
+    "tests": 194,
+    "pass": 194,
+    "e2eGroups": 9
+  },
+  "sdk": {
+    "installed": "trusted Pi 1.0.0",
+    "privateRpc": true,
+    "nativeRepair": true,
+    "daemonAndCommitAndHumanDeclineRegression": true,
+    "allNativeObjectRoots": 9,
+    "actualProviderSerializers": 3,
+    "httpRequests": 0,
+    "syntheticIssuerNotModelReview": true
+  },
+  "mothers": [
+    {
+      "path": "docs/specs/S1.7-unified-review-and-spec-creation.md",
+      "id": "S1.7",
+      "status": "done",
+      "frontmatterBytesUnchanged": true,
+      "frontmatterSha256": "db52966bfa90193f403dd0c191062b83293ee21f030128a707a3ed135f0d630c",
+      "semanticContractUnchanged": true,
+      "contractHash": "958bcca7a2b351cf91e37f7746ee343b99b6a6b3841530e1c675fd605bbcce68",
+      "recordGaps": []
+    },
+    {
+      "path": "docs/specs/S1.2-trustworthy-gates-and-closure.md",
+      "id": "S1.2",
+      "status": "done",
+      "frontmatterBytesUnchanged": true,
+      "frontmatterSha256": "82e48afa1f1db58651c085ffce6e4aacef498a42279828cd46a1f2d222af5879",
+      "semanticContractUnchanged": true,
+      "contractHash": "e370e8c9cd5b83aa65910100a6b16ba6a40d5b874e8d29ea2929143f41ed258f",
+      "recordGaps": []
+    },
+    {
+      "path": "docs/specs/S1.5-project-contract-check-and-shared-action.md",
+      "id": "S1.5",
+      "status": "done",
+      "frontmatterBytesUnchanged": true,
+      "frontmatterSha256": "aa91db7f0c439515f023f2a269daabfe6b10286f3dbd2352c6d6fce87bebe2dd",
+      "semanticContractUnchanged": true,
+      "contractHash": "2ac917797f9a2416f67cc95e3310264fb9dd7609cfbd8b0ca78730af0ad9f55d",
+      "recordGaps": []
+    }
+  ],
+  "legacyCoreNormalizerByteUnchanged": true,
+  "sharedExecutionStorageWorkerAdapterProfileUnchanged": [
+    "review-worker.mjs",
+    "review-storage.mjs",
+    "review-execution.mjs",
+    "adapter-core.mjs",
+    ".spec-flow.json"
+  ],
+  "unrelatedHtmlPreserved": {
+    "path": "spec-flow-autonomous-delivery-mechanism.html",
+    "sha256": "15df46c39aafe8d75282c3938b280b1a6e4da0159d36004366bef06a6ff3e08c",
+    "notTrackedOrModified": true
+  },
+  "realRetainedResponse": {
+    "classification": "parent-only formatter acceptance on retained genuine response; not a new model review or lifecycle acceptance",
+    "sourceJobId": "62ebfd2f8b75c717b2ed717f00223f83",
+    "derivedJobId": "76fadc25a3f57cc7a5f61db2a5424066",
+    "sourceState": "completed",
+    "sourceRawVerdict": "pass",
+    "originalNormalizedVerdict": "fail",
+    "derivedVerdict": "pass",
+    "criteria": 11,
+    "criteriaAllPass": true,
+    "scopeObservations": 4,
+    "scopeRoundTripLossless": true,
+    "findingsUnchanged": true,
+    "explicitBlocking": 0,
+    "modelInvoked": false,
+    "additionalModelCalls": 0,
+    "additionalCharge": 0,
+    "budget": {
+      "id": "spec70-72-cycle-20261007",
+      "calls": 2,
+      "used": 2
+    },
+    "recovery": {
+      "version": 1,
+      "recipe": "scope-file-note/v1",
+      "source_job_id": "62ebfd2f8b75c717b2ed717f00223f83",
+      "source_job_sha256": "ca7b28aa74097e13102f55eb4ff0240c6752f0698bf328e8e651dbf52de2ba2b",
+      "source_result_sha256": "188e3b6e9e9de9395a178a8aeb021f17d7df4f3cf5ae1852afb75d99ec1788e4"
+    },
+    "bindingsUnchanged": true,
+    "executionAndUsageUnchanged": true,
+    "packetSha256": "4cf405df677cab07d6c3ec51d60367741630ef9119ec5893e848c00e5423bc39",
+    "rawSha256": "ab264ecafeb5604158d05805dbc6bf314e210d871745324d55b92dc3562a7224",
+    "sourceAndBudgetAndSpecHashes": {
+      "<home>/.pi/agent/extensions/example-app/.git/spec-flow/review-v1/jobs/62ebfd2f8b75c717b2ed717f00223f83/job.json": "ca7b28aa74097e13102f55eb4ff0240c6752f0698bf328e8e651dbf52de2ba2b",
+      "<home>/.pi/agent/extensions/example-app/.git/spec-flow/review-v1/jobs/62ebfd2f8b75c717b2ed717f00223f83/packet.md": "4cf405df677cab07d6c3ec51d60367741630ef9119ec5893e848c00e5423bc39",
+      "<home>/.pi/agent/extensions/example-app/.git/spec-flow/review-v1/jobs/62ebfd2f8b75c717b2ed717f00223f83/stdout.txt": "ab264ecafeb5604158d05805dbc6bf314e210d871745324d55b92dc3562a7224",
+      "<home>/.pi/agent/extensions/example-app/.git/spec-flow/review-v1/budgets/spec70-72-cycle-20261007.json": "353dbc9d2d75e08f4f1701c1893e6d211325901d1fc01d6ed061f04f22fe8444",
+      "<home>/.pi/agent/extensions/example-app/specs/70.recoverable-session-archive.md": "6615f83bdb156a475522bf940b58af2e26b17a092b524496e44448d0b622c4c9"
+    },
+    "originalJobGrantAndSpecBytesUnchanged": true,
+    "derivedFiles": {
+      "job.json": {
+        "sha256": "1f5fbd0fb377861c4c2e69b211fdce1608c13715850ac7ba9d28a24226c0ec8f",
+        "mode": 384
+      },
+      "packet.md": {
+        "sha256": "4cf405df677cab07d6c3ec51d60367741630ef9119ec5893e848c00e5423bc39",
+        "mode": 384
+      },
+      "stdout.txt": {
+        "sha256": "ab264ecafeb5604158d05805dbc6bf314e210d871745324d55b92dc3562a7224",
+        "mode": 384
+      }
+    },
+    "currentCheckout": {
+      "contractMatchesSource": false,
+      "implSnapshotMatchesSource": false
+    },
+    "lifecycleAttachAttempted": false,
+    "productGatesRun": false,
+    "humanEvidenceWritten": false,
+    "productionSessionOrDaemonTouched": false,
+    "originalsNotMigrated": true
+  },
+  "independentReviewOfNewCode": false,
+  "newRealBudget": false,
+  "newModelCalls": 0,
+  "productionAdoption": false,
+  "productionSessionMutation": false,
+  "productGateOrAuditAttachOrAttestDoneOnexample-app": false,
+  "installedSdkOrGlobalSkillMutation": false,
+  "remoteWrites": false
+}

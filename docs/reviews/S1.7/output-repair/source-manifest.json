@@ -1,0 +1,51 @@
+{
+  "kind": "changed-product-source-manifest; not a full-current audit",
+  "baseline": "988110bcb6c00771d47ead640dd5090ebfda94bc",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 29148,
+      "sha256": "8340b4c3ced4c573e31a070b9299413c1c16a9c45409f6425d2dc8a76595f37a"
+    },
+    {
+      "path": "core.mjs",
+      "bytes": 119025,
+      "sha256": "7d19d451f6bf44a29f622a96e77be8763edc607a70053e752941d7d1142ffdb0"
+    },
+    {
+      "path": "core.test.mjs",
+      "bytes": 46750,
+      "sha256": "2453368c0c8050a588dd785b30917d095b70b43839a530fc9c78cc69bc659263"
+    },
+    {
+      "path": "index.ts",
+      "bytes": 19962,
+      "sha256": "5ebe468393308ce9b9c8b638bef4f3aa033492cf40511f08602cb5a118987c38"
+    },
+    {
+      "path": "package.json",
+      "bytes": 1995,
+      "sha256": "6221c1a84f70d2b2dc2c655065d85552629cd49102c833807b10624865c85d44"
+    },
+    {
+      "path": "review-engine.mjs",
+      "bytes": 36981,
+      "sha256": "1875254bde4fde6ec7552854dfdb960cfb830d492b988459433ea7dd7ded8cd4"
+    },
+    {
+      "path": "review-repair.test.mjs",
+      "bytes": 14274,
+      "sha256": "479e355cf4ceea3f5d20e3bde77cad309128580d09f3b017104c6626e46428e8"
+    },
+    {
+      "path": "tests/e2e/e2e-review-repair.mjs",
+      "bytes": 8729,
+      "sha256": "cb73dd9cc9762d07f4d90db36686acba49737ebfedaba4dd2e0528d5f02beea5"
+    },
+    {
+      "path": "tests/smoke/pi-native-review.mjs",
+      "bytes": 12227,
+      "sha256": "ed2508927a5ce90745fc5bb6796240fbae18dc95270d6877b05ad7eeca65a32a"
+    }
+  ]
+}

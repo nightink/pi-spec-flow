@@ -1,0 +1,136 @@
+{
+  "kind": "source-bound parent evidence, with private exact log originals",
+  "baseline": "988110bcb6c00771d47ead640dd5090ebfda94bc",
+  "sourceManifestSha256": "4b976d671896b953c6e704288822296e6ec742ef4bfc55e93503aff99c05c105",
+  "files": [
+    {
+      "path": "pre-fix.log",
+      "command": "node --test review-repair.test.mjs (baseline: 8 intended failures)",
+      "exitCode": 1,
+      "bytes": 7636,
+      "sha256": "f9a4cea651f88653184a01f748c4e1035a4749b6cfc171344acebbddd4fccc1a",
+      "normalization": "line-end horizontal whitespace only; no lines deleted",
+      "original": {
+        "bytes": 7660,
+        "sha256": "eea97731f0b7784f4e5187571c7bad63658112ccd8358f794675fe698b84285a",
+        "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/pre-fix.log"
+      }
+    },
+    {
+      "path": "sync-api-regression.log",
+      "command": "development node --test review-repair.test.mjs review-creation.test.mjs core.test.mjs (async attest regression; 112/114; corrected, not final gate)",
+      "exitCode": 1,
+      "bytes": 24136,
+      "sha256": "78411c35ef816dd57ca1d3a3639d6e8cbd541bb0aea3e97a962b259759fb57e3",
+      "normalization": "none",
+      "original": {
+        "bytes": 24136,
+        "sha256": "78411c35ef816dd57ca1d3a3639d6e8cbd541bb0aea3e97a962b259759fb57e3",
+        "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/sync-api-regression.log"
+      }
+    },
+    {
+      "path": "targeted.log",
+      "command": "node --test review-repair.test.mjs review-creation.test.mjs core.test.mjs",
+      "exitCode": 0,
+      "bytes": 22980,
+      "sha256": "78087a46339234a038ca7e7f736c47d4e18e75fc70b9839f0f0992e2f5c2246f",
+      "normalization": "none",
+      "original": {
+        "bytes": 22980,
+        "sha256": "78087a46339234a038ca7e7f736c47d4e18e75fc70b9839f0f0992e2f5c2246f",
+        "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/targeted.log"
+      }
+    },
+    {
+      "path": "cli.log",
+      "command": "node tests/e2e/e2e-review-repair.mjs",
+      "exitCode": 0,
+      "bytes": 450,
+      "sha256": "3f8666925ef1b327839ce467d112b9a02ecb4d484327fc02a0e95b01f3256683",
+      "normalization": "none",
+      "original": {
+        "bytes": 450,
+        "sha256": "3f8666925ef1b327839ce467d112b9a02ecb4d484327fc02a0e95b01f3256683",
+        "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/cli.log"
+      }
+    },
+    {
+      "path": "native.log",
+      "command": "trusted private Pi SDK: node tests/smoke/pi-native-review.mjs",
+      "exitCode": 0,
+      "bytes": 288,
+      "sha256": "cb214de418534044799dcca477af732d6ecdce2775b1b00d83907bc65ea94773",
+      "normalization": "none",
+      "original": {
+        "bytes": 288,
+        "sha256": "cb214de418534044799dcca477af732d6ecdce2775b1b00d83907bc65ea94773",
+        "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/native.log"
+      }
+    },
+    {
+      "path": "full-check.log",
+      "command": "npm run check (Node22)",
+      "exitCode": 0,
+      "bytes": 46244,
+      "sha256": "efe011ab0e1c62ba58d5587127af667a47fd7d26b89caff602acf2471526d678",
+      "normalization": "none",
+      "original": {
+        "bytes": 46244,
+        "sha256": "efe011ab0e1c62ba58d5587127af667a47fd7d26b89caff602acf2471526d678",
+        "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/full-check.log"
+      }
+    },
+    {
+      "path": "pi-smoke.log",
+      "command": "npm run smoke:pi (trusted private CLI/SDK; offline)",
+      "exitCode": 0,
+      "bytes": 1567,
+      "sha256": "ecf1f03d378a59c9caeb72bd77ab11c544452a279f869bd869c8fd556be476de",
+      "normalization": "none",
+      "original": {
+        "bytes": 1567,
+        "sha256": "ecf1f03d378a59c9caeb72bd77ab11c544452a279f869bd869c8fd556be476de",
+        "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/pi-smoke.log"
+      }
+    },
+    {
+      "path": "real-retained-response.log",
+      "command": "trusted core.mjs review --json action=repair; actual source job 62ebfd2f8b75c717b2ed717f00223f83; no audit attach",
+      "exitCode": 0,
+      "bytes": 310,
+      "sha256": "9c240d586157154104a2aa0163a9186e9d6b1fdcb0578a264a6b9b3775c19434",
+      "normalization": "none",
+      "original": {
+        "bytes": 310,
+        "sha256": "9c240d586157154104a2aa0163a9186e9d6b1fdcb0578a264a6b9b3775c19434",
+        "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/real-retained-response.log"
+      }
+    },
+    {
+      "path": "final-contracts-only.log",
+      "command": "node core.mjs check --ci --contracts-only (not a project gate)",
+      "exitCode": 0,
+      "bytes": 206,
+      "sha256": "5e711c231015b02576fa6f6d186572f4d5290c13056e4a25cd29a60a7aa70800",
+      "normalization": "none",
+      "original": {
+        "bytes": 206,
+        "sha256": "5e711c231015b02576fa6f6d186572f4d5290c13056e4a25cd29a60a7aa70800",
+        "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/final-contracts-only.log"
+      }
+    },
+    {
+      "path": "real-retained-response.json",
+      "bytes": 2908,
+      "sha256": "95c881c146aaf0d2935422a781326d39f46e63332817d00fb23207fe2ecf768c",
+      "classification": "real retained-response parent formatter verification; no new model call or current lifecycle acceptance"
+    },
+    {
+      "path": "parent-verification.json",
+      "bytes": 5731,
+      "sha256": "bec0a8947c68b243efeea64938e7bb04c84c1be4155f36fd6e692d20c30c602e",
+      "classification": "parent-only source/history/budget/retained-response/acceptance verification"
+    }
+  ]
+}

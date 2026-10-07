@@ -1,0 +1,2 @@
+PASS native default prepare/proposal/status/skipped run, retained-output repair and invalid action/repair-budget requests; no grant, charge or executor spawn
+PASS trusted Pi 1.x discovers typed tools and calls them through ctx.executeTool + handled commands, no provider/production state

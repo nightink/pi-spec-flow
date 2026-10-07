@@ -1,0 +1,2 @@
+PASS actual retained Spec70 CLI repair: derived=76fadc25a3f57cc7a5f61db2a5424066; 11/11 PASS, 4 lossless observations; original FAIL intact; grant still 2/2; zero model calls/charge, no lifecycle attach
+Current checkout contract matches=false, snapshot matches=false; not an automatic current Spec70 approval.

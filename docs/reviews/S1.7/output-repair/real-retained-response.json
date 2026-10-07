@@ -1,0 +1,65 @@
+{
+  "classification": "parent-only formatter acceptance on retained genuine response; not a new model review or lifecycle acceptance",
+  "sourceJobId": "62ebfd2f8b75c717b2ed717f00223f83",
+  "derivedJobId": "76fadc25a3f57cc7a5f61db2a5424066",
+  "sourceState": "completed",
+  "sourceRawVerdict": "pass",
+  "originalNormalizedVerdict": "fail",
+  "derivedVerdict": "pass",
+  "criteria": 11,
+  "criteriaAllPass": true,
+  "scopeObservations": 4,
+  "scopeRoundTripLossless": true,
+  "findingsUnchanged": true,
+  "explicitBlocking": 0,
+  "modelInvoked": false,
+  "additionalModelCalls": 0,
+  "additionalCharge": 0,
+  "budget": {
+    "id": "spec70-72-cycle-20261007",
+    "calls": 2,
+    "used": 2
+  },
+  "recovery": {
+    "version": 1,
+    "recipe": "scope-file-note/v1",
+    "source_job_id": "62ebfd2f8b75c717b2ed717f00223f83",
+    "source_job_sha256": "ca7b28aa74097e13102f55eb4ff0240c6752f0698bf328e8e651dbf52de2ba2b",
+    "source_result_sha256": "188e3b6e9e9de9395a178a8aeb021f17d7df4f3cf5ae1852afb75d99ec1788e4"
+  },
+  "bindingsUnchanged": true,
+  "executionAndUsageUnchanged": true,
+  "packetSha256": "4cf405df677cab07d6c3ec51d60367741630ef9119ec5893e848c00e5423bc39",
+  "rawSha256": "ab264ecafeb5604158d05805dbc6bf314e210d871745324d55b92dc3562a7224",
+  "sourceAndBudgetAndSpecHashes": {
+    "<home>/.pi/agent/extensions/example-app/.git/spec-flow/review-v1/jobs/62ebfd2f8b75c717b2ed717f00223f83/job.json": "ca7b28aa74097e13102f55eb4ff0240c6752f0698bf328e8e651dbf52de2ba2b",
+    "<home>/.pi/agent/extensions/example-app/.git/spec-flow/review-v1/jobs/62ebfd2f8b75c717b2ed717f00223f83/packet.md": "4cf405df677cab07d6c3ec51d60367741630ef9119ec5893e848c00e5423bc39",
+    "<home>/.pi/agent/extensions/example-app/.git/spec-flow/review-v1/jobs/62ebfd2f8b75c717b2ed717f00223f83/stdout.txt": "ab264ecafeb5604158d05805dbc6bf314e210d871745324d55b92dc3562a7224",
+    "<home>/.pi/agent/extensions/example-app/.git/spec-flow/review-v1/budgets/spec70-72-cycle-20261007.json": "353dbc9d2d75e08f4f1701c1893e6d211325901d1fc01d6ed061f04f22fe8444",
+    "<home>/.pi/agent/extensions/example-app/specs/70.recoverable-session-archive.md": "6615f83bdb156a475522bf940b58af2e26b17a092b524496e44448d0b622c4c9"
+  },
+  "originalJobGrantAndSpecBytesUnchanged": true,
+  "derivedFiles": {
+    "job.json": {
+      "sha256": "1f5fbd0fb377861c4c2e69b211fdce1608c13715850ac7ba9d28a24226c0ec8f",
+      "mode": 384
+    },
+    "packet.md": {
+      "sha256": "4cf405df677cab07d6c3ec51d60367741630ef9119ec5893e848c00e5423bc39",
+      "mode": 384
+    },
+    "stdout.txt": {
+      "sha256": "ab264ecafeb5604158d05805dbc6bf314e210d871745324d55b92dc3562a7224",
+      "mode": 384
+    }
+  },
+  "currentCheckout": {
+    "contractMatchesSource": false,
+    "implSnapshotMatchesSource": false
+  },
+  "lifecycleAttachAttempted": false,
+  "productGatesRun": false,
+  "humanEvidenceWritten": false,
+  "productionSessionOrDaemonTouched": false,
+  "originalsNotMigrated": true
+}

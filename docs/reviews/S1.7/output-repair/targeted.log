@@ -1,0 +1,707 @@
+TAP version 13
+# ✅ All tests defined
+# Subtest: frontmatter: parse and write roundtrip
+ok 1 - frontmatter: parse and write roundtrip
+  ---
+  duration_ms: 2.944834
+  type: 'test'
+  ...
+# Subtest: frontmatter: missing returns null
+ok 2 - frontmatter: missing returns null
+  ---
+  duration_ms: 0.066833
+  type: 'test'
+  ...
+# Subtest: status line: extract and update
+ok 3 - status line: extract and update
+  ---
+  duration_ms: 0.232083
+  type: 'test'
+  ...
+# Subtest: status line: update preserves note
+ok 4 - status line: update preserves note
+  ---
+  duration_ms: 0.06975
+  type: 'test'
+  ...
+# Subtest: status line: update replaces note when new note provided
+ok 5 - status line: update replaces note when new note provided
+  ---
+  duration_ms: 0.05425
+  type: 'test'
+  ...
+# Subtest: status line: update without note on line without note
+ok 6 - status line: update without note on line without note
+  ---
+  duration_ms: 0.04925
+  type: 'test'
+  ...
+# Subtest: drift: no drift when body matches frontmatter
+ok 7 - drift: no drift when body matches frontmatter
+  ---
+  duration_ms: 0.210958
+  type: 'test'
+  ...
+# Subtest: drift: detect mismatch
+ok 8 - drift: detect mismatch
+  ---
+  duration_ms: 0.152375
+  type: 'test'
+  ...
+# Subtest: drift: ignore parenthetical notes
+ok 9 - drift: ignore parenthetical notes
+  ---
+  duration_ms: 0.277375
+  type: 'test'
+  ...
+# Subtest: drift: ignore emoji prefix
+ok 10 - drift: ignore emoji prefix
+  ---
+  duration_ms: 0.306625
+  type: 'test'
+  ...
+# Subtest: config: detect gates
+ok 11 - config: detect gates
+  ---
+  duration_ms: 1.213375
+  type: 'test'
+  ...
+# Subtest: config: degrade gracefully when no config
+ok 12 - config: degrade gracefully when no config
+  ---
+  duration_ms: 0.478833
+  type: 'test'
+  ...
+# Subtest: migrate-alloc: increment from last
+ok 13 - migrate-alloc: increment from last
+  ---
+  duration_ms: 1.183334
+  type: 'test'
+  ...
+# Subtest: migrate-alloc: reject when no directory
+ok 14 - migrate-alloc: reject when no directory
+  ---
+  duration_ms: 0.568083
+  type: 'test'
+  ...
+# Subtest: attest: reject short note
+ok 15 - attest: reject short note
+  ---
+  duration_ms: 14.740292
+  type: 'test'
+  ...
+# Subtest: attest: accept valid note and bind both hashes
+ok 16 - attest: accept valid note and bind both hashes
+  ---
+  duration_ms: 2552.80025
+  type: 'test'
+  ...
+# Subtest: done: list gaps when incomplete
+ok 17 - done: list gaps when incomplete
+  ---
+  duration_ms: 14.351833
+  type: 'test'
+  ...
+# Subtest: done: accepts hash-bound evidence from impl.repo (external repo)
+ok 18 - done: accepts hash-bound evidence from impl.repo (external repo)
+  ---
+  duration_ms: 2646.264084
+  type: 'test'
+  ...
+# Subtest: done: reject when tracked or untracked implementation changes after audit
+ok 19 - done: reject when tracked or untracked implementation changes after audit
+  ---
+  duration_ms: 4681.772333
+  type: 'test'
+  ...
+# Subtest: check --ci keeps v2 done historical: no live snapshot or current evidence-file recheck
+ok 20 - check --ci keeps v2 done historical: no live snapshot or current evidence-file recheck
+  ---
+  duration_ms: 2589.051125
+  type: 'test'
+  ...
+# Subtest: done: ledger includes bound impl and audit summary
+ok 21 - done: ledger includes bound impl and audit summary
+  ---
+  duration_ms: 2443.344333
+  type: 'test'
+  ...
+# Subtest: done: verdict=pass with a failing criterion is rejected
+ok 22 - done: verdict=pass with a failing criterion is rejected
+  ---
+  duration_ms: 2333.030625
+  type: 'test'
+  ...
+# Subtest: spec discovery: scans docs/project singular and plural directories without recursion
+ok 23 - spec discovery: scans docs/project singular and plural directories without recursion
+  ---
+  duration_ms: 2.999542
+  type: 'test'
+  ...
+# Subtest: spec discovery: ignores a candidate symlink that escapes the project
+ok 24 - spec discovery: ignores a candidate symlink that escapes the project
+  ---
+  duration_ms: 0.822791
+  type: 'test'
+  ...
+# Subtest: spec discovery: duplicate IDs fail closed instead of selecting one directory
+ok 25 - spec discovery: duplicate IDs fail closed instead of selecting one directory
+  ---
+  duration_ms: 1.624375
+  type: 'test'
+  ...
+# Subtest: board: show managed and unmanaged specs
+ok 26 - board: show managed and unmanaged specs
+  ---
+  duration_ms: 0.681583
+  type: 'test'
+  ...
+# Subtest: evidence: check --ci detects missing e2e file
+ok 27 - evidence: check --ci detects missing e2e file
+  ---
+  duration_ms: 1.081167
+  type: 'test'
+  ...
+# Subtest: isCommitCommand: git -C and subshell forms match (S1.1)
+ok 28 - isCommitCommand: git -C and subshell forms match (S1.1)
+  ---
+  duration_ms: 0.261
+  type: 'test'
+  ...
+# Subtest: parseCommitTargetRepo: cd / -C chains resolve to target dir (S1.1)
+ok 29 - parseCommitTargetRepo: cd / -C chains resolve to target dir (S1.1)
+  ---
+  duration_ms: 0.587625
+  type: 'test'
+  ...
+# Subtest: resolveCommitRepo: confirms via git rev-parse --show-toplevel (S1.1)
+ok 30 - resolveCommitRepo: confirms via git rev-parse --show-toplevel (S1.1)
+  ---
+  duration_ms: 79.647625
+  type: 'test'
+  ...
+# Subtest: commitGateDecision: external repo without gates → allow (S1.1)
+ok 31 - commitGateDecision: external repo without gates → allow (S1.1)
+  ---
+  duration_ms: 72.07925
+  type: 'test'
+  ...
+# Subtest: commitGateDecision: block reason includes the repo path (S1.1 audit)
+ok 32 - commitGateDecision: block reason includes the repo path (S1.1 audit)
+  ---
+  duration_ms: 187.946
+  type: 'test'
+  ...
+# Subtest: commitGateDecision: unresolved target falls back to session gating (S1.1 audit)
+ok 33 - commitGateDecision: unresolved target falls back to session gating (S1.1 audit)
+  ---
+  duration_ms: 133.4895
+  type: 'test'
+  ...
+# Subtest: appendCommitLedger: writes to target repo with targetRepo field (S1.1 audit)
+ok 34 - appendCommitLedger: writes to target repo with targetRepo field (S1.1 audit)
+  ---
+  duration_ms: 56.643458
+  type: 'test'
+  ...
+# Subtest: appendCommitLedger: unresolved target → session fallback with ledgerFallback (S1.1 audit)
+ok 35 - appendCommitLedger: unresolved target → session fallback with ledgerFallback (S1.1 audit)
+  ---
+  duration_ms: 0.310291
+  type: 'test'
+  ...
+# Subtest: commitGateDecision: external repo WITH gates runs ITS gates (S1.1)
+ok 36 - commitGateDecision: external repo WITH gates runs ITS gates (S1.1)
+  ---
+  duration_ms: 167.13675
+  type: 'test'
+  ...
+# Subtest: commitGateDecision: external repo gates red → block with repo context (S1.1)
+ok 37 - commitGateDecision: external repo gates red → block with repo context (S1.1)
+  ---
+  duration_ms: 192.785833
+  type: 'test'
+  ...
+# Subtest: bypass: -C form recognized (S1.1)
+ok 38 - bypass: -C form recognized (S1.1)
+  ---
+  duration_ms: 0.103
+  type: 'test'
+  ...
+# Subtest: bypass: env prefix to git commit is recognized
+ok 39 - bypass: env prefix to git commit is recognized
+  ---
+  duration_ms: 0.038958
+  type: 'test'
+  ...
+# Subtest: bypass: after separator is recognized
+ok 40 - bypass: after separator is recognized
+  ---
+  duration_ms: 0.029208
+  type: 'test'
+  ...
+# Subtest: bypass: substring in commit message is NOT recognized
+ok 41 - bypass: substring in commit message is NOT recognized
+  ---
+  duration_ms: 0.024209
+  type: 'test'
+  ...
+# Subtest: bypass: no bypass var is not recognized
+ok 42 - bypass: no bypass var is not recognized
+  ---
+  duration_ms: 0.02275
+  type: 'test'
+  ...
+# Subtest: e2e parse: all PASS exit0 → pass
+ok 43 - e2e parse: all PASS exit0 → pass
+  ---
+  duration_ms: 0.0705
+  type: 'test'
+  ...
+# Subtest: e2e parse: PASS + FAIL lines → fail
+ok 44 - e2e parse: PASS + FAIL lines → fail
+  ---
+  duration_ms: 0.029417
+  type: 'test'
+  ...
+# Subtest: e2e parse: only FAIL → fail
+ok 45 - e2e parse: only FAIL → fail
+  ---
+  duration_ms: 0.024083
+  type: 'test'
+  ...
+# Subtest: e2e parse: no PASS no FAIL → fail
+ok 46 - e2e parse: no PASS no FAIL → fail
+  ---
+  duration_ms: 0.024791
+  type: 'test'
+  ...
+# Subtest: e2e parse: PASS must be at line start
+ok 47 - e2e parse: PASS must be at line start
+  ---
+  duration_ms: 0.0225
+  type: 'test'
+  ...
+# Subtest: impl: e2e with FAIL lines in output is detected as failure
+ok 48 - impl: e2e with FAIL lines in output is detected as failure
+  ---
+  duration_ms: 764.615084
+  type: 'test'
+  ...
+# Subtest: impl: e2e with all PASS lines passes
+ok 49 - impl: e2e with all PASS lines passes
+  ---
+  duration_ms: 750.477916
+  type: 'test'
+  ...
+# Subtest: impl: e2e with non-zero exit is failure
+ok 50 - impl: e2e with non-zero exit is failure
+  ---
+  duration_ms: 761.302292
+  type: 'test'
+  ...
+# Subtest: impl: missing and path-traversal e2e evidence fail closed
+ok 51 - impl: missing and path-traversal e2e evidence fail closed
+  ---
+  duration_ms: 1473.462167
+  type: 'test'
+  ...
+# Subtest: audit: pass result caches only on unchanged implementation and contract hashes
+ok 52 - audit: pass result caches only on unchanged implementation and contract hashes
+  ---
+  duration_ms: 2913.924333
+  type: 'test'
+  ...
+# Subtest: audit: failed job is never respawned; explicit re-impl permits a new charged review
+ok 53 - audit: failed job is never respawned; explicit re-impl permits a new charged review
+  ---
+  duration_ms: 4520.830375
+  type: 'test'
+  ...
+# Subtest: audit: subprocess failure persists fail/unverifiable criteria
+ok 54 - audit: subprocess failure persists fail/unverifiable criteria
+  ---
+  duration_ms: 2318.585917
+  type: 'test'
+  ...
+# Subtest: buildAuditorArgs: returns @file arg, file contains prompt, cleanup works
+ok 55 - buildAuditorArgs: returns @file arg, file contains prompt, cleanup works
+  ---
+  duration_ms: 0.649292
+  type: 'test'
+  ...
+# Subtest: buildAuditorArgs: includes --model when model is provided
+ok 56 - buildAuditorArgs: includes --model when model is provided
+  ---
+  duration_ms: 0.340166
+  type: 'test'
+  ...
+# Subtest: buildAuditorArgs: preserves backticks, ${}, $(), double quotes in prompt file
+ok 57 - buildAuditorArgs: preserves backticks, ${}, $(), double quotes in prompt file
+  ---
+  duration_ms: 0.559917
+  type: 'test'
+  ...
+# Subtest: buildAuditorArgs: returns a new array each call (no shared mutation)
+ok 58 - buildAuditorArgs: returns a new array each call (no shared mutation)
+  ---
+  duration_ms: 0.717375
+  type: 'test'
+  ...
+# Subtest: buildAuditorArgs: long prompt over argv limit goes to file
+ok 59 - buildAuditorArgs: long prompt over argv limit goes to file
+  ---
+  duration_ms: 0.686375
+  type: 'test'
+  ...
+# Subtest: nextStep: impl.at empty → spec_impl
+ok 60 - nextStep: impl.at empty → spec_impl
+  ---
+  duration_ms: 1.219792
+  type: 'test'
+  ...
+# Subtest: nextStep: missing proposal approval is surfaced before implementation
+ok 61 - nextStep: missing proposal approval is surfaced before implementation
+  ---
+  duration_ms: 0.86625
+  type: 'test'
+  ...
+# Subtest: nextStep: impl pass, no audit → spec_audit
+ok 62 - nextStep: impl pass, no audit → spec_audit
+  ---
+  duration_ms: 0.502792
+  type: 'test'
+  ...
+# Subtest: nextStep: impl has gate failure → fix impl
+ok 63 - nextStep: impl has gate failure → fix impl
+  ---
+  duration_ms: 0.468417
+  type: 'test'
+  ...
+# Subtest: nextStep: audit verdict fail → fix findings
+ok 64 - nextStep: audit verdict fail → fix findings
+  ---
+  duration_ms: 0.572292
+  type: 'test'
+  ...
+# Subtest: nextStep: stale audit binding → rerun audit
+ok 65 - nextStep: stale audit binding → rerun audit
+  ---
+  duration_ms: 2127.187125
+  type: 'test'
+  ...
+# Subtest: nextStep: all bound evidence green → spec_done
+ok 66 - nextStep: all bound evidence green → spec_done
+  ---
+  duration_ms: 2059.746792
+  type: 'test'
+  ...
+# Subtest: nextStep: board stays record-only; done owns live snapshot validation
+ok 67 - nextStep: board stays record-only; done owns live snapshot validation
+  ---
+  duration_ms: 2352.225958
+  type: 'test'
+  ...
+# Subtest: renderBoard: empty project → empty string
+ok 68 - renderBoard: empty project → empty string
+  ---
+  duration_ms: 0.398167
+  type: 'test'
+  ...
+# Subtest: renderBoard: shows status, impl/audit/attest, and accurate next step
+ok 69 - renderBoard: shows status, impl/audit/attest, and accurate next step
+  ---
+  duration_ms: 2285.792
+  type: 'test'
+  ...
+# Subtest: renderBoard: drift detected on mismatched status line
+ok 70 - renderBoard: drift detected on mismatched status line
+  ---
+  duration_ms: 0.78975
+  type: 'test'
+  ...
+# Subtest: renderSpecDetail: not found → null
+ok 71 - renderSpecDetail: not found → null
+  ---
+  duration_ms: 0.561041
+  type: 'test'
+  ...
+# Subtest: renderSpecDetail: unmanaged → warning line
+ok 72 - renderSpecDetail: unmanaged → warning line
+  ---
+  duration_ms: 0.427458
+  type: 'test'
+  ...
+# Subtest: renderSpecDetail: shows review/deps/impl/audit/attest lines
+ok 73 - renderSpecDetail: shows review/deps/impl/audit/attest lines
+  ---
+  duration_ms: 69.782042
+  type: 'test'
+  ...
+# Subtest: parseVerdictJson: handles \\s in evidence string
+ok 74 - parseVerdictJson: handles \\s in evidence string
+  ---
+  duration_ms: 0.15925
+  type: 'test'
+  ...
+# Subtest: parseVerdictJson: valid JSON passes through unchanged
+ok 75 - parseVerdictJson: valid JSON passes through unchanged
+  ---
+  duration_ms: 0.035875
+  type: 'test'
+  ...
+# Subtest: parseVerdictJson: totally broken JSON falls back to verdict=fail
+ok 76 - parseVerdictJson: totally broken JSON falls back to verdict=fail
+  ---
+  duration_ms: 0.031958
+  type: 'test'
+  ...
+# Subtest: commitGateAction: non-commit command → allow
+ok 77 - commitGateAction: non-commit command → allow
+  ---
+  duration_ms: 0.028583
+  type: 'test'
+  ...
+# Subtest: commitGateAction: all gates green → allow
+ok 78 - commitGateAction: all gates green → allow
+  ---
+  duration_ms: 0.027125
+  type: 'test'
+  ...
+# Subtest: commitGateAction: red gate → block with gate name in reason
+ok 79 - commitGateAction: red gate → block with gate name in reason
+  ---
+  duration_ms: 0.030292
+  type: 'test'
+  ...
+# Subtest: commitGateAction: SPECFLOW_BYPASS prefix → bypass
+ok 80 - commitGateAction: SPECFLOW_BYPASS prefix → bypass
+  ---
+  duration_ms: 0.020416
+  type: 'test'
+  ...
+# Subtest: commitGateAction: SPECFLOW_BYPASS in message → NOT bypass, still block
+ok 81 - commitGateAction: SPECFLOW_BYPASS in message → NOT bypass, still block
+  ---
+  duration_ms: 0.023625
+  type: 'test'
+  ...
+# Subtest: runGates: success captures stdout tail for evidence
+ok 82 - runGates: success captures stdout tail for evidence
+  ---
+  duration_ms: 25.090166
+  type: 'test'
+  ...
+# Subtest: new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID
+ok 83 - new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID
+  ---
+  duration_ms: 524.485125
+  type: 'test'
+  ...
+# Subtest: new: strict creation-only numeric profile makes a CI-clean unapproved draft
+ok 84 - new: strict creation-only numeric profile makes a CI-clean unapproved draft
+  ---
+  duration_ms: 399.866375
+  type: 'test'
+  ...
+# Subtest: new: custom lifecycle mappings and kind defaults are respected
+ok 85 - new: custom lifecycle mappings and kind defaults are respected
+  ---
+  duration_ms: 342.607333
+  type: 'test'
+  ...
+# Subtest: new: explicit no-draft lifecycle, unfillable metadata and unknown keys fail before reservation
+ok 86 - new: explicit no-draft lifecycle, unfillable metadata and unknown keys fail before reservation
+  ---
+  duration_ms: 192.697416
+  type: 'test'
+  ...
+# Subtest: new: unsafe profile defaults/template paths, expressions, symlinks and ambiguous dirs fail closed
+ok 87 - new: unsafe profile defaults/template paths, expressions, symlinks and ambiguous dirs fail closed
+  ---
+  duration_ms: 148.195959
+  type: 'test'
+  ...
+# Subtest: new: exclusive publication never overwrites and a failed reservation stays burned
+ok 88 - new: exclusive publication never overwrites and a failed reservation stays burned
+  ---
+  duration_ms: 552.64175
+  type: 'test'
+  ...
+# Subtest: review: exact head contract, static nonexecuting Pi metadata, explicit dirty exclusions
+ok 89 - review: exact head contract, static nonexecuting Pi metadata, explicit dirty exclusions
+  ---
+  duration_ms: 593.181708
+  type: 'test'
+  ...
+# Subtest: review: no model on empty diff; proposal isn't an empty-diff PASS
+ok 90 - review: no model on empty diff; proposal isn't an empty-diff PASS
+  ---
+  duration_ms: 955.372875
+  type: 'test'
+  ...
+# Subtest: review: flat native declaration retains exact per-action rejection before charge/spawn
+ok 91 - review: flat native declaration retains exact per-action rejection before charge/spawn
+  ---
+  duration_ms: 564.400167
+  type: 'test'
+  ...
+# Subtest: review: malformed revisions, nonancestor and oversized packets fail before model
+ok 92 - review: malformed revisions, nonancestor and oversized packets fail before model
+  ---
+  duration_ms: 646.382334
+  type: 'test'
+  ...
+# Subtest: review: high-risk scanner and packet tampering reject before charge/spawn
+ok 93 - review: high-risk scanner and packet tampering reject before charge/spawn
+  ---
+  duration_ms: 1394.664042
+  type: 'test'
+  ...
+# Subtest: review: explicit immutable grant, single charge, exact child bytes, raw response and free cache
+ok 94 - review: explicit immutable grant, single charge, exact child bytes, raw response and free cache
+  ---
+  duration_ms: 2864.607084
+  type: 'test'
+  ...
+# Subtest: review: malformed model output and contradictory criteria remain nonpassing and retained
+ok 95 - review: malformed model output and contradictory criteria remain nonpassing and retained
+  ---
+  duration_ms: 1541.3055
+  type: 'test'
+  ...
+# Subtest: review: cancellation remains charged, nonpassing and never auto-respawns
+ok 96 - review: cancellation remains charged, nonpassing and never auto-respawns
+  ---
+  duration_ms: 2036.241875
+  type: 'test'
+  ...
+# Subtest: incremental: unchanged baseline observations don't block, and blockers need exact delta lines/closure
+ok 97 - incremental: unchanged baseline observations don't block, and blockers need exact delta lines/closure
+  ---
+  duration_ms: 2212.874459
+  type: 'test'
+  ...
+# Subtest: Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute
+ok 98 - Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute
+  ---
+  duration_ms: 0.402
+  type: 'test'
+  ...
+# Subtest: lifecycle: shared full audit, free attach/cache, ordinary report cannot close; source mutation rejected
+ok 99 - lifecycle: shared full audit, free attach/cache, ordinary report cannot close; source mutation rejected
+  ---
+  duration_ms: 4924.632291
+  type: 'test'
+  ...
+# Subtest: new: safe custom body template is versioned; kind cannot be guessed
+ok 100 - new: safe custom body template is versioned; kind cannot be guessed
+  ---
+  duration_ms: 329.330084
+  type: 'test'
+  ...
+# Subtest: review: profile/package from head and fsmonitor never executes during preparation
+ok 101 - review: profile/package from head and fsmonitor never executes during preparation
+  ---
+  duration_ms: 573.378208
+  type: 'test'
+  ...
+# Subtest: review: cached packet/raw/result tampering cannot become another cached approval
+ok 102 - review: cached packet/raw/result tampering cannot become another cached approval
+  ---
+  duration_ms: 1646.532208
+  type: 'test'
+  ...
+# Subtest: review: overflowing output is captured boundedly and never passes
+ok 103 - review: overflowing output is captured boundedly and never passes
+  ---
+  duration_ms: 1850.28825
+  type: 'test'
+  ...
+# Subtest: lifecycle: a mid-review source edit rejects even a fake PASS; ordinary approval never attaches
+ok 104 - lifecycle: a mid-review source edit rejects even a fake PASS; ordinary approval never attaches
+  ---
+  duration_ms: 4081.43125
+  type: 'test'
+  ...
+# Subtest: lifecycle: retained tamper rejects cached audit and done without another model call
+ok 105 - lifecycle: retained tamper rejects cached audit and done without another model call
+  ---
+  duration_ms: 2942.4575
+  type: 'test'
+  ...
+# Subtest: lifecycle: prepared full job checks exact diff/impl and attaches after same-content commit for free
+ok 106 - lifecycle: prepared full job checks exact diff/impl and attaches after same-content commit for free
+  ---
+  duration_ms: 3676.039584
+  type: 'test'
+  ...
+# Subtest: repair: versioned lossless known scope observations; legacy normalization stays byte-equivalent
+ok 107 - repair: versioned lossless known scope observations; legacy normalization stays byte-equivalent
+  ---
+  duration_ms: 1.362791
+  type: 'test'
+  ...
+# Subtest: repair: new packet explicitly types scope items and pins prompt/result versions
+ok 108 - repair: new packet explicitly types scope items and pins prompt/result versions
+  ---
+  duration_ms: 509.098333
+  type: 'test'
+  ...
+# Subtest: repair: exhausted grant permits explicit derived repair/free replay, not original rewriting or respawn
+ok 109 - repair: exhausted grant permits explicit derived repair/free replay, not original rewriting or respawn
+  ---
+  duration_ms: 3270.620542
+  type: 'test'
+  ...
+# Subtest: repair: unknown fields, semantic fabrication parameters and incomplete/cancelled sources reject free
+ok 110 - repair: unknown fields, semantic fabrication parameters and incomplete/cancelled sources reject free
+  ---
+  duration_ms: 2534.881709
+  type: 'test'
+  ...
+# Subtest: repair: genuine product FAIL remains FAIL after protocol correction
+ok 111 - repair: genuine product FAIL remains FAIL after protocol correction
+  ---
+  duration_ms: 2015.762375
+  type: 'test'
+  ...
+# Subtest: repair: derived proof rejects tampered source metadata/raw/packet/result and derived bindings
+ok 112 - repair: derived proof rejects tampered source metadata/raw/packet/result and derived bindings
+  ---
+  duration_ms: 2616.78025
+  type: 'test'
+  ...
+# Subtest: repair: full lifecycle protocol error gives actionable free fix, repaired bound proof can attach/attest/done
+ok 113 - repair: full lifecycle protocol error gives actionable free fix, repaired bound proof can attach/attest/done
+  ---
+  duration_ms: 4765.988375
+  type: 'test'
+  ...
+# Subtest: repair: ordinary proof cannot attach and PASS cannot swallow a genuine blocking finding
+ok 114 - repair: ordinary proof cannot attach and PASS cannot swallow a genuine blocking finding
+  ---
+  duration_ms: 3370.701833
+  type: 'test'
+  ...
+# Subtest: repair: interrupted derived publication leaves original intact and retry needs no new review
+ok 115 - repair: interrupted derived publication leaves original intact and retry needs no new review
+  ---
+  duration_ms: 2482.231875
+  type: 'test'
+  ...
+# Subtest: repair: changed contract/implementation never inherits historical PASS
+ok 116 - repair: changed contract/implementation never inherits historical PASS
+  ---
+  duration_ms: 3619.0175
+  type: 'test'
+  ...
+1..116
+# tests 116
+# suites 0
+# pass 116
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 40665.734334

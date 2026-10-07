@@ -1,0 +1,3 @@
+PASS actual CLI + linked checkout repairs exhausted legacy format error with no launcher/probe/charge, preserving original bytes and all bindings; idempotent replay
+PASS actual CLI rejects repair budget/semantic parameters and changed source evidence without any additional fake-review invocation
+PASS actual audit --review-job attaches only a bound free repaired full audit; stale binding/invalid CLI parameters neither inherit PASS nor spawn again

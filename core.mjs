@@ -27,7 +27,7 @@ import {
 const execFileP = promisify(execFile);
 const WORKFLOW_VERSION = 2;
 const GATE_CACHE_VERSION = 2;
-const AUDIT_PROMPT_VERSION = 3;
+const AUDIT_PROMPT_VERSION = 4;
 const DEFAULT_AUDIT_MAX_BYTES = 512 * 1024;
 const DEFAULT_SNAPSHOT_MAX_BYTES = 512 * 1024 * 1024;
 
@@ -1941,6 +1941,27 @@ async function assertRetainedAuditEvidence(repo, auditRecord) {
   return retained;
 }
 
+function savedAuditOutputHint(fm) {
+  if (!fm.audit || fm.audit.verdict === "pass") return null;
+  if (["protocol-error", "execution-error"].includes(fm.audit.output_info?.category)) return fm.audit.output_info.message;
+  const jobId = fm.audit.review?.job_id;
+  if (/^[a-f0-9]{32}$/.test(jobId || "") && fm.audit.criteria?.some(item => item.criterion === "审计 scope_deviations 结构校验")) {
+    return `工具输出 scope_deviations 协议错误（非产品 FAIL）；先 spec_review ${JSON.stringify({ action: "status", jobId })} 查看无损修复提示，支持时使用 action=repair 零模型修复，再附加匹配的当前审计。不自动付费重审。`;
+  }
+  return null;
+}
+async function auditOutputRecoveryHint(cwd, fm) {
+  if (!fm.audit || fm.audit.verdict === "pass") return null;
+  const saved = savedAuditOutputHint(fm);
+  if (!fm.audit.review?.job_id) return saved;
+  try {
+    const { reviewStatus } = await import("./review-engine.mjs");
+    const info = reviewStatus(implementationRepo(cwd, fm), fm.audit.review.job_id).outputInfo;
+    return ["protocol-error", "execution-error"].includes(info?.category) ? info.message : saved;
+  } catch {
+    return saved ? "保留的工具审计证据当前不可验证；先恢复原始 packet/raw/receipt，再做零调用修复。不要覆盖旧结论或自动付费重审。" : null;
+  } // A diagnostic is never cache approval or a Spec write.
+}
 async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobId } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
@@ -1986,6 +2007,7 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
 
   let auditResult;
   let engineReview = null;
+  let toolIssue = null;
   try {
     onProgress?.("校验 base_sha 祖先关系…");
     await assertAuditBaseAncestor(repo, baseSha, signal);
@@ -2091,6 +2113,8 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
       if (!auditResult) throw new Error(`Review job ${engineReview.state}: ${engineReview.receipt.error || "no passing result"}`);
     } catch (error) {
       if (error?.name === "AbortError") throw error;
+      toolIssue = { category: "execution-error", code: "REVIEW_EXECUTION_OR_BINDING", repairable: false,
+        message: `工具执行/证据绑定错误（非产品 FAIL）：${error?.message || error}。先修复调用参数、宿主或证据绑定；保留原结果，不自动付费重审。` };
       auditResult = normalizeAuditResult({ verdict: "fail", criteria: [{ criterion: "审计执行", status: "unverifiable",
         evidence: `审计执行失败: ${error?.message || error}` }], scope_deviations: [] });
     }
@@ -2105,7 +2129,8 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
     base_sha: baseSha,
     impl_hash: snapshot.hash,
     contract_hash: contractHash,
-    prompt_version: AUDIT_PROMPT_VERSION,
+    prompt_version: engineReview ? engineReview.receipt.prompt_version || 3 : AUDIT_PROMPT_VERSION,
+    ...(toolIssue || engineReview?.outputInfo ? { output_info: toolIssue || engineReview.outputInfo } : {}),
     model: engineReview?.receipt.execution?.model || auditorModel || "session-default",
     thinking: engineReview?.receipt.execution?.thinking || auditorThinking,
     verdict: auditResult.verdict,
@@ -2116,7 +2141,8 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
       child_input_sha256: engineReview.receipt.child_input_sha256 ?? null,
       raw_sha256: engineReview.receipt.raw_sha256 ?? null, budget: engineReview.receipt.budget ?? null,
       result_sha256: sha256(stableJson(auditResult)), effective_model: engineReview.receipt.effective_model ?? null,
-      usage: engineReview.receipt.usage ?? null } } : {}),
+      usage: engineReview.receipt.usage ?? null,
+      ...(engineReview.receipt.recovery ? { recovery: engineReview.receipt.recovery } : {}) } } : {}),
   };
 
   writeSpecLifecycleFile(spec, fm, profile);
@@ -2132,8 +2158,11 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
     thinking: auditorThinking,
   });
 
+  const outputIssue = toolIssue || engineReview?.outputInfo;
+  const isToolError = ["protocol-error", "execution-error"].includes(outputIssue?.category);
   const summary = [
-    `Spec ${id} 审计结果: ${auditResult.verdict === "pass" ? "✅ PASS" : "❌ FAIL"}`,
+    `Spec ${id} 审计结果: ${isToolError ? "⚠️ 工具/协议错误（非产品 FAIL）" : auditResult.verdict === "pass" ? "✅ PASS" : "❌ FAIL"}`,
+    ...(isToolError ? [outputIssue.message] : []),
     `  sha: ${currentSha}`,
     `  impl_hash: ${snapshot.hash.slice(0, 12)}`,
     `  criteria:`,
@@ -2177,7 +2206,9 @@ function attestUnlocked(cwd, id, item, note) {
   assertProfileRepoBoundary(profile, implementationRepo(cwd, fm));
   assertEvidenceShape(fm, id);
   if (fm.impl?.pass !== true || fm.audit?.verdict !== "pass") {
-    throw new Error(`Spec ${id} requires passing impl and audit before human attestation`);
+    const recoveryHint = fm.impl?.pass === true ? savedAuditOutputHint(fm) : null;
+    throw new Error(recoveryHint ? `Spec ${id}: ${recoveryHint}；修复后仅附加匹配的当前审计，再登记人工核验。`
+      : `Spec ${id} requires passing impl and audit before human attestation`);
   }
   const normalizedAudit = normalizeAuditResult(fm.audit);
   if (normalizedAudit.verdict !== "pass") {
@@ -2290,6 +2321,12 @@ export function recordConsistencyGaps(spec, profile = spec.profile || defaultPro
       fm.audit.review.child_input_sha256 !== fm.audit.review.packet_sha256 ||
       fm.audit.review.result_sha256 !== sha256(stableJson(normalizedAudit)))) {
     gaps.push("audit review receipt 非完整当前审计或结果绑定不一致");
+  }
+  const recovery = fm.audit?.review?.recovery;
+  if (recovery && (recovery.version !== 1 || recovery.recipe !== "scope-file-note/v1" ||
+      !/^[a-f0-9]{32}$/.test(recovery.source_job_id || "") || !/^[a-f0-9]{64}$/.test(recovery.source_job_sha256 || "") ||
+      !/^[a-f0-9]{64}$/.test(recovery.source_result_sha256 || "") || Object.keys(recovery).length !== 5)) {
+    gaps.push("audit repair 来源凭证缺失或非法");
   }
   if (fm.audit?.base_sha !== fm.impl?.base_sha) gaps.push("audit.base_sha 与 impl.base_sha 不一致");
   if (fm.audit?.impl_hash !== fm.impl?.snapshot_hash) gaps.push("audit.impl_hash 与 impl.snapshot_hash 不一致");
@@ -2699,7 +2736,8 @@ export async function nextStep(cwd, spec, signal) {
   }
   if (!fm.audit?.verdict) return `下一步：spec_audit ${id}`;
   if (normalizeAuditResult(fm.audit).verdict !== "pass") {
-    return `下一步：修复审计 findings 后重跑 spec_audit ${id}`;
+    const hint = await auditOutputRecoveryHint(cwd, fm);
+    return hint ? `下一步：${hint}` : `下一步：修复审计 findings 后重跑 spec_audit ${id}`;
   }
   if (
     fm.audit.impl_hash !== fm.impl.snapshot_hash ||
@@ -2752,7 +2790,7 @@ export async function renderBoard(cwd, signal) {
         parts.push(`impl ${fm.impl.pass === true ? "✓" : "✗"} ${fm.impl.at.slice(0, 10)}`);
       }
       if (fm.audit?.verdict) {
-        parts.push(`audit ${fm.audit.verdict === "pass" ? "✓" : "✗"}`);
+        parts.push(fm.audit.output_info?.category === "protocol-error" ? "audit 工具协议错误（可修复）" : `audit ${fm.audit.verdict === "pass" ? "✓" : "✗"}`);
       }
       const human = fm.evidence?.human || [];
       if (human.length > 0) {
@@ -2803,7 +2841,8 @@ export async function renderSpecDetail(cwd, id, signal) {
     if (e2e) lines.push(`  e2e: ${e2e}`);
   }
   if (fm.audit?.verdict) {
-    lines.push(`audit: ${fm.audit.verdict} @${fm.audit.sha?.slice(0, 8)}`);
+    lines.push(`audit: ${fm.audit.output_info?.category === "protocol-error" ? "工具输出协议错误（非产品 FAIL）" : fm.audit.verdict} @${fm.audit.sha?.slice(0, 8)}`);
+    if (fm.audit.output_info?.category === "protocol-error") lines.push(fm.audit.output_info.message);
   }
   const human = fm.evidence?.human || [];
   if (human.length > 0) {
@@ -2921,7 +2960,7 @@ async function main() {
 
   if (!cmd) {
     console.log(
-      "Usage: node core.mjs board|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id>|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]"
+      "Usage: node core.mjs board|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id> [--review-job JOB_ID]|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]"
     );
     process.exit(1);
   }
@@ -2964,14 +3003,17 @@ async function main() {
         if (!args[0]) throw new Error("impl requires <id>");
         console.log(await impl(cwd, args[0]));
         break;
-      case "audit":
-        if (!args[0]) throw new Error("audit requires <id>");
+      case "audit": {
+        const reviewJobId = args.length === 3 && args[1] === "--review-job" ? args[2] : undefined;
+        if (!args[0] || !(args.length === 1 || /^[a-f0-9]{32}$/.test(reviewJobId || ""))) throw new Error("audit requires <id> and optional --review-job <32-hex JOB_ID>; invalid parameters never prepare/spend");
         console.log(
           await audit(cwd, args[0], {
+            ...(reviewJobId ? { reviewJobId } : {}),
             onProgress: (t) => console.error(`⏳ ${t}`),
           })
         );
         break;
+      }
       case "attest":
         if (!args[0] || !args[1] || !args[2])
           throw new Error("attest requires <id> <item> <note>");

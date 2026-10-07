@@ -408,7 +408,7 @@ test("done: ledger includes bound impl and audit summary", async () => {
   assert.deepEqual(entry.impl_summary.e2e, {});
   assert.equal(entry.impl_summary.migrations.pass, true);
   assert.equal(entry.audit.verdict, "pass");
-  assert.equal(entry.audit.prompt_version, 3);
+  assert.equal(entry.audit.prompt_version, 4);
   assert.match(entry.impl_hash, /^[0-9a-f]{64}$/);
   assert.match(entry.contract_hash, /^[0-9a-f]{64}$/);
 });

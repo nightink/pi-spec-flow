@@ -131,7 +131,7 @@ spec-flow 会扫描 `docs/specs/`、`docs/spec/`、`specs/`、`spec/` 四个显�
 | `spec_board` | 当前 worktree 的状态、漂移和下一步 |
 | `spec_alloc {prefix?}` | 在 Git common directory 原子预留编号，例如 prefix 为 `S1.` |
 | `spec_new {title,…,dryRun?}` | 固定版本模板、共享编号、独占创建未批准 draft；预览不分配 |
-| `spec_review {action,…}` | prepare/run/status：只读 proposal / committed / incremental 审查；不写生命周期 |
+| `spec_review {action,…}` | prepare/run/status/repair：只读项目审查与零调用协议修复；不写生命周期 |
 | `spec_begin <id>` | 要求 review approved、deps done；进入 v2 in-progress |
 | `spec_impl <id>` | 运行 required gates、逐项 E2E、migration 检查；写 `impl.pass` 与 snapshot |
 | `spec_audit <id>` | 隔离子 Pi 审计完整 base→working-tree diff；写 criteria、hash、model、prompt version |
@@ -144,7 +144,7 @@ Pi 的 begin/impl/audit/attest/done 仍使用 `withFileMutationQueue()`；核心
 
 九个原生工具的输入 schema 均为显式 `type: "object"` 根节点；`spec_review` 不使用顶层 action union。模型请求会携带整个工具清单：一个声明不兼容可使**其他工具的请求**也在执行前被 HTTP 400 拒绝，不能只验工具注册或本地调用。
 
-`spec_review` 缺省 action 为 prepare；run/status 必须有 jobId，prepare-only 字段不能混入 run/status，budgetId 仅用于 run。平铺声明不取代共享引擎的逐 action 精确校验：非法字段/动作/ID 不被静默丢弃，不消耗授权或启动执行器。现有宿主与 executor 可能缓存旧声明；owner 需按实际加载机制 reload/rebind，源码修复不等于生产已采用，也不会自动重试原请求。
+`spec_review` 缺省 action 为 prepare；run/status/repair 必须有 jobId，prepare-only 字段不能混入 run/status，budgetId 仅用于 run。平铺声明不取代共享引擎的逐 action 精确校验：非法字段/动作/ID 不被静默丢弃，不消耗授权或启动执行器。现有宿主与 executor 可能缓存旧声明；owner 需按实际加载机制 reload/rebind，源码修复不等于生产已采用，也不会自动重试原请求。
 
 `smoke:pi` 使用实际已安装 Pi SDK，在 OpenAI Completions/Responses 与 Anthropic 的 onPayload 边界检查全部声明、随后中止并以 fetch guard 禁止发送。它是零 HTTP 的离线序列化验收，不是远端 provider 成功或独立模型审查。
 
@@ -236,6 +236,21 @@ Git common-dir 的 `spec-flow/review-v1/{budgets,jobs}` 私有保存完整 packe
 
 Pi 项目识别只读取目标 tree/snapshot 的声明/常规入口、路径/mode/hash 与标记 lexical hints，不 import/load；128 declarations、256 matches、256 KiB/source 限制，记录缺失/不支持/越界/symlink diagnostics。静态 recognized 不是真实宿主加载证明。
 
+### 工具协议错误可修复，不等于产品 FAIL
+
+`outputInfo` 明确区分 `protocol-error` / `execution-error` / `product-fail` / `pass`。审计摘要、下一步和人工登记拒绝提示不再把字段格式问题说成产品 findings，也不会自动要求另付费重审。新 packet 明确声明 `scope_deviations: string[]` 及限额；结果协议 v2 可无损兼容**恰好只有非空 string file/note** 的有界观察对象，编码成可逆 JSON 字符串。未知/额外字段（尤其 blocking）、缺少判断/证据、截断或未完成执行不能被偷偷补齐。
+
+已完成 legacy job 的原 packet/raw/receipt/FAIL 不改；缺版本字段继续用 legacy 规则校验。若 `outputInfo.repairable=true`，可以在**预算耗尽、没有 pi/launcher** 时免费修复：
+
+```bash
+node /trusted/spec-flow/core.mjs review --json '{"action":"repair","jobId":"ORIGINAL_32_HEX_JOB_ID"}'
+# 返回独立 derived jobId；原始独立结论、raw 字节、版本绑定和原计次引用都保留。
+# 仅 full-current-audit 且当前证据仍匹配时才附加；此步骤也不重新调用模型。
+node /trusted/spec-flow/core.mjs audit SPEC_ID --review-job DERIVED_32_HEX_JOB_ID
+```
+
+native `spec_review {action:"repair",jobId}` / `/spec review <JSON>` 等价；native 附加用 `spec_audit {id,reviewJobId}`。repair 不接受 budgetId、verdict、criteria 或自定义修补内容。完整原始证据和派生来源均重验；重复 repair/replay 幂等，写入失败不留半成品，既不消耗新调用也不退款/重置旧授权。它只修工具格式，不做第二次审查：真正的产品 FAIL 仍是 FAIL，普通/delta 仍不能冒充 full audit，当前实现/合同/scope/diff/impl 绑定不匹配仍须先解决版本/证据问题，人工确认规则不变。源码更新不会刷新运行宿主缓存；旧宿主可先走可信 CLI，不需要为 CLI 修复重启生产。
+
 ### timeout 生效与无 PATH pi 的启动
 
 `prepared` job 首次 run 才读取当前执行参数；提高 `SPECFLOW_AUDIT_TIMEOUT` 后可直接启动尚未执行的同一 job。`running` 只等待原 worker，终态只重放原结果，不刷新 timeout/bin/model/thinking，也不重启或退款。run 返回 `executionInfo`（requested/effective timeout、是否 applied/ignored、started/wait-existing/reuse-result）；native tool 同时更新进度，audit 缓存也显示沿用值。`receipt.execution` 始终保留原参数。需要更长 timeout 的**新执行**须 prepare 新 job 并使用仍有效的授权，不能靠重放旧 job 自动再调用。
@@ -308,7 +323,7 @@ Pi 的 `tool_call` 拦截器识别 `git commit`、`git -C … commit` 和常见 
 - run: npm audit --omit=dev
 ```
 
-本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/unit/八组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
+本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/unit/九组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
 
 Legacy 行为：
 
@@ -326,6 +341,7 @@ node tests/e2e/e2e-spec-discovery.mjs
 node tests/e2e/e2e-project-governance-profile.mjs
 node tests/e2e/e2e-worktrees-python.mjs  # 真实 Python + linked worktree + Action copied CLI
 node tests/e2e/e2e-review-and-spec-new.mjs # 创建竞争 / finite grant / frontend loss / cache
+node tests/e2e/e2e-review-repair.mjs # 预算耗尽/linked checkout/免费修复与绑定附加/篡改拒绝
 npm run check                    # 权威本地门禁
 SPECFLOW_PI_BIN=/trusted/installed/pi SPECFLOW_PI_SDK=/trusted/installed/pi-package npm run smoke:pi
 # 私有临时 agent/project：真实 RPC /spec、typed native/partial-UI、三种 API 的 pre-network 工具声明；无 provider 请求
