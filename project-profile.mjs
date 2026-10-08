@@ -130,7 +130,7 @@ function readProfileFile(root, candidate) {
     stat = fs.lstatSync(candidate);
   } catch (error) {
     if (error?.code === "ENOENT") return null;
-    throw new Error(`Cannot inspect ${PROJECT_PROFILE_FILE}: ${error?.message || error}`);
+    throw new Error(`Cannot inspect ${PROJECT_PROFILE_FILE}: ${error?.message || error}`, { cause: error });
   }
   if (stat.isSymbolicLink() || !stat.isFile()) {
     throw new Error(`${PROJECT_PROFILE_FILE} must be a regular non-symlink file`);
@@ -155,7 +155,7 @@ function readProfileFile(root, candidate) {
     }
     return fs.readFileSync(fd, "utf8");
   } catch (error) {
-    throw new Error(`Cannot read ${PROJECT_PROFILE_FILE}: ${error?.message || error}`);
+    throw new Error(`Cannot read ${PROJECT_PROFILE_FILE}: ${error?.message || error}`, { cause: error });
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
   }
@@ -278,7 +278,7 @@ function parseGates(root, value, packageOverride) {
   assertStringArray(value.npmScripts, "gates.npmScripts", { nonEmpty: true });
   let pkg;
   try { pkg = packageOverride !== undefined ? packageOverride : JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")); }
-  catch (error) { throw new Error(`Cannot validate configured npm scripts: ${error.message}`); }
+  catch (error) { throw new Error(`Cannot validate configured npm scripts: ${error.message}`, { cause: error }); }
   for (const script of value.npmScripts) {
     if (!SAFE_NPM_SCRIPT.test(script) || FORBIDDEN_KEYS.has(script)) {
       throw new Error(`gates.npmScripts contains unsafe script name: ${script}`);
@@ -294,11 +294,11 @@ function parseEvidence(value) {
   if (value === undefined) return null;
   assertExactKeys(value, ["e2e", "migrations"], "evidence");
   const result = {};
-  const extension = (value, label) => {
-    if (typeof value !== "string" || !/^\.[A-Za-z0-9]+$/.test(value)) {
+  const extension = (ext, label) => {
+    if (typeof ext !== "string" || !/^\.[A-Za-z0-9]+$/.test(ext)) {
       throw new Error(`${label} must be a filename extension`);
     }
-    return value;
+    return ext;
   };
   if (value.e2e !== undefined) {
     assertExactKeys(value.e2e, ["dir", "extension", "runner"], "evidence.e2e");
@@ -348,7 +348,7 @@ function parseConfiguredProfile(root, raw, { packageJson } = {}) {
   try {
     data = JSON.parse(raw.replace(/^\uFEFF/, ""));
   } catch (error) {
-    throw new Error(`Invalid ${PROJECT_PROFILE_FILE} JSON: ${error?.message || error}`);
+    throw new Error(`Invalid ${PROJECT_PROFILE_FILE} JSON: ${error?.message || error}`, { cause: error });
   }
 
   assertExactKeys(data, ["version", "lifecycle", "gates", "validation", "evidence", "creation"], PROJECT_PROFILE_FILE);
@@ -471,7 +471,7 @@ export function loadProjectProfile(cwd) {
   try {
     realRoot = fs.realpathSync(root);
   } catch (error) {
-    throw new Error(`Cannot resolve project root: ${error?.message || error}`);
+    throw new Error(`Cannot resolve project root: ${error?.message || error}`, { cause: error });
   }
   const candidate = path.join(realRoot, PROJECT_PROFILE_FILE);
   const raw = readProfileFile(realRoot, candidate);

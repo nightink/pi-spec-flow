@@ -218,7 +218,7 @@ test("safe feedback helpers: capability/receiver/caps and sync/async transport f
   const updates = [];
   assert.equal(feedback.updateToolProgress(value => updates.push(value), "x".repeat(feedback.TOOL_TEXT_LIMIT + 1)), true);
   assert.match(updates[0].content[0].text, /已截断/);
-  await new Promise(resolve => setImmediate(resolve)); // Unhandled rejections fail node:test.
+  await new Promise((resolve) => { setImmediate(resolve); }); // Unhandled rejections fail node:test.
 });
 
 test("adapter source: no direct notify invocation bypasses the capability guard", () => {

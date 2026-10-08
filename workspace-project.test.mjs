@@ -50,7 +50,7 @@ async function waitMarker(root, operation) {
   for (let n = 0; n < 200; n++) {
     if (fs.existsSync(path.join(root, ".sync"))) return;
     if (operation.proc.exitCode !== null) throw new Error("Gate exited before synchronization");
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => { setTimeout(resolve, 20); });
   }
   throw new Error("Gate did not start");
 }

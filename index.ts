@@ -56,7 +56,7 @@ function toolResult(text: string) {
   };
 }
 
-function structuredResult(value: any) {
+function structuredResult(value: unknown) {
   return { ...toolResult(JSON.stringify(value, null, 2)), details: value, structuredContent: value };
 }
 const stringList = Type.Array(Type.String({ minLength: 1, maxLength: 4000 }), { minItems: 1, maxItems: 100 });
@@ -325,8 +325,8 @@ export default function (pi: ExtensionAPI) {
         } else {
           notifySafely(ctx, text, "info");
         }
-      } catch (e: any) {
-        notifySafely(ctx, `spec-flow: ${e.message}`, "error");
+      } catch (e) {
+        notifySafely(ctx, `spec-flow: ${e instanceof Error ? e.message : String(e)}`, "error");
       }
     },
   });
@@ -339,7 +339,8 @@ export default function (pi: ExtensionAPI) {
     // TypeError 被 pi 当作工具错误返回，所有 bash 调用（含 echo）瘫痪 2 小时。
     try {
       if (event.toolName !== "bash") return;
-      const command = (event.input as any).command || "";
+      const input = event.input as { command?: unknown } | undefined;
+      const command = typeof input?.command === "string" ? input.command : "";
 
       // Quick exit: not a git commit command (avoid unnecessary gate IO)
       if (typeof isCommitCommand !== "function" || !isCommitCommand(command)) return;
@@ -357,8 +358,8 @@ export default function (pi: ExtensionAPI) {
 
       // Ledger write helper: write to the target repo, fall back to session cwd.
       // targetRepo is "unknown" when the target could not be resolved (S1.1).
-      const writeLedger = (event: any) => {
-        appendCommitLedger(decision, event, ctx.cwd);
+      const writeLedger = (ledgerEvent: unknown) => {
+        appendCommitLedger(decision, ledgerEvent, ctx.cwd);
       };
 
       if (decision.action === "allow") {
@@ -387,12 +388,12 @@ export default function (pi: ExtensionAPI) {
 
       // block — reason already includes failed gate names + tail summaries
       return { block: true, reason: decision.reason };
-    } catch (e: any) {
+    } catch (e) {
       notifySafely(ctx,
-        `⚠️ spec-flow 拦截器故障（已放行本次 bash）：${e?.message ?? e}`,
+        `⚠️ spec-flow 拦截器故障（已放行本次 bash）：${e instanceof Error ? e.message : String(e)}`,
         "warning"
       );
-      return; // fail-open：不返回 block
+      // fail-open：不返回 block
     }
   });
 

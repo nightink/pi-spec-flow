@@ -21,7 +21,6 @@ import {
   done,
   findSpec,
   impl,
-  loadSpecs,
   parseFrontmatter,
   specContractHash,
   writeFrontmatter,

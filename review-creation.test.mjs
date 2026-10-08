@@ -35,7 +35,7 @@ function grant(root, calls = 2) { return authorizeReviewBudget(root, { id: "fixt
 async function prepare(f, extra = {}) { return review(f.root, { action: "prepare", id: "S1", base: f.base, head: f.git("rev-parse", "HEAD"), ...extra }); }
 
 test("new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID", async (t) => {
-  const f = fixture(t), title = "A: 'quoted' $& ${never-evaluate}";
+  const f = fixture(t), title = "A: 'quoted' $& ${never-evaluate}"; // eslint-disable-line no-template-curly-in-string -- literal ${} must survive into the draft
   const preview = await newSpec(f.root, { title, prefix: "S", dryRun: true });
   assert.match(preview.content, /TODO/); assert.equal(readReservations(f.root).ids.length, 0);
   const made = await newSpec(f.root, { title, prefix: "S", slug: "fixed", acceptance: ["one observable case"] });
@@ -201,10 +201,10 @@ test("review: cancellation remains charged, nonpassing and never auto-respawns",
   const prepared = await review(f.root, { mode: "proposal", id: "S1" });
   const controller = new AbortController();
   const running = review(f.root, { action: "run", jobId: prepared.jobId, budgetId: "fixture" }, { signal: controller.signal });
-  while (!fs.existsSync(auditor.calls)) await new Promise((resolve) => setTimeout(resolve, 20));
+  while (!fs.existsSync(auditor.calls)) await new Promise((resolve) => { setTimeout(resolve, 20); });
   controller.abort(); await assert.rejects(running, /abort/i);
   // Wait for worker to persist its terminal state/exit before deleting disposable metadata.
-  for (let i = 0; i < 100; i++) { const job = reviewStatus(f.root, prepared.jobId).receipt; try { process.kill(job.worker_pid, 0); } catch { break; } await new Promise((resolve) => setTimeout(resolve, 20)); }
+  for (let i = 0; i < 100; i++) { const job = reviewStatus(f.root, prepared.jobId).receipt; try { process.kill(job.worker_pid, 0); } catch { break; } await new Promise((resolve) => { setTimeout(resolve, 20); }); }
   const repeat = await review(f.root, { action: "run", jobId: prepared.jobId, budgetId: "fixture" });
   assert.equal(repeat.state, "cancelled"); assert.equal(repeat.result, null); assert.equal(fs.readFileSync(auditor.calls, "utf8"), "call\n");
 });

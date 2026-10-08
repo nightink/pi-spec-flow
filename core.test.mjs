@@ -34,15 +34,9 @@ import {
   impl,
   buildAuditorArgs,
   nextStep,
-  getHeadSha,
   parseVerdictJson,
   renderBoard,
   renderSpecDetail,
-  repositorySnapshotHash,
-  specContractHash,
-  buildAuditDiff,
-  normalizeAuditResult,
-  recordConsistencyGaps,
 } from "./core.mjs";
 
 import { authorizeReviewBudget } from "./review-engine.mjs";
@@ -931,13 +925,13 @@ test("buildAuditorArgs: includes --model when model is provided", () => {
 });
 
 test("buildAuditorArgs: preserves backticks, ${}, $(), double quotes in prompt file", () => {
-  const nasty = 'echo `whoami` && ${HOME} && $(cat /etc/passwd) and "quoted"';
+  const nasty = 'echo `whoami` && ${HOME} && $(cat /etc/passwd) and "quoted"'; // eslint-disable-line no-template-curly-in-string -- must stay literal
   const { args, cleanup } = buildAuditorArgs(nasty);
   const file = args[args.length - 1].slice(1);
   const content = fs.readFileSync(file, "utf8");
   assert.strictEqual(content, nasty);
   assert.ok(content.includes("`whoami`"));
-  assert.ok(content.includes("${HOME}"));
+  assert.ok(content.includes("${HOME}")); // eslint-disable-line no-template-curly-in-string -- must stay literal
   assert.ok(content.includes("$(cat /etc/passwd)"));
   assert.ok(content.includes('"quoted"'));
   cleanup();

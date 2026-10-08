@@ -13,6 +13,7 @@ function regularAccessible(file, mode) {
   try { return fs.statSync(file).isFile() && (fs.accessSync(file, mode), true); } catch { return false; }
 }
 function safeSetting(value, name) {
+  // eslint-disable-next-line no-control-regex -- settings must be single-line text; control bytes are rejected
   if (typeof value !== "string" || !value || value.length > 4096 || /[\x00-\x1f\x7f]/.test(value)) throw new Error(`Invalid ${name}`);
   return value;
 }

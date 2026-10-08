@@ -237,9 +237,6 @@ export const STATUS_MAP = {
   "in-progress": "进行中",
   done: "已完成",
 };
-const REVERSE_STATUS = Object.fromEntries(
-  Object.entries(STATUS_MAP).map(([k, v]) => [v, k])
-);
 
 // ─── Frontmatter ─────────────────────────────────────────────────────────────
 export function parseFrontmatter(content) {
@@ -327,6 +324,7 @@ export function detectDrift(content, fmData, profile = defaultProjectProfile()) 
   // Strip parenthetical notes and emoji prefixes for comparison
   const bodyBase = bodyStatus
     .replace(/（[^）]*）/g, "")
+    // eslint-disable-next-line no-misleading-character-class -- explicit emoji + variation-selector ranges
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}✀-➿]/gu, "")
     .trim();
   if (bodyBase === expected) return { drifted: false };
@@ -491,7 +489,7 @@ export function loadSpecs(cwd) {
         directory: directory.relativePath,
         content,
         frontmatter: fm?.data || null,
-        hasFrontmatter: !!fm,
+        hasFrontmatter: Boolean(fm),
         profile,
       });
     }
@@ -2253,7 +2251,6 @@ function attestUnlocked(cwd, id, item, note) {
 
 export function recordConsistencyGaps(spec, profile = spec.profile || defaultProjectProfile()) {
   const fm = spec.frontmatter || {};
-  const id = fm.id || spec.file;
   const gaps = [];
   if (fm.workflow_version !== WORKFLOW_VERSION) {
     gaps.push(`workflow_version=${fm.workflow_version ?? "legacy"} (need ${WORKFLOW_VERSION}; rerun spec_begin)`);
@@ -2430,7 +2427,7 @@ async function doneUnlocked(cwd, id, { signal } = {}) {
   try {
     await assertAuditBaseAncestor(repo, fm.impl.base_sha, signal);
   } catch (error) {
-    throw new Error(`Spec ${id} 未完成，缺口：\n  ${error?.message || error}`);
+    throw new Error(`Spec ${id} 未完成，缺口：\n  ${error?.message || error}`, { cause: error });
   }
 
   await assertRetainedAuditEvidence(repo, fm.audit);
@@ -2719,7 +2716,7 @@ export async function checkCI(cwd, { runProjectGates = true, live = false, prefe
 }
 
 // ─── nextStep: suggest next action for an in-progress spec ──────────────────
-export async function nextStep(cwd, spec, signal) {
+export async function nextStep(cwd, spec, _signal) {
   const fm = spec.frontmatter;
   const profile = spec.profile || loadProjectProfile(cwd);
   const id = fm.id ?? spec.file;
@@ -2916,7 +2913,7 @@ export async function withAllocator(cwd, fn) {
     try { return await withWorkspaceLock(cwd, "spec-allocator", fn); }
     catch (error) {
       if (error.code !== "SPECFLOW_BUSY" || attempt >= 200) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => { setTimeout(resolve, 50); });
     }
   }
 }

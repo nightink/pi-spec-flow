@@ -7,7 +7,7 @@ import { buildAuditorArgs, runSpawn } from "./core.mjs";
 
 const [cwd, id] = process.argv.slice(2);
 const { dir } = loadJob(cwd, id);
-let job = loadJob(cwd, id).job;
+const job = loadJob(cwd, id).job;
 const controller = new AbortController();
 for (const signal of ["SIGTERM", "SIGINT"]) process.once(signal, () => controller.abort());
 function persist() {

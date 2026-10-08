@@ -334,7 +334,7 @@ Pi 的 `tool_call` 拦截器识别 `git commit`、`git -C … commit` 和常见 
 - run: npm audit --omit=dev
 ```
 
-本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/unit/九组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
+本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/lint/unit/九组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
 
 Legacy 行为：
 
@@ -345,6 +345,7 @@ Legacy 行为：
 ## 自测
 
 ```bash
+npm run lint                     # ESLint flat config：eqeqeq/未使用绑定/promise executor/shadow 等 bug 类规则
 npm test                         # unit + adapter fake-Pi integration / partial-UI real gates
 node tests/e2e/e2e-commit-gate.mjs
 node tests/e2e/e2e-trustworthy-closure.mjs

@@ -13,6 +13,7 @@ const INPUT_KEYS = ["title", "prefix", "slug", "goals", "nonGoals", "design", "p
 const hash = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
 const builtin = fileURLToPath(new URL("./templates/spec-v1.md", import.meta.url));
 function text(value, name, max = 4000) {
+  // eslint-disable-next-line no-control-regex -- bounded single-line text; control bytes are rejected
   if (typeof value !== "string" || !value.trim() || value.length > max || /[\x00-\x1f\x7f]/.test(value)) {
     throw new Error(`${name} must be bounded nonempty single-line text`);
   }

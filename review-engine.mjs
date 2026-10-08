@@ -21,6 +21,7 @@ function exact(value, keys, label) {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some((key) => !keys.includes(key))) throw new Error(`Unknown/invalid ${label} fields`);
 }
 function relative(value) {
+  // eslint-disable-next-line no-control-regex -- reject control bytes instead of matching them as text
   if (typeof value !== "string" || !value || path.isAbsolute(value) || /[\x00-\x1f\\]/.test(value) || value.split("/").some((part) => !part || part === "." || part === "..")) throw new Error("Unsafe review path");
   return value;
 }
@@ -30,6 +31,7 @@ async function git(repo, args, max = MAX_TREE, allowFailure = false) {
   return result;
 }
 async function commit(repo, value) {
+  // eslint-disable-next-line no-control-regex -- revisions must be single-line text; control bytes are rejected
   if (typeof value !== "string" || !value.trim() || value.length > 200 || value.startsWith("-") || /[\x00-\x20]/.test(value)) throw new Error("Invalid review revision");
   const sha = (await git(repo, ["rev-parse", "--verify", "--end-of-options", `${value}^{commit}`])).stdout.trim();
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(sha)) throw new Error("Review requires commit revisions");
@@ -87,6 +89,7 @@ export async function recognizePiProject(entries, read, packageText) {
     let exclude = false;
     if (/^[!+-]/.test(pattern)) { exclude = pattern[0] !== "+"; pattern = pattern.slice(1); }
     pattern = pattern.replace(/^\.\//, "");
+    // eslint-disable-next-line no-control-regex -- reject control bytes in declared paths
     if (!pattern || path.isAbsolute(pattern) || /[\x00-\x1f\\]/.test(pattern) || pattern.split("/").some((part) => part === ".." || part === "." || !part)) {
       context.diagnostics.push("unsafe extension declaration excluded"); continue;
     }
@@ -349,7 +352,7 @@ export async function prepareCommittedReview(cwd, input) {
     if (input.specPath) { file = relative(input.specPath); content = await read(entries.find((entry) => entry.file === file)); }
     else {
       if (typeof input.id !== "string" || !input.id) throw new Error("Review requires id or specPath");
-      for (const entry of entries.filter((entry) => /^(?:docs\/specs?|specs?)\/[^/]+\.md$/.test(entry.file))) {
+      for (const entry of entries.filter((candidate) => /^(?:docs\/specs?|specs?)\/[^/]+\.md$/.test(candidate.file))) {
         const candidate = await read(entry);
         if (String(parseFrontmatter(candidate)?.data?.id) === input.id) {
           if (content !== undefined) throw new Error("Duplicate head-version Spec ID");
@@ -453,7 +456,7 @@ export async function runPreparedReview(cwd, id, { budgetId, signal, onProgress 
       onProgress?.(`Review ${id.slice(0, 8)} running; durable result survives frontend restart`);
       // Never respawn a running/unknown job. Caller can inspect status after a crash.
       if (!prepared) { try { process.kill(status.receipt.worker_pid, 0); } catch { throw new Error("Review owner unavailable; inspect retained job, do not automatically retry"); } }
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => { setTimeout(resolve, 200); });
     }
   } finally { signal?.removeEventListener("abort", stop); }
 }

@@ -345,7 +345,7 @@ test("audit normalization makes empty, malformed, or contradictory pass results 
 test("impl persists explicit failure for missing, traversal, and symlink E2E evidence", async () => {
   const missing = await begunProject({ evidence: { e2e: ["e2e-missing"] } });
   assert.match(await impl(missing, "S1"), /❌ FAIL/);
-  let record = loadSpecs(missing)[0].frontmatter;
+  const record = loadSpecs(missing)[0].frontmatter;
   assert.equal(record.impl.pass, false);
   assert.match(record.impl.e2e["e2e-missing"].tail, /File not found/);
   await assert.rejects(done(missing, "S1"), /impl\.pass/);
@@ -401,7 +401,7 @@ test("legacy matrix: migrate active work explicitly, reject legacy transitions, 
   await assert.rejects(impl(legacyActive, "S1"), /legacy in-progress/);
   assert.equal((await checkCI(legacyActive)).pass, false);
   await begin(legacyActive, "S1");
-  let migrated = loadSpecs(legacyActive)[0].frontmatter;
+  const migrated = loadSpecs(legacyActive)[0].frontmatter;
   assert.equal(migrated.workflow_version, 2);
   assert.equal(migrated.impl.pass, false);
   assert.equal(migrated.audit, undefined);

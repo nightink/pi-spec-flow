@@ -29,14 +29,14 @@ child.stdout.on("data", (chunk) => {
 });
 child.stderr.on("data", () => {}); // Drain, never print provider/environment diagnostics.
 child.on("error", (error) => failure = error);
-const closed = new Promise((resolve) => child.on("close", resolve));
+const closed = new Promise((resolve) => { child.on("close", resolve); });
 async function waitFor(predicate) {
   const started = Date.now();
   while (!predicate()) {
     if (failure) throw failure;
     if (child.exitCode !== null || child.signalCode) throw new Error("Pi RPC host exited before acceptance completed");
     if (Date.now() - started > 60000) throw new Error("Pi RPC smoke timed out waiting for command completion");
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => { setTimeout(resolve, 20); });
   }
 }
 function send(message) { child.stdin.write(JSON.stringify(message) + "\n"); }

@@ -24,7 +24,7 @@ function launch(cwd, command, input, extra = {}) {
   const closed = new Promise((resolve, reject) => { child.on("error", reject); child.on("close", (code) => resolve({ code, output, error })); });
   return { child, closed };
 }
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 try {
   write(path.join(root, "docs/specs/S1.md"), writeFrontmatter("# Contract\n\n- [ ] changed file is correct\n", { id: "S1", status: "approved", review: { decision: "approved" } }));
   write(path.join(root, "package.json"), JSON.stringify({ pi: { extensions: ["./index.ts"] } }));

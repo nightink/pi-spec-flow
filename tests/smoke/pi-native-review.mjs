@@ -26,7 +26,8 @@ execFileSync("git", ["init", "-q"], { cwd }); execFileSync("git", ["add", "."], 
 execFileSync("git", ["-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "base"], { cwd });
 const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
 const settings = SettingsManager.inMemory({ retry: { enabled: false }, compaction: { enabled: false } });
-let currentSession, seen = [], outcome, commandPromise;
+let currentSession, outcome, commandPromise;
+const seen = [];
 const factory = (pi) => {
   pi.registerTool({ name: "fixture_probe", label: "Offline fixture", description: "Trusted mechanical native acceptance", parameters: Type.Object({}),
     async execute(_id, _args, signal, _update, ctx) {

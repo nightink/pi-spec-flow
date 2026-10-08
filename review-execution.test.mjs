@@ -54,7 +54,7 @@ function shim(f, cli) {
   return file;
 }
 const run = (f, job, options = {}) => review(f.root, { action: "run", jobId: job.jobId, budgetId: "fixture" }, options);
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 test("execution: prepared job refreshes stale unstarted settings from current timeout", async (t) => {
   const f = fixture(t), cli = fakeCli(f, 50), bin = shim(f, cli);
