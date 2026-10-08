@@ -11,13 +11,24 @@ Pi 的证据绑定 spec 工作流扩展。它把 `begin → impl → audit → a
 - 本仓库全量自测还需要 Python 3；不会自动 pip/uv/npm 安装被管理项目的依赖
 - 当前支持并在 macOS/Linux 验证；Windows 不是本版本的保证范围
 
-`package.json#pi.extensions` 声明 `index.ts` 入口；静态声明不等于当前宿主已加载或工具可调用。Pi 1.x 支持本版本的 typed/structured 新工具；安装或修改后现有会话需要 `/reload`，不要为此自动重启生产进程：
+`package.json#pi` 声明 `index.ts` 扩展入口与 `skills/` 目录，仓库公开并通过 Pi 的 git 包机制安装（扩展与 skill 随包一起加载）：
 
 ```bash
-cd ~/.pi/agent/extensions/spec-flow
-npm install
+pi install git:github.com/nightink/pi-spec-flow   # 可加 @<tag-or-commit> 固定版本
+pi list                                           # 确认包已注册
+pi update --extensions                            # 按配置的 ref 更新
+```
+
+本地开发/自测直接使用源码仓库，不改变安装方式：
+
+```bash
+git clone https://github.com/nightink/pi-spec-flow.git
+cd pi-spec-flow
+npm ci
 npm run check
 ```
+
+静态声明不等于当前宿主已加载或工具可调用。Pi 1.x 支持本版本的 typed/structured 新工具；安装或修改后现有会话需要 `/reload`，不要为此自动重启生产进程。
 
 ## 项目约定
 
@@ -291,9 +302,9 @@ node core.mjs audit SPEC_ID
 
 项目的 `verify` 可以调用 `node core.mjs check --ci --contracts-only` 作为元数据门禁；`spec_impl` 仍运行 profile 的权威 `npm run verify`。**不要**在 `verify` 内调用完整 `check --ci`：它会再次执行 `verify`，产生递归。contracts-only 明示未运行项目 gates，不能单独冒充完整 CI；独立 `check --ci` 仍执行项目 gates 且缓存禁用。
 
-此仓库根目录提供 `action.yml` composite Action。对于**同一账号**下的两个私有仓库，在 spec-flow 仓库 Settings → Actions → General → Access 中选“Accessible from repositories owned by USERNAME user”；example-app 的 `uses: nightink/pi-spec-flow@<full-40-char-commit-SHA>` 使用真实已推送 SHA，不用 `main` 等可变引用。Action 用自己的 `package-lock.json` 安装运行时依赖，然后调用 `node "$SPECFLOW_CLI" verify`：显式 gates 优先；没有 gates 配置时保留 caller 的 npm `verify`（若存在）且只运行一次，否则用默认探测。无可执行门禁时 Action 失败。`verify` 先校验 Spec 合同/证据，失败即退出且不执行 caller gates；有效合同才运行各 gate，非零退出传播为失败。普通 `check --ci` 为兼容诊断仍执行全部配置 gates，即使文档校验失败；contracts-only 始终不执行 gates。`SPECFLOW_CLI` 指向该 Action 路径，项目 verify 内仍仅调用 contracts-only 避免递归；不需要跨仓 checkout 的 PAT。Caller 应使用 `permissions: contents: read`，先 checkout，准备 Node >=22.19.0（引擎要求）及自身 Python/uv/venv/npm 等测试环境；Action 不安装 caller 依赖。本地 CLI 仍需从可信安装的 Pi 扩展运行（Action 只提供 CI，不自动部署 Pi skill 或扩展）。
+此仓库根目录提供 `action.yml` composite Action，仓库公开，任意仓库可直接按完整 SHA 引用：调用方 `uses: nightink/pi-spec-flow@<full-40-char-commit-SHA>`，使用真实已推送 SHA，不用 `main` 等可变引用。Action 用自己的 `package-lock.json` 安装运行时依赖，然后调用 `node "$SPECFLOW_CLI" verify`：显式 gates 优先；没有 gates 配置时保留 caller 的 npm `verify`（若存在）且只运行一次，否则用默认探测。无可执行门禁时 Action 失败。`verify` 先校验 Spec 合同/证据，失败即退出且不执行 caller gates；有效合同才运行各 gate，非零退出传播为失败。普通 `check --ci` 为兼容诊断仍执行全部配置 gates，即使文档校验失败；contracts-only 始终不执行 gates。`SPECFLOW_CLI` 指向该 Action 路径，项目 verify 内仍仅调用 contracts-only 避免递归；不需要跨仓 checkout 的 PAT。Caller 应使用 `permissions: contents: read`，先 checkout，准备 Node >=22.19.0（引擎要求）及自身 Python/uv/venv/npm 等测试环境；Action 不安装 caller 依赖。本地 CLI 仍需从可信安装的 Pi 扩展运行（Action 只提供 CI，不自动部署 Pi skill 或扩展）。
 
-**交付顺序**：本地提交 spec-flow → 用户 push 该 commit → 用户启用上述私有 Action Access → example-app CI 引用已推送的固定 SHA → 用户 push example-app、查看真实 CI。没有远端设置和 CI 运行前只能证明本地 Action 等价路径，不能宣称远端已接通；本工具不会自动 push/publish 或改 GitHub 设置。注意共享私有 Action 时，调用仓库的外部协作者可能通过 workflow 日志间接看到输出；不要在 Action 输出机密或授权不可信仓库。
+**交付顺序**：本地提交 → push 该 commit → 调用方仓库引用已推送的固定 SHA → push 调用方并查看真实 CI。没有真实推送和远端运行前只能证明本地 Action 等价路径，不能宣称远端已接通；本工具不会自动 push/publish 或改 GitHub 设置。调用方仓库的协作者可能通过 workflow 日志间接看到 Action 输出；不要在 Action 输出机密，也不要授权不可信仓库。
 
 ## Gate cache
 
@@ -345,5 +356,4 @@ node tests/e2e/e2e-review-repair.mjs # 预算耗尽/linked checkout/免费修复
 npm run check                    # 权威本地门禁
 SPECFLOW_PI_BIN=/trusted/installed/pi SPECFLOW_PI_SDK=/trusted/installed/pi-package npm run smoke:pi
 # 私有临时 agent/project：真实 RPC /spec、typed native/partial-UI、三种 API 的 pre-network 工具声明；无 provider 请求
-node integrations/skill-migration.mjs --check  # 只校验 tracked bundle，不读全局安装
 ```

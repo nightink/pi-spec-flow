@@ -8,24 +8,32 @@
       "command": "node --test adapter-core.test.mjs (new all-nine-root regression against baseline adapter)",
       "node": "v22.19.0",
       "exitCode": 1,
-      "bytes": 3441,
-      "sha256": "08400d90ff22197cb7b15facb2e3b5c78d4efb609ca08ddf2e1f7bcc3dbf8cc1",
-      "normalization": "line-end horizontal whitespace only; no lines removed",
+      "bytes": 3350,
+      "sha256": "85eb15e838693ced3d1120d188907453a124070934a0338b40255bd717c52645",
+      "normalization": "line-end horizontal whitespace only; no lines removed; path desensitization v1 (paths only)",
       "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/pre-fix-unit.log",
       "originalBytes": 3449,
-      "originalSha256": "d34cd8233e716607b49ac117e9a38984f370b4e4a6ee00d52fb9ca04f691e6b3"
+      "originalSha256": "d34cd8233e716607b49ac117e9a38984f370b4e4a6ee00d52fb9ca04f691e6b3",
+      "sanitizedFrom": {
+        "bytes": 3441,
+        "sha256": "08400d90ff22197cb7b15facb2e3b5c78d4efb609ca08ddf2e1f7bcc3dbf8cc1"
+      }
     },
     {
       "path": "docs/reviews/S1.7/tool-schema/pre-fix-wire.log",
       "command": "SPECFLOW_PI_SDK=trusted-installed-Pi node tests/smoke/pi-tool-schemas.mjs (against baseline adapter)",
       "node": "v22.19.0",
       "exitCode": 1,
-      "bytes": 2073,
-      "sha256": "2f82e102581a3f2fdc08cb02ba8fbc9d7d73dad15f66ccb669e762ee9fe71411",
-      "normalization": "none",
+      "bytes": 2024,
+      "sha256": "83e741e98245d812e3faf624765a936412f72e644ca968f92e1edf6c74e6df24",
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
       "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/pre-fix-wire.log",
       "originalBytes": 2073,
-      "originalSha256": "2f82e102581a3f2fdc08cb02ba8fbc9d7d73dad15f66ccb669e762ee9fe71411"
+      "originalSha256": "2f82e102581a3f2fdc08cb02ba8fbc9d7d73dad15f66ccb669e762ee9fe71411",
+      "sanitizedFrom": {
+        "bytes": 2073,
+        "sha256": "2f82e102581a3f2fdc08cb02ba8fbc9d7d73dad15f66ccb669e762ee9fe71411"
+      }
     },
     {
       "path": "docs/reviews/S1.7/tool-schema/targeted.log",
@@ -68,12 +76,16 @@
       "command": "npm run check",
       "node": "v22.19.0",
       "exitCode": 0,
-      "bytes": 43212,
-      "sha256": "5a745977c1bfc6495c15c2205574337156a2d29591ad3aaba41e0fa7e8d01fc9",
-      "normalization": "none",
+      "bytes": 43233,
+      "sha256": "be02d550a077c33187b0bdc5238c2a61b1c5dafce872a553e4c4694350d13c63",
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
       "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/full-check.log",
       "originalBytes": 43212,
-      "originalSha256": "5a745977c1bfc6495c15c2205574337156a2d29591ad3aaba41e0fa7e8d01fc9"
+      "originalSha256": "5a745977c1bfc6495c15c2205574337156a2d29591ad3aaba41e0fa7e8d01fc9",
+      "sanitizedFrom": {
+        "bytes": 43212,
+        "sha256": "5a745977c1bfc6495c15c2205574337156a2d29591ad3aaba41e0fa7e8d01fc9"
+      }
     },
     {
       "path": "docs/reviews/S1.7/tool-schema/pi-smoke.log",
@@ -104,44 +116,66 @@
       "command": "initial new SDK serializer fixture: require.resolve(import-only main)",
       "node": "v22.19.0",
       "exitCode": 1,
-      "bytes": 862,
-      "sha256": "22318016997ff4b3219f1f361344e6192a6dd9d1dbe6619d29304a9490369a59",
-      "normalization": "none",
+      "bytes": 804,
+      "sha256": "78ee9d2a7283cc0afec57df8f94da8f254f3653db1768a51fba0c0de62afdf1b",
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
       "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/fixture-esm-resolution-failure.log",
       "originalBytes": 862,
-      "originalSha256": "22318016997ff4b3219f1f361344e6192a6dd9d1dbe6619d29304a9490369a59"
+      "originalSha256": "22318016997ff4b3219f1f361344e6192a6dd9d1dbe6619d29304a9490369a59",
+      "sanitizedFrom": {
+        "bytes": 862,
+        "sha256": "22318016997ff4b3219f1f361344e6192a6dd9d1dbe6619d29304a9490369a59"
+      }
     },
     {
       "path": "docs/reviews/S1.7/tool-schema/fixture-allowlist-failure.log",
       "command": "initial new SDK serializer fixture: incomplete construction-time tools allowlist",
       "node": "v22.19.0",
       "exitCode": 1,
-      "bytes": 482,
-      "sha256": "b810c66f750fcbff9d496af069ad06eddce21618c4331bf576ac58bfa6aacc95",
-      "normalization": "none",
+      "bytes": 384,
+      "sha256": "ed6c687ea122cd8fa8eb49db3411c0e18e69d5975d569e7882aa6231b2432f0b",
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
       "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/fixture-inactive-tool-failure.log",
       "originalBytes": 482,
-      "originalSha256": "b810c66f750fcbff9d496af069ad06eddce21618c4331bf576ac58bfa6aacc95"
+      "originalSha256": "b810c66f750fcbff9d496af069ad06eddce21618c4331bf576ac58bfa6aacc95",
+      "sanitizedFrom": {
+        "bytes": 482,
+        "sha256": "b810c66f750fcbff9d496af069ad06eddce21618c4331bf576ac58bfa6aacc95"
+      }
     },
     {
       "path": "docs/reviews/S1.7/tool-schema/fixture-budget-parse-failure.log",
       "command": "initial core negative fixture: readPrivate JSON text not parsed",
       "node": "v22.19.0",
       "exitCode": 1,
-      "bytes": 9197,
-      "sha256": "ba68ae03e36d61a12579590baf602848c2ae1ab94e22834f26ad13fc066dbe48",
-      "normalization": "line-end horizontal whitespace only; no lines removed",
+      "bytes": 9106,
+      "sha256": "c498fb4b40f2423b6847a1abf07a9d1fc6194496e98362b666b8165ed4c67c39",
+      "normalization": "line-end horizontal whitespace only; no lines removed; path desensitization v1 (paths only)",
       "privateOriginal": ".git/spec-flow/acceptance/S1.7-tool-schema/fixture-budget-parse-failure.log",
       "originalBytes": 9205,
-      "originalSha256": "5e00d127a1d2f739f1af2463009ee58b7d280ca5c2b5a6cc5ba3ebd0a4bfd449"
+      "originalSha256": "5e00d127a1d2f739f1af2463009ee58b7d280ca5c2b5a6cc5ba3ebd0a4bfd449",
+      "sanitizedFrom": {
+        "bytes": 9197,
+        "sha256": "ba68ae03e36d61a12579590baf602848c2ae1ab94e22834f26ad13fc066dbe48"
+      }
     },
     {
       "path": "docs/reviews/S1.7/tool-schema/parent-verification.json",
       "command": "parent historical/source/runtime comparison (this archival helper)",
       "exitCode": 0,
-      "bytes": 4643,
-      "sha256": "368f79fab4c50763feb035d0f516ac6ac9b42c4060588b46393df3b733b90c69",
-      "normalization": "none"
+      "bytes": 4604,
+      "sha256": "880c762fbfd3f738a4d1fd2fcc818dd3c7dcb54f91428cc6bffbdec914a90a2f",
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
+      "sanitizedFrom": {
+        "bytes": 4643,
+        "sha256": "368f79fab4c50763feb035d0f516ac6ac9b42c4060588b46393df3b733b90c69"
+      }
     }
-  ]
+  ],
+  "sanitization": {
+    "pass": "path-desensitization-v1",
+    "rules": "docs/SANITIZATION.md",
+    "note": "Machine-local absolute paths replaced with portable placeholders; private consumer repository identity replaced with example-app. File content otherwise unchanged; prior hashes kept in sanitizedFrom.",
+    "changedFiles": 7
+  }
 }

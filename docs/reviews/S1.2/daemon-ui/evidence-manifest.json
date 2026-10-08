@@ -8,24 +8,32 @@
       "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH node --test adapter-notifications.test.mjs",
       "exitCode": 1,
       "proves": "14 expected regression failures, before adapter repair; not a passing gate",
-      "bytes": 16707,
-      "sha256": "79be386bf48ea974e003f4fe351e26fdbe81a9035968638ff1ad59ed33e1ef05",
+      "bytes": 13535,
+      "sha256": "03f503fdded46ba2d6f99dc59852f7f41d0841a817560f873b7b29eade07fa9f",
       "raw_bytes": 16739,
       "raw_sha256": "fe132725719f4e7abecf0451daa39e9b158f3d4bba18119531d79cc47704dfaa",
-      "normalization": "line-end horizontal whitespace only; no lines removed",
-      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/pre-fix.log"
+      "normalization": "line-end horizontal whitespace only; no lines removed; path desensitization v1 (paths only)",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/pre-fix.log",
+      "sanitizedFrom": {
+        "bytes": 16707,
+        "sha256": "79be386bf48ea974e003f4fe351e26fdbe81a9035968638ff1ad59ed33e1ef05"
+      }
     },
     {
       "path": "pre-fix-sdk.log",
       "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH SPECFLOW_PI_SDK=<home>/.pi/worktrees/example-app/node_modules/@earendil-works/pi-coding-agent node tests/smoke/pi-daemon-ui.mjs",
       "exitCode": 1,
       "proves": "Actual installed Pi SDK native spec_impl returned the exact missing-notify TypeError",
-      "bytes": 1307,
-      "sha256": "c6880edc172938d2c2a3e81c88b6ff0b1501d9376e81e4790099dade1632e9b5",
+      "bytes": 1142,
+      "sha256": "86b6dcdae22fd6ebeaab2199108ba7f69c4902c1448c371daadba3b1811341cf",
       "raw_bytes": 1307,
       "raw_sha256": "c6880edc172938d2c2a3e81c88b6ff0b1501d9376e81e4790099dade1632e9b5",
-      "normalization": "none",
-      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/pre-fix-sdk.log"
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/pre-fix-sdk.log",
+      "sanitizedFrom": {
+        "bytes": 1307,
+        "sha256": "c6880edc172938d2c2a3e81c88b6ff0b1501d9376e81e4790099dade1632e9b5"
+      }
     },
     {
       "path": "targeted.log",
@@ -56,12 +64,16 @@
       "command": "PATH=<tmp>/node-v22.19.0/bin:$PATH npm run check",
       "exitCode": 0,
       "proves": "183/183, eight E2E groups and contracts-only endpoint; syntax/static parse, not full tsc",
-      "bytes": 42962,
-      "sha256": "fdd2a6c30ae21b41b901f3f420b3337577ed7280748c726fc4233b3d2568eab2",
+      "bytes": 42983,
+      "sha256": "df222422c0e18c77dd238e19a52af1f301bb75b855f3e4666ece272bfa0fedbd",
       "raw_bytes": 42962,
       "raw_sha256": "fdd2a6c30ae21b41b901f3f420b3337577ed7280748c726fc4233b3d2568eab2",
-      "normalization": "none",
-      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/full-check.log"
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/full-check.log",
+      "sanitizedFrom": {
+        "bytes": 42962,
+        "sha256": "fdd2a6c30ae21b41b901f3f420b3337577ed7280748c726fc4233b3d2568eab2"
+      }
     },
     {
       "path": "pi-smoke.log",
@@ -92,21 +104,35 @@
       "command": "First development attempt at node --test adapter-notifications.test.mjs",
       "exitCode": 1,
       "proves": "Test setup mistakenly imported loadProjectProfile from core; fixed to project-profile before final pre-fix reproduction. Not a product defect",
-      "bytes": 1089,
-      "sha256": "ed430321f912e56eec9e703f1f9557fcf757011aba429bfa9eaa098e537b3902",
+      "bytes": 998,
+      "sha256": "46086408f03d26cc1065db1f79a7e1193c2d5da07916136e9fa3d77de4983ea1",
       "raw_bytes": 1089,
       "raw_sha256": "ed430321f912e56eec9e703f1f9557fcf757011aba429bfa9eaa098e537b3902",
-      "normalization": "none",
-      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/fixture-import-failure.log"
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
+      "private_raw": ".git/spec-flow/acceptance/S1.2-daemon-ui/fixture-import-failure.log",
+      "sanitizedFrom": {
+        "bytes": 1089,
+        "sha256": "ed430321f912e56eec9e703f1f9557fcf757011aba429bfa9eaa098e537b3902"
+      }
     },
     {
       "path": "parent-verification.json",
       "command": "Parent hash/frontmatter/record comparison and read-only external source hashes",
       "exitCode": 0,
       "proves": "Historical mother contract/frontmatter unchanged, gaps=[]; not new current audit",
-      "bytes": 2528,
-      "sha256": "fa0f3a2de72d8834f65a02a194e96ad7716b278c518ebe1eb19835ecf35c930e",
-      "executable": false
+      "bytes": 2529,
+      "sha256": "819f461e88a982cc5ea64a18302ff7afc1a80d37f8c353eec132095a21446483",
+      "executable": false,
+      "sanitizedFrom": {
+        "bytes": 2528,
+        "sha256": "fa0f3a2de72d8834f65a02a194e96ad7716b278c518ebe1eb19835ecf35c930e"
+      }
     }
-  ]
+  ],
+  "sanitization": {
+    "pass": "path-desensitization-v1",
+    "rules": "docs/SANITIZATION.md",
+    "note": "Machine-local absolute paths replaced with portable placeholders; private consumer repository identity replaced with example-app. File content otherwise unchanged; prior hashes kept in sanitizedFrom.",
+    "changedFiles": 5
+  }
 }

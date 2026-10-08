@@ -7,26 +7,34 @@
       "path": "pre-fix.log",
       "command": "node --test review-repair.test.mjs (baseline: 8 intended failures)",
       "exitCode": 1,
-      "bytes": 7636,
-      "sha256": "f9a4cea651f88653184a01f748c4e1035a4749b6cfc171344acebbddd4fccc1a",
-      "normalization": "line-end horizontal whitespace only; no lines deleted",
+      "bytes": 6761,
+      "sha256": "c81e232952af498bf0d3820ee56f777b1a8ad077cb01d463269656eb7204a1e8",
+      "normalization": "line-end horizontal whitespace only; no lines deleted; path desensitization v1 (paths only)",
       "original": {
         "bytes": 7660,
         "sha256": "eea97731f0b7784f4e5187571c7bad63658112ccd8358f794675fe698b84285a",
         "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/pre-fix.log"
+      },
+      "sanitizedFrom": {
+        "bytes": 7636,
+        "sha256": "f9a4cea651f88653184a01f748c4e1035a4749b6cfc171344acebbddd4fccc1a"
       }
     },
     {
       "path": "sync-api-regression.log",
       "command": "development node --test review-repair.test.mjs review-creation.test.mjs core.test.mjs (async attest regression; 112/114; corrected, not final gate)",
       "exitCode": 1,
-      "bytes": 24136,
-      "sha256": "78411c35ef816dd57ca1d3a3639d6e8cbd541bb0aea3e97a962b259759fb57e3",
-      "normalization": "none",
+      "bytes": 23954,
+      "sha256": "6cc4936f6c132a177608e45d92c5e8185f3ca56bb315f57a3605e1b41af50269",
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
       "original": {
         "bytes": 24136,
         "sha256": "78411c35ef816dd57ca1d3a3639d6e8cbd541bb0aea3e97a962b259759fb57e3",
         "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/sync-api-regression.log"
+      },
+      "sanitizedFrom": {
+        "bytes": 24136,
+        "sha256": "78411c35ef816dd57ca1d3a3639d6e8cbd541bb0aea3e97a962b259759fb57e3"
       }
     },
     {
@@ -72,13 +80,17 @@
       "path": "full-check.log",
       "command": "npm run check (Node22)",
       "exitCode": 0,
-      "bytes": 46244,
-      "sha256": "efe011ab0e1c62ba58d5587127af667a47fd7d26b89caff602acf2471526d678",
-      "normalization": "none",
+      "bytes": 46265,
+      "sha256": "403cf4f66822de0fce36514c5947fc1406f0882d27d21d3b788465ef19440c3f",
+      "normalization": "path desensitization v1 (paths only; no lines removed)",
       "original": {
         "bytes": 46244,
         "sha256": "efe011ab0e1c62ba58d5587127af667a47fd7d26b89caff602acf2471526d678",
         "privatePath": ".git/spec-flow/acceptance/S1.7-output-repair/full-check.log"
+      },
+      "sanitizedFrom": {
+        "bytes": 46244,
+        "sha256": "efe011ab0e1c62ba58d5587127af667a47fd7d26b89caff602acf2471526d678"
       }
     },
     {
@@ -122,15 +134,29 @@
     },
     {
       "path": "real-retained-response.json",
-      "bytes": 2908,
-      "sha256": "95c881c146aaf0d2935422a781326d39f46e63332817d00fb23207fe2ecf768c",
-      "classification": "real retained-response parent formatter verification; no new model call or current lifecycle acceptance"
+      "bytes": 2923,
+      "sha256": "01e64a91cb1c79683d2471b3062fc91ea16216e4ddb39bd7c6d260aea05cfb1b",
+      "classification": "real retained-response parent formatter verification; no new model call or current lifecycle acceptance",
+      "sanitizedFrom": {
+        "bytes": 2908,
+        "sha256": "95c881c146aaf0d2935422a781326d39f46e63332817d00fb23207fe2ecf768c"
+      }
     },
     {
       "path": "parent-verification.json",
-      "bytes": 5731,
-      "sha256": "bec0a8947c68b243efeea64938e7bb04c84c1be4155f36fd6e692d20c30c602e",
-      "classification": "parent-only source/history/budget/retained-response/acceptance verification"
+      "bytes": 5753,
+      "sha256": "e80890e14caed1c6243df44a90672b96b59983e9c1852f61197aa3e8c81d5fed",
+      "classification": "parent-only source/history/budget/retained-response/acceptance verification",
+      "sanitizedFrom": {
+        "bytes": 5731,
+        "sha256": "bec0a8947c68b243efeea64938e7bb04c84c1be4155f36fd6e692d20c30c602e"
+      }
     }
-  ]
+  ],
+  "sanitization": {
+    "pass": "path-desensitization-v1",
+    "rules": "docs/SANITIZATION.md",
+    "note": "Machine-local absolute paths replaced with portable placeholders; private consumer repository identity replaced with example-app. File content otherwise unchanged; prior hashes kept in sanitizedFrom.",
+    "changedFiles": 5
+  }
 }

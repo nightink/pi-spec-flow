@@ -9,8 +9,12 @@
     },
     {
       "path": "github/example-app-ci-at-run.yml",
-      "bytes": 898,
-      "sha256": "dcff3c5902014b63f0cc55086abec7d24bdb06d22da490a35c3c3c09d538952a"
+      "bytes": 905,
+      "sha256": "c76821a871077105228ab7a15ae3152f163110029e99ca5453a04f2399ead595",
+      "sanitizedFrom": {
+        "bytes": 898,
+        "sha256": "dcff3c5902014b63f0cc55086abec7d24bdb06d22da490a35c3c3c09d538952a"
+      }
     },
     {
       "path": "github/example-app-job.json",
@@ -19,13 +23,21 @@
     },
     {
       "path": "github/example-app-run.json",
-      "bytes": 291,
-      "sha256": "4b6f3b618d3ecaf62b3db347128a2f720d702e4b52602efe6fc0f657c1ca325b"
+      "bytes": 301,
+      "sha256": "3f58bfb6bcd8d46ffffa51724da4398d417794ec917c1f4d39a3132d5f445357",
+      "sanitizedFrom": {
+        "bytes": 291,
+        "sha256": "4b6f3b618d3ecaf62b3db347128a2f720d702e4b52602efe6fc0f657c1ca325b"
+      }
     },
     {
       "path": "github/example-app-success.log",
-      "bytes": 34493,
-      "sha256": "fe97691b32a005d51b91b719cc4d655a26cda8b7e75e2c95649199d9becb2c3d"
+      "bytes": 34605,
+      "sha256": "3faaf574fa9c6278d4856c61be34f19edbef43047aa982ec4e81acfeb1616b22",
+      "sanitizedFrom": {
+        "bytes": 34493,
+        "sha256": "fe97691b32a005d51b91b719cc4d655a26cda8b7e75e2c95649199d9becb2c3d"
+      }
     },
     {
       "path": "github/main.json",
@@ -83,5 +95,11 @@
     "bytes": 34504,
     "sha256": "43023a054829929fcd9bd576109984ba285d69c0edddbacb210f327c57a48977",
     "normalization": "Only trailing tabs/spaces per line removed from tracked log; timestamps/ANSI/content/order/line numbers otherwise unchanged."
+  },
+  "sanitization": {
+    "pass": "path-desensitization-v1",
+    "rules": "docs/SANITIZATION.md",
+    "note": "Machine-local absolute paths replaced with portable placeholders; private consumer repository identity replaced with example-app. File content otherwise unchanged; prior hashes kept in sanitizedFrom.",
+    "changedFiles": 3
   }
 }
