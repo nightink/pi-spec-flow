@@ -1010,6 +1010,25 @@ function gateCacheTtlMs(override) {
     : 0;
 }
 
+/**
+ * 项目门禁单次执行超时（毫秒）。默认 15 分钟。
+ *
+ * 为何不是 3 分钟（2026-10-09 回归）：门禁是**调用方的完整验收**（`npm run verify`），在 CI 上跑
+ * 带覆盖率插桩的真实套件会慢得多 —— 实测 kite 在 GitHub runner 上 test:safe 单项就需 427s、
+ * verify 合计 ~500s，而硬编码的 180s 会让“门禁是否通过”取决于机器速度而非代码。
+ *
+ * 显式设置 `SPECFLOW_GATE_TIMEOUT`（毫秒，1000..86400000）可覆盖；非法值直接报错（fail closed），
+ * 不静默回退成默认值 —— 否则调用方会以为自己设了个更长的超时。
+ */
+function gateTimeout() {
+  const raw = process.env.SPECFLOW_GATE_TIMEOUT;
+  const timeout = raw === undefined || raw === "" ? 900000 : Number(raw);
+  if (!Number.isSafeInteger(timeout) || timeout < 1000 || timeout > 24 * 60 * 60 * 1000) {
+    throw new Error("Invalid SPECFLOW_GATE_TIMEOUT: require 1000..86400000 milliseconds");
+  }
+  return timeout;
+}
+
 function gateCachePath(cwd, gates) {
   const uid = typeof process.getuid === "function" ? process.getuid() : null;
   const dir = path.join(os.tmpdir(), `specflow-${uid ?? "user"}`);
@@ -1074,6 +1093,7 @@ export async function runGates(
     }
   }
 
+  const timeoutMs = gateTimeout();
   const results = {};
   for (const gate of gates) {
     abortIfNeeded(signal);
@@ -1081,13 +1101,13 @@ export async function runGates(
     const execution = gate.file
       ? await runArgv(gate.file, gate.args || [], {
           cwd,
-          timeout: 180000,
+          timeout: timeoutMs,
           signal,
           env: { ...process.env, CI: process.env.CI || "1", PYTHONDONTWRITEBYTECODE: "1" },
         })
       : await runCmd(gate.cmd, {
           cwd,
-          timeout: 180000,
+          timeout: timeoutMs,
           signal,
         });
     const { stdout, stderr, code } = execution;

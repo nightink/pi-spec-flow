@@ -1298,3 +1298,26 @@ test("runGates: success captures stdout tail for evidence", async () => {
   assert.equal(res.echo.pass, true);
   assert.match(res.echo.tail, /Tests 218 passed/);
 });
+
+test("runGates: gate timeout defaults to 15min and is configurable via SPECFLOW_GATE_TIMEOUT", async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-gates-timeout-"));
+  const saved = process.env.SPECFLOW_GATE_TIMEOUT;
+  try {
+    // 默认超时下快命令通过（默认 900000ms 而非旧的硬编码 180000ms）
+    delete process.env.SPECFLOW_GATE_TIMEOUT;
+    const fast = await runGates(cwd, [{ name: "fast", cmd: "node -e \"console.log('ok')\"" }]);
+    assert.equal(fast.fast.pass, true);
+
+    // 显式设成 1s → 睡 3s 的命令必须被判失败（证明变量真的生效）
+    process.env.SPECFLOW_GATE_TIMEOUT = "1000";
+    const slow = await runGates(cwd, [{ name: "slow", cmd: "node -e \"setTimeout(() => console.log('late'), 3000)\"" }]);
+    assert.equal(slow.slow.pass, false);
+
+    // 非法值 fail closed，不静默回退
+    process.env.SPECFLOW_GATE_TIMEOUT = "abc";
+    await assert.rejects(() => runGates(cwd, [{ name: "x", cmd: "node -e 0" }]), /Invalid SPECFLOW_GATE_TIMEOUT/);
+  } finally {
+    if (saved === undefined) delete process.env.SPECFLOW_GATE_TIMEOUT;
+    else process.env.SPECFLOW_GATE_TIMEOUT = saved;
+  }
+});
