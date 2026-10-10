@@ -1,0 +1,37 @@
+{
+  "kind": "changed-product-source-manifest; not a full-current audit",
+  "baseline": "1d3d259b0515a0a202bc635db17ab0f138bd49cd",
+  "note": "baseline is origin/main before the fix (git diff 1d3d259); changed runtime/config/test/doc product sources only, measured after rebasing onto 1d3d259",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 30900,
+      "sha256": "aff4f43b5f565c252a2a75b8938cfad43e79864e7486321842be36867de75209"
+    },
+    {
+      "path": "core.mjs",
+      "bytes": 121305,
+      "sha256": "b3cda6c41cfb1def73bc22a7a0b01a159292711b16fd3fd7f0939504d899a27e"
+    },
+    {
+      "path": "core.test.mjs",
+      "bytes": 51286,
+      "sha256": "f27230a4c10cd143e0c857eebc44786b04be4d12f88bbab0391a1a53f281deba"
+    },
+    {
+      "path": "review-engine.mjs",
+      "bytes": 38458,
+      "sha256": "aed54020f1ce3ade5d16e002eada1958bfec4deb0bf5ddf4d39e853789397894"
+    },
+    {
+      "path": "review-repair.test.mjs",
+      "bytes": 15345,
+      "sha256": "a4bf1deb73e0d6b59df85e132ebbb93fd69b306a5d9c79c9d82b27a7af107b04"
+    },
+    {
+      "path": "review-creation.test.mjs",
+      "bytes": 27625,
+      "sha256": "9224705ffab263cca9e7e70260cbcbcf16b14424a37012ebb4131a4a85b88107"
+    }
+  ]
+}

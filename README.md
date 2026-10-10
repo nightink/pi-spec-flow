@@ -262,6 +262,12 @@ node /trusted/spec-flow/core.mjs audit SPEC_ID --review-job DERIVED_32_HEX_JOB_I
 
 native `spec_review {action:"repair",jobId}` / `/spec review <JSON>` 等价；native 附加用 `spec_audit {id,reviewJobId}`。repair 不接受 budgetId、verdict、criteria 或自定义修补内容。完整原始证据和派生来源均重验；重复 repair/replay 幂等，写入失败不留半成品，既不消耗新调用也不退款/重置旧授权。它只修工具格式，不做第二次审查：真正的产品 FAIL 仍是 FAIL，普通/delta 仍不能冒充 full audit，当前实现/合同/scope/diff/impl 绑定不匹配仍须先解决版本/证据问题，人工确认规则不变。源码更新不会刷新运行宿主缓存；旧宿主可先走可信 CLI，不需要为 CLI 修复重启生产。
 
+### 判据（criteria）边界：运行时/跨仓库/人工事实不是判据
+
+审计 prompt v5（`review-engine.mjs`，结果协议仍为 2）明确：每条 criterion 必须能**仅凭封存 packet** 判定（合同文本、bindings 声明覆盖范围内的 diff，以及 packet 内已记录的 gate/impl/attestation 事实）。只能由运行时执行、远端 CI、**另一个仓库**或人工确认的事实**不得**作为 criterion；合同把这类条目写成验收时，审计只判 packet 内已记录证据的**存在、时效与绑定**，残余的运行时事实写入 `out_of_scope`（理由 `runtime|remote|cross-repository|attestation-deferred`）。超出 bindings 审查覆盖范围的验收条目同样进 `out_of_scope`，而不是 `unverifiable`。`unverifiable` 只保留给 packet 内证据本身有歧义或矛盾；必需记录证据缺失或未绑定一律 `fail`。可静态判定的验收条目**仍必须**作为 criterion，不允许被挪进 `out_of_scope`。
+
+审计摘要与 Spec `audit.out_of_scope`（有界 string[]，仅非空时写入；旧记录不含该字段，字节与 result hash 不变）会显示这些延后项，延后不是看不见的丢弃。fail-closed 语义不变：任一 `fail`/`unverifiable` criterion 仍使 verdict=fail；`out_of_scope` 不能把空 criteria 或 unverifiable 洗成 PASS；人工与运行时条目仍由 `spec_attest` 与 `spec_done` 的 `recordConsistencyGaps` 覆盖。
+
 ### timeout 生效与无 PATH pi 的启动
 
 `prepared` job 首次 run 才读取当前执行参数；提高 `SPECFLOW_AUDIT_TIMEOUT` 后可直接启动尚未执行的同一 job。`running` 只等待原 worker，终态只重放原结果，不刷新 timeout/bin/model/thinking，也不重启或退款。run 返回 `executionInfo`（requested/effective timeout、是否 applied/ignored、started/wait-existing/reuse-result）；native tool 同时更新进度，audit 缓存也显示沿用值。`receipt.execution` 始终保留原参数。需要更长 timeout 的**新执行**须 prepare 新 job 并使用仍有效的授权，不能靠重放旧 job 自动再调用。

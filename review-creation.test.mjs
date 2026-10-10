@@ -238,6 +238,8 @@ test("lifecycle: shared full audit, free attach/cache, ordinary report cannot cl
   assert.match(await audit(f.root, "S1", { budgetId: "fixture" }), /✅ PASS/);
   const record = findSpec(f.root, "S1").frontmatter.audit;
   assert.equal(record.review.mode, "working-tree-audit"); assert.equal(record.review.packet_sha256, record.review.child_input_sha256);
+  assert.equal(record.prompt_version, 5);
+  assert.match(fs.readFileSync(reviewStatus(f.root, record.review.job_id).packetPath, "utf8"), /Criteria admissibility/);
   assert.match(await audit(f.root, "S1", { budgetId: "missing" }), /缓存复用/);
   f.write("changed-after.txt", "changed\n"); await assert.rejects(done(f.root, "S1"), /实现快照|changed|实现已/); fs.rmSync(path.join(f.root, "changed-after.txt"));
   const proposal = await review(f.root, { mode: "proposal", id: "S1" });

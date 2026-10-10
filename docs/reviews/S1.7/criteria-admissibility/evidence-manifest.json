@@ -1,0 +1,49 @@
+{
+  "kind": "source-bound parent evidence; no independent review of this repair, no real provider call",
+  "baseline": "1d3d259b0515a0a202bc635db17ab0f138bd49cd",
+  "sourceManifestSha256": "b7cffbc40b6fc7b581faa4b150353fe67eca44c3fb6d26332a3aca7271c71fce",
+  "logs": [
+    {
+      "path": "pre-fix.log",
+      "bytes": 20924,
+      "sha256": "583cb9a2e2e36688b3fe0370f418c8a5a8297276045e5fb5c85c99c76d104a84"
+    },
+    {
+      "path": "targeted.log",
+      "bytes": 10113,
+      "sha256": "b4d023c7a69896fe29c6868c53173debc3ac1e10b1c0a1b8e9dd824159388ffd"
+    },
+    {
+      "path": "full-check.log",
+      "bytes": 23242,
+      "sha256": "15a0c90d77e7f4e6a7c780541b1550828af4ae55703fa8c720170062816f47bd"
+    },
+    {
+      "path": "pi-smoke.log",
+      "bytes": 1868,
+      "sha256": "e8f74c6c814c3830ccde5c9259b91fa493679382730b2dbb36df5a2dd2590448"
+    }
+  ],
+  "documents": [
+    {
+      "path": "source-manifest.json",
+      "bytes": 1222,
+      "sha256": "b7cffbc40b6fc7b581faa4b150353fe67eca44c3fb6d26332a3aca7271c71fce"
+    },
+    {
+      "path": "validation.md",
+      "bytes": 3879,
+      "sha256": "abd50d5d76bd1d4e12e2d46e19032bb987323d51c3b0e321a8b6309eb43fe960"
+    },
+    {
+      "path": "closure.md",
+      "bytes": 1148,
+      "sha256": "71ec4869f3004a4e9845aae2fdd088d2e66376f9ff7dedfe618682116edb92dd"
+    },
+    {
+      "path": "secret-scan.md",
+      "bytes": 852,
+      "sha256": "c9fdf2e5c545ba920262509d860a7871ef414f999c3c195067227b0ac8c17e89"
+    }
+  ]
+}

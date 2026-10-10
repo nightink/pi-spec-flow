@@ -74,7 +74,7 @@ function approvedSpec({ id = "S1.0", repo, evidence = {}, body = "## 验收标�
   );
 }
 
-function fakeAuditor(verdict = "pass", criteria) {
+function fakeAuditor(verdict = "pass", criteria, extra = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-auditor-"));
   const bin = path.join(dir, "auditor");
   const result = {
@@ -87,6 +87,7 @@ function fakeAuditor(verdict = "pass", criteria) {
       },
     ],
     scope_deviations: [],
+    ...extra,
   };
   fs.writeFileSync(
     bin,
@@ -402,7 +403,7 @@ test("done: ledger includes bound impl and audit summary", async () => {
   assert.deepEqual(entry.impl_summary.e2e, {});
   assert.equal(entry.impl_summary.migrations.pass, true);
   assert.equal(entry.audit.verdict, "pass");
-  assert.equal(entry.audit.prompt_version, 4);
+  assert.equal(entry.audit.prompt_version, 5);
   assert.match(entry.impl_hash, /^[0-9a-f]{64}$/);
   assert.match(entry.contract_hash, /^[0-9a-f]{64}$/);
 });
@@ -881,6 +882,69 @@ test("audit: subprocess failure persists fail/unverifiable criteria", async () =
     if (savedBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
     else process.env.SPECFLOW_AUDIT_BIN = savedBin;
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ─── Audit criteria admissibility (issue #2) ─────────────────────────────────
+test("audit: runtime/cross-repository/human acceptance facts defer instead of blocking PASS", async () => {
+  const { project } = await implementedLifecycle({ evidence: { human: ["R1"] } });
+  const deferred = [
+    "remote CI greenness is runtime evidence; deferred to impl gates/attestation/lifecycle",
+    "cross-repository engine parity is remote evidence; deferred to the owning repository",
+    "human R1 sign-off is an attestation fact; deferred to spec_attest",
+  ];
+  const auditor = fakeAuditor("pass", [
+    {
+      criterion: "recorded gate/impl evidence is present, current and bound to the audited revision",
+      status: "pass",
+      evidence: "recorded impl.gates.test.pass=true together with bound snapshot/contract hashes in the packet",
+    },
+  ], { out_of_scope: deferred });
+  const savedBin = process.env.SPECFLOW_AUDIT_BIN;
+  process.env.SPECFLOW_AUDIT_BIN = auditor.bin;
+  try {
+    const output = await audit(project, "S1.0");
+    assert.match(output, /✅ PASS/);
+    assert.match(output, /范围外/);
+    assert.match(output, /remote CI greenness/);
+    const record = loadSpecs(project)[0].frontmatter.audit;
+    assert.equal(record.verdict, "pass");
+    assert.equal(record.prompt_version, 5);
+    assert.deepEqual(record.out_of_scope, deferred);
+    assert.ok(record.criteria.every((criterion) => criterion.status === "pass"));
+    attest(project, "S1.0", "R1", "Verified remote CI run URL and human sign-off sample qa-42");
+    assert.match(await done(project, "S1.0"), /已完成/);
+  } finally {
+    if (savedBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
+    else process.env.SPECFLOW_AUDIT_BIN = savedBin;
+    auditor.cleanup();
+  }
+});
+
+test("audit: out_of_scope never rescues unverifiable or empty criteria (fail closed)", async () => {
+  const savedBin = process.env.SPECFLOW_AUDIT_BIN;
+  const runtime = await implementedLifecycle();
+  const unverifiable = fakeAuditor("pass", [
+    { criterion: "the external Action really ran check/verify in the other repository", status: "unverifiable", evidence: "needs cross-repository runtime truth" },
+  ], { out_of_scope: ["all runtime facts deferred"] });
+  const empty = fakeAuditor("pass", [], { out_of_scope: ["all acceptance items deferred"] });
+  try {
+    process.env.SPECFLOW_AUDIT_BIN = unverifiable.bin;
+    assert.match(await audit(runtime.project, "S1.0"), /❌ FAIL/);
+    const runtimeRecord = loadSpecs(runtime.project)[0].frontmatter.audit;
+    assert.equal(runtimeRecord.verdict, "fail");
+    assert.equal(runtimeRecord.criteria[0].status, "unverifiable");
+    assert.throws(() => attest(runtime.project, "S1.0", "R1", "note long enough for the human gate sample"), /passing impl and audit|not consistently passing/);
+
+    const noCriteria = await implementedLifecycle();
+    process.env.SPECFLOW_AUDIT_BIN = empty.bin;
+    await audit(noCriteria.project, "S1.0");
+    assert.equal(loadSpecs(noCriteria.project)[0].frontmatter.audit.verdict, "fail");
+  } finally {
+    if (savedBin === undefined) delete process.env.SPECFLOW_AUDIT_BIN;
+    else process.env.SPECFLOW_AUDIT_BIN = savedBin;
+    unverifiable.cleanup();
+    empty.cleanup();
   }
 });
 

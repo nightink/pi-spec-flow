@@ -27,7 +27,7 @@ import {
 const execFileP = promisify(execFile);
 const WORKFLOW_VERSION = 2;
 const GATE_CACHE_VERSION = 2;
-const AUDIT_PROMPT_VERSION = 4;
+const AUDIT_PROMPT_VERSION = 5;
 const DEFAULT_AUDIT_MAX_BYTES = 512 * 1024;
 const DEFAULT_SNAPSHOT_MAX_BYTES = 512 * 1024 * 1024;
 
@@ -1959,6 +1959,27 @@ async function assertRetainedAuditEvidence(repo, auditRecord) {
   return retained;
 }
 
+// Runtime/remote/human facts are not criteria; they are recorded as bounded
+// out_of_scope notes. Legacy records without the field stay byte-stable.
+function deferredScopeNotes(value) {
+  if (!Array.isArray(value)) return [];
+  const notes = [];
+  for (const item of value) {
+    if (notes.length >= 100) break;
+    let text = typeof item === "string" ? item : null;
+    if (text === null) {
+      try { text = JSON.stringify(item) ?? String(item); } catch { text = String(item); }
+    }
+    if (typeof text !== "string" || !text.trim()) continue;
+    notes.push(text.slice(0, 5000));
+  }
+  return notes;
+}
+function deferredScopeLines(notes) {
+  if (!notes.length) return [];
+  return ["  范围外（运行时/跨仓库/人工事实，非判据；由 attestation 与 lifecycle 覆盖）:",
+    ...notes.map((note) => `    - ${note.slice(0, 500)}`)];
+}
 function savedAuditOutputHint(fm) {
   if (!fm.audit || fm.audit.verdict === "pass") return null;
   if (["protocol-error", "execution-error"].includes(fm.audit.output_info?.category)) return fm.audit.output_info.message;
@@ -2070,6 +2091,7 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
       summary.push(`    [✓] ${criterion.criterion}`);
       if (criterion.evidence) summary.push(`      ${criterion.evidence.slice(0, 200)}`);
     }
+    summary.push(...deferredScopeLines(deferredScopeNotes(prev.out_of_scope)));
     return summary.join("\n");
   }
 
@@ -2140,6 +2162,8 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
 
   const afterAudit = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
   if (afterAudit.hash !== snapshot.hash) throw new Error("Implementation changed during audit; rerun impl/audit on stable checkout content");
+  // A deferred runtime/cross-repository fact is recorded, never a criterion.
+  const deferredNotes = deferredScopeNotes(engineReview?.result?.out_of_scope);
   auditResult = normalizeAuditResult(auditResult);
   fm.audit = {
     at: new Date().toISOString(),
@@ -2154,6 +2178,7 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
     verdict: auditResult.verdict,
     criteria: auditResult.criteria,
     scope_deviations: auditResult.scope_deviations,
+    ...(deferredNotes.length ? { out_of_scope: deferredNotes } : {}),
     ...(engineReview ? { review: { version: 1, mode: "working-tree-audit", job_id: engineReview.jobId,
       state: engineReview.state, packet_sha256: engineReview.receipt.packet_sha256,
       child_input_sha256: engineReview.receipt.child_input_sha256 ?? null,
@@ -2196,6 +2221,7 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
       summary.push(`    - ${deviation}`);
     }
   }
+  summary.push(...deferredScopeLines(deferredNotes));
 
   return summary.join("\n");
 }

@@ -70,9 +70,24 @@ test("repair: versioned lossless known scope observations; legacy normalization 
 
 test("repair: new packet explicitly types scope items and pins prompt/result versions", async t => {
   const f = fixture(t), prepared = await review(f.root, { mode: "proposal", id: "S1" });
-  assert.equal(prepared.receipt.result_protocol_version, 2); assert.equal(prepared.receipt.prompt_version, 4);
+  assert.equal(prepared.receipt.result_protocol_version, 2); assert.equal(prepared.receipt.prompt_version, 5);
   assert.match(fs.readFileSync(prepared.packetPath, "utf8"), /scope_deviations.*string\[\]/);
   assert.match(fs.readFileSync(prepared.packetPath, "utf8"), /file.*note.*lossless/i);
+});
+
+test("repair: sealed packet forbids runtime/remote/human facts as criteria and defers them", async t => {
+  const f = fixture(t), prepared = await review(f.root, { mode: "proposal", id: "S1" });
+  const packet = fs.readFileSync(prepared.packetPath, "utf8");
+  assert.match(packet, /Criteria admissibility/);
+  assert.match(packet, /MUST be decidable from this sealed packet alone/);
+  assert.match(packet, /MUST NOT be criteria/);
+  assert.match(packet, /attestation-deferred/);
+  assert.match(packet, /out_of_scope MUST be string\[\]/);
+  assert.match(packet, /Every statically decidable acceptance item MUST still appear as a criterion/);
+  assert.match(packet, /missing or unbound required recorded evidence is fail/);
+  // A runtime-only criterion can never be laundered into PASS by deferral text.
+  assert.equal(normalizeReviewResult({ ...rawPass, criteria: [{ criterion: "remote CI is green", status: "unverifiable", evidence: "needs runtime" }], out_of_scope: ["deferred"] },
+    { mode: "working-tree-audit", result_protocol_version: 2 }).verdict, "fail");
 });
 
 test("repair: exhausted grant permits explicit derived repair/free replay, not original rewriting or respawn", async t => {
