@@ -25,7 +25,10 @@ mode: prepare current contract bytes, inspect/secret-scan the exact sealed packe
 This does not write approval/status or audit evidence; parent must apply the project's proposal approval rules.
 
 Parent Agent must verify every claim. Confirmed blockers update the governing artifact before construction. Proposal APPROVE
-means the plan is implementable/testable; it does not prove future code.
+means the plan is implementable/testable; it does not prove future code. Reconcile all normative body promises with acceptance,
+including compound observable dimensions and precise numeric definitions. Keep original findings bound to their source rather than
+relying on author summaries. For confirmed majors, record finding → acceptance → implementation/test evidence; "written into Design"
+is not closure. Verified rejection or actual approved withdrawal is a separate, sourced disposition, not a forced fake regression test.
 
 If a worker cannot start, an isolated no-tools/no-session reviewer with a secret-scanned sealed packet is acceptable. Never call
 the current implementation context “independent.”
@@ -52,13 +55,36 @@ Prefer an exact committed endpoint diff:
 - diff/stat/name-status/check included;
 - dirty/untracked exclusions stated;
 - packet built and inspected before model call;
-- packet secret-scanned.
+- packet secret-scanned;
+- versioned body-source inventory and every returned source ID accounted for;
+- semantic check that each normative promise actually reaches suitable acceptance (references/keywords alone are insufficient);
+- explicit caller context, including unchanged entry files when relevant, sealed from the selected head/current target repository;
+- declared proposal sources inherited and dispositions tied to acceptance or a verified decision.
 
 If Git is unavailable, build an explicit before/after file manifest and patch, disclose reduced provenance, and do not invent
 SHAs or claim Git-level isolation.
 
 Use a clean temporary worktree when unrelated dirty state would otherwise contaminate the packet. Respect project policy on
 commits; never create or rewrite commits when forbidden.
+
+### Coverage and evidence precision
+
+For spec-flow protocol 3, declare optional contract frontmatter `review_inputs: {context_files: [...], proposal_reviews: [...]}` before
+impl; changing it changes the contract hash. Context files must be explicit bounded ordinary files in the target repository, not
+links, cross-repository data, production sessions or executable instructions. Proposal IDs refer to retained completed same-Spec
+proposal reports; importing them is not importing approval. Known evidence gaps are inherited as unresolved gaps, NOT confirmed bugs.
+Keep packet/raw/job and directly declared original proposal journals to validate new coverage claims; a missing/tampered direct
+source blocks consumption/cache without an extra call. This is not recursive certification of an unlimited historical graph. Historical v1/v2
+PASS, repairs and free cache retain their original meaning and do not acquire v3 completeness retroactively.
+
+Distinguish protocol error, coverage/evidence gap, confirmed static product failure, execution failure and runtime acceptance.
+For prompt 7, criteria explicitly use kind=product|evidence; a nonpassing evidence criterion needs visible gap linkage, not a fabricated product finding.
+Factual rejection supported by bound static counterevidence does not require scope-owner consent; withdrawal/waiver of a real requirement does.
+Missing acceptance/context prevents the relevant PASS but does not prove a product bug. Runtime/remote/human residuals may be
+visibly deferred while checking required recorded evidence; a confirmed static wiring omission cannot be deferred as runtime.
+Do not assume an unchanged entry is disconnected: the baseline may already satisfy the promise. Do not cap a sum of parallel
+session spans at one day or merge fork sessions without an explicit aggregation/identity contract. Test both false negatives and
+false positives against independently fixed expectations. Fake matrices/executors test mechanics only, not model detection quality.
 
 ## 4. Incremental scope
 

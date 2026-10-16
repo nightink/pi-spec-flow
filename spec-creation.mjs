@@ -7,11 +7,11 @@ import { loadProjectProfile, canonicalSpecId } from "./project-profile.mjs";
 import { getSpecDirectories, findSpec, projectContractProblems, writeFrontmatter,
   updateStatusLine, withAllocator, reserveSpecIdUnlocked, appendLedger } from "./core.mjs";
 
-export const SPEC_TEMPLATE_VERSION = 1;
+export const SPEC_TEMPLATE_VERSION = 2;
 const SLOTS = ["title", "goals", "non_goals", "design", "plan", "acceptance"];
 const INPUT_KEYS = ["title", "prefix", "slug", "goals", "nonGoals", "design", "plan", "acceptance", "dependencies", "dryRun"];
 const hash = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
-const builtin = fileURLToPath(new URL("./templates/spec-v1.md", import.meta.url));
+const builtin = fileURLToPath(new URL("./templates/spec-v2.md", import.meta.url));
 function text(value, name, max = 4000) {
   // eslint-disable-next-line no-control-regex -- bounded single-line text; control bytes are rejected
   if (typeof value !== "string" || !value.trim() || value.length > max || /[\x00-\x1f\x7f]/.test(value)) {
@@ -118,7 +118,7 @@ export async function createSpec(cwd, input) {
     non_goals: (fields.non_goals || ["TODO: define scope and safety limits"]).map((item) => `- ${item}`).join("\n"),
     design: (fields.design || ["TODO: define the smallest complete design"]).map((item) => `- ${item}`).join("\n"),
     plan: (fields.plan || ["TODO: review proposal before implementation"]).map((item, i) => `${i + 1}. ${item}`).join("\n"),
-    acceptance: (fields.acceptance || ["TODO: define executable acceptance"]).map((item) => `- [ ] ${item}`).join("\n") };
+    acceptance: (fields.acceptance || ["TODO: define executable acceptance"]).map((item, i) => `- [ ] [A${i + 1}] ${item}`).join("\n") };
   // Callback replacement avoids interpreting user $&/$` sequences.
   const body = template.body.replace(/\{\{([^{}]*)\}\}/g, (_match, slot) => values[slot]);
   const filename = (id) => `${id}${prefix ? "-" : "."}${slug}.md`;

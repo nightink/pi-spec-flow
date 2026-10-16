@@ -6,7 +6,7 @@ compatibility: "Git is recommended for exact diff review; adapts to the current 
 
 # Autonomous Delivery
 
-`AUTONOMOUS_DELIVERY_WORKFLOW_V1` — installed bundle 1.1.0
+`AUTONOMOUS_DELIVERY_WORKFLOW_V1` — installed bundle 1.2.0
 
 Take one non-trivial software change from intake to honest closure without asking the user to manually trigger each phase.
 Arguments appended to `/skill:autonomous-delivery` are the task. Adapt to the current project; never impose the conventions
@@ -80,13 +80,17 @@ Its fixed versioned template creates only a draft: complete TODOs and follow pro
 reserve an ID then freely invent frontmatter. Missing required metadata is a governance decision, not permission to guess.
 Avoid duplicate documents. If no project convention exists, create the
 smallest tracked delivery contract using the bundled template and state its path. Requirements changing during work must update
-the contract before implementation continues.
+the contract before implementation continues. Before approval, reconcile every normative Outcome/Design promise (not only checkboxes)
+with numbered executable acceptance and an implementation slice. Split compound dimensions and define numeric units, aggregation
+semantics and counterexamples. A matrix is a traceability aid, not proof that its author found every obligation.
 
 ### 4. Proposal review
 
 Use a fresh-context, read-only reviewer to challenge feasibility, scope, safety, and verifiability. Prefer spec-flow's proposal review
 mode when available; prepare is free, run consumes the existing cycle grant and never approves lifecycle metadata itself. This review proves only the
-proposal. Parent Agent verifies each finding and follows the project's approval/status rules. Do not pause for a routine
+proposal. Parent Agent verifies each finding and follows the project's approval/status rules. Bind the original proposal report where supported;
+confirmed majors must reach acceptance and fix/test evidence, not merely a Design note. Verified rejection or actual approved
+withdrawal/waiver needs its source and rationale; do not fabricate tests or consent. Do not pause for a routine
 “continue” after blockers close unless local governance requires that checkpoint.
 
 ### 5. Persistent plan
@@ -110,7 +114,10 @@ actual diff. Never run an opaque project command before inspecting what it invok
 When local rules permit, create an explicit candidate snapshot (prefer a local commit with only task paths). Review the exact
 base/head or explicit patch against the governing contract using spec-flow's shared isolated review engine. Native
 `spec_review` prepare/run/status or its trusted CLI replace the retired standalone review skill; do not invoke both. Inspect the
-sealed packet, scan the exact bytes, then consume the same authorized cycle. Full current `spec_audit` owns lifecycle evidence;
+sealed packet, scan the exact bytes, then consume the same authorized cycle. Verify the source inventory and each semantic mapping,
+not just nonempty passing criteria. Explicitly supply bounded unchanged callers when needed; capability, actual entry wiring and
+runtime execution are different claims. A missing caller is an evidence gap, not proof of a defect. Mechanical source-ID accounting
+cannot prove semantic completeness or zero model error. Full current `spec_audit` owns lifecycle evidence;
 read-only historical/delta PASS cannot close today's Spec. Parent Agent locates changed hunks,
 reproduces high-risk claims, and classifies every finding. Fix confirmed regressions/incomplete fixes; unchanged baseline issues
 are out of scope unless the user expands scope.

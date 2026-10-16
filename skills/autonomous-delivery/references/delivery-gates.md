@@ -29,7 +29,10 @@ A task can require multiple rows:
 5. update the governing artifact before accepting changed requirements;
 6. repeat until the user-observable path is complete.
 
-Do not optimize for green tests that do not cover the reported path.
+Do not optimize for green tests that do not cover the reported path. Map every normative contract promise, not only existing
+checkboxes, to numbered acceptance; preserve original major findings and their evidence/decision path. Test helpers and actual
+entries separately. For numeric behavior fix the definition and oracle first (units, identities, time boundaries, sum vs union),
+and include positive counterexamples to invalid invariants. Freeze expected classifications before using model outputs as evidence.
 
 ## 3. Candidate gates
 
@@ -77,7 +80,8 @@ For each important gate record:
 - environment/isolation boundary;
 - retained log/screenshot/artifact location;
 - what it proves;
-- what it does not prove;
+- what it does not prove (source binding, structural accounting, static judgment and executed behavior are distinct);
+- which acceptance/finding IDs it supports, and remaining runtime or coverage gaps;
 - revision at which it ran.
 
 Behavior-changing commits invalidate stale runtime evidence unless explicitly shown otherwise.

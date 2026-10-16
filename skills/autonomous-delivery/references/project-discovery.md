@@ -42,6 +42,9 @@ Do not copy command output counts or volatile rules into the global skill. Disco
 tools and handled commands, or the trusted spec-flow CLI; package.json#pi.extensions is only a static declaration.
 Static Pi-extension project recognition does not authorize target execution or prove host loading/behavior.
 Inspect strict project creation/lifecycle policy before using the fixed template; do not auto-promote its unapproved draft.
+Discover normative promises outside checkboxes, original proposal majors and their dispositions, missing observable dimensions,
+metric/fork-identity definitions, and actual caller paths. Identify safe explicit context sources before impl; do not crawl another
+repository or production session data. Missing definitions require an oracle/decision, not a guessed numeric invariant.
 
 ## 4. Governing artifact selection
 

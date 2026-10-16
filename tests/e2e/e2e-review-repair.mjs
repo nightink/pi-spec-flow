@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { writeFrontmatter, findSpec, buildAuditDiff } from "../../core.mjs";
 import { prepareWorkingAudit } from "../../review-engine.mjs";
 import { loadJob, saveJob, reviewStore, digest } from "../../review-storage.mjs";
+import { seedLegacyReviewFixture } from "../helpers/review-fixture.mjs";
 const core = fileURLToPath(new URL("../../core.mjs", import.meta.url));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-repair-cli-")), root = path.join(tmp, "main checkout"), linked = path.join(tmp, "linked checkout");
 fs.mkdirSync(path.join(root, "docs/specs"), { recursive: true });
@@ -26,7 +27,7 @@ try {
   fs.writeFileSync(fake, `#!/usr/bin/env node\nimport fs from 'node:fs';fs.appendFileSync(${JSON.stringify(calls)},'call\\n');console.log(JSON.stringify({verdict:'pass',criteria:[{criterion:'product',status:'pass',evidence:'supplied code.txt diff'}],scope_deviations:[{file:'outside.txt',note:'preserve this observation'}]}));\n`, { mode: 0o755 });
   const grant = spawnSync(process.execPath, [core, "review-budget", "--json", JSON.stringify({ id: "fixture", calls: 1, note: "Synthetic CLI fake-auditor one-call grant; not real authorization." })], { cwd: root, encoding: "utf8" }); assert.equal(grant.status, 0, grant.stderr);
   const prepared = cli(root, { id: "S1", base, head }), { dir, job } = loadJob(root, prepared.jobId);
-  delete job.result_protocol_version; delete job.prompt_version; saveJob(dir, job); // Mechanical legacy fixture.
+  seedLegacyReviewFixture(dir, job); saveJob(dir, job); // Complete mechanical legacy precondition, not a v3 downgrade.
   const original = cli(root, { action: "run", jobId: prepared.jobId, budgetId: "fixture" }, { SPECFLOW_AUDIT_BIN: fake });
   assert.equal(original.result.verdict, "fail"); assert.equal(original.outputInfo.category, "protocol-error"); assert.equal(original.outputInfo.repairable, true);
   const frozen = Object.fromEntries([path.join(reviewStore(root), "budgets/fixture.json"), path.join(root, "docs/specs/S1.md"), ...["job.json", "packet.md", "stdout.txt"].map(name => path.join(dir, name))].map(file => [file, fs.readFileSync(file)]));
@@ -60,7 +61,7 @@ try {
   const preparedFull = await prepareWorkingAudit(full, { spec, content: spec.content, profile: spec.profile, diff, impl: fm.impl,
     bindings: { base_sha: fm.impl.base_sha, head: execFileSync("git", ["rev-parse", "HEAD"], { cwd: full, encoding: "utf8" }).trim(), snapshot_hash: fm.impl.snapshot_hash,
       scope_sha256: digest(JSON.stringify(null)), diff_sha256: digest(diff), impl_sha256: digest(JSON.stringify(fm.impl)) } });
-  const legacyFull = loadJob(full, preparedFull.jobId); delete legacyFull.job.result_protocol_version; delete legacyFull.job.prompt_version; saveJob(legacyFull.dir, legacyFull.job);
+  const legacyFull = loadJob(full, preparedFull.jobId); seedLegacyReviewFixture(legacyFull.dir, legacyFull.job); saveJob(legacyFull.dir, legacyFull.job);
   assert.equal(command(["review-budget", "--json", JSON.stringify({ id: "full-fixture", calls: 1, note: "Disposable full lifecycle fake grant, not a real review authorization." })]).status, 0);
   const originalFull = command(["audit", "S1", "--review-job", preparedFull.jobId], { SPECFLOW_AUDIT_BIN: fake, SPECFLOW_REVIEW_BUDGET_ID: "full-fixture" });
   assert.equal(originalFull.status, 0, originalFull.stderr); assert.match(originalFull.stdout, /工具\/协议错误/);

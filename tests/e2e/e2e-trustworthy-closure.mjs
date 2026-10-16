@@ -132,15 +132,16 @@ try {
     "fake-auditor.mjs",
     `#!/usr/bin/env node
 import fs from "node:fs";
+import {mechanicalCoverage} from ${JSON.stringify(new URL("../helpers/review-fixture.mjs", import.meta.url).href)};
 const args = process.argv.slice(2);
 fs.writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(args));
 const atFile = args.find((arg) => arg.startsWith("@"));
 fs.copyFileSync(atFile.slice(1), ${JSON.stringify(promptFile)});
-console.log(JSON.stringify({
+console.log(JSON.stringify(mechanicalCoverage({
   verdict: "pass",
   criteria: [{ criterion: "implementation", status: "pass", evidence: "# untracked: implementation.txt" }],
   scope_deviations: []
-}));
+}, fs.readFileSync(atFile.slice(1), "utf8"))));
 `,
     { mode: 0o755 }
   );

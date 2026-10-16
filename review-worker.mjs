@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { loadJob, saveJob, readPrivate, digest } from "./review-storage.mjs";
-import { normalizeReviewResult, scanReviewPacket, decodeAuditorResponse } from "./review-engine.mjs";
+import { normalizeReviewResult, scanReviewPacket, decodeAuditorResponse, assertReviewIndexBinding } from "./review-engine.mjs";
 import { buildAuditorArgs, runSpawn } from "./core.mjs";
 
 const [cwd, id] = process.argv.slice(2);
@@ -21,6 +21,7 @@ try {
   job.worker_pid = process.pid;
   const packet = readPrivate(path.join(dir, "packet.md"), 512 * 1024);
   if (digest(packet) !== job.packet_sha256 || scanReviewPacket(packet).findings.length) throw new Error("Sealed packet changed before child execution");
+  assertReviewIndexBinding(packet, job, cwd);
   const { args, cleanup } = buildAuditorArgs(packet, job.execution.model, job.execution.thinking);
   let response;
   const outputFds = { stdout: fs.openSync(path.join(dir, "stdout.txt"), "wx", 0o600),

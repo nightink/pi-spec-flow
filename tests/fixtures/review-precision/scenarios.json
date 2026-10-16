@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "boundary": "Synthetic non-production sources. No oracle/expected verdict belongs in a blinded reviewer packet.",
+  "cases": [
+    {
+      "id": "design-without-entry-acceptance",
+      "design": "The manual refresh entry must display the fresh helper value.",
+      "acceptance": ["The refresh helper returns fresh."],
+      "context_files": ["entry.mjs", "helper.mjs"],
+      "files": {"helper.mjs": "export function refresh() { return 'fresh'; }\n", "entry.mjs": "export function click() { return 'stale'; }\n"}
+    },
+    {
+      "id": "explicit-entry-disconnected",
+      "design": "The manual refresh entry must display the fresh helper value.",
+      "acceptance": ["The helper returns fresh.", "Invoking click returns fresh through the actual entry."],
+      "context_files": ["entry.mjs", "helper.mjs"],
+      "files": {"helper.mjs": "export function refresh() { return 'fresh'; }\n", "entry.mjs": "export function click() { return 'stale'; }\n"}
+    },
+    {
+      "id": "unchanged-entry-already-connected",
+      "design": "The manual refresh entry must display the fresh helper value. Entry is unchanged baseline code.",
+      "acceptance": ["The helper returns fresh.", "Invoking click returns fresh through the actual entry."],
+      "context_files": ["entry.mjs", "helper.mjs"],
+      "files": {"helper.mjs": "export function refresh() { return 'fresh'; }\n", "entry.mjs": "import {refresh} from './helper.mjs'; export function click() { return refresh(); }\n"}
+    },
+    {
+      "id": "caller-context-unavailable",
+      "design": "The manual refresh entry must display fresh. The review diff contains only helper changes; no caller content is supplied.",
+      "acceptance": ["The helper returns fresh.", "Invoking click returns fresh through the actual entry."],
+      "context_files": ["helper.mjs"],
+      "files": {"helper.mjs": "export function refresh() { return 'fresh'; }\n"}
+    },
+    {
+      "id": "compound-display-dimension-missing",
+      "design": "The returned visible summary must contain cost, input and output as three separate observable numeric fields.",
+      "acceptance": ["The visible summary exposes cost, input and output, each with its numeric value."],
+      "context_files": ["view.mjs"],
+      "files": {"view.mjs": "export function visible() { return {cost: 2}; }\n"}
+    },
+    {
+      "id": "wrong-span-aggregation",
+      "design": "durationMs is SUM over sessions of (end-start), not the union or global max-minus-min. Distinct parallel sessions count separately.",
+      "acceptance": ["Two sessions [0,72000000] and [0,72000000] produce 144000000 ms."],
+      "context_files": ["metric.mjs"],
+      "files": {"metric.mjs": "export function duration(rows) { return Math.max(...rows.map(r=>r[1])) - Math.min(...rows.map(r=>r[0])); }\n"}
+    },
+    {
+      "id": "legitimate-parallel-sum-above-day",
+      "design": "durationMs is SUM over sessions of (end-start), not interval union. Parallel session spans may sum above 24h; each individual span is valid.",
+      "acceptance": ["Two sessions [0,72000000] and [0,72000000] produce 144000000 ms, not a capped day."],
+      "context_files": ["metric.mjs"],
+      "files": {"metric.mjs": "export function duration(rows) { return rows.reduce((sum,r)=>sum+r[1]-r[0],0); }\n"}
+    },
+    {
+      "id": "explicit-midnight-interval-clipping",
+      "design": "For this fixture ONLY, duration per UTC day means clipping continuous [start,end) intervals to each day. It is NOT sample max-minus-min within buckets.",
+      "acceptance": ["Session [82800000,90000000) yields day 0 = 3600000 ms and day 1 = 3600000 ms."],
+      "context_files": ["metric.mjs"],
+      "files": {"metric.mjs": "export function buckets(rows) { const out={}; for(const row of rows){const groups={}; for(const t of row)(groups[Math.floor(t/86400000)]??=[]).push(t); for(const [day,ts] of Object.entries(groups))out[day]=(out[day]||0)+Math.max(...ts)-Math.min(...ts);}return out;}\n"}
+    },
+    {
+      "id": "fork-identity-explicitly-distinct",
+      "design": "sessions counts distinct sessionId values, INCLUDING fork session IDs. Do not merge by parent/root identity.",
+      "acceptance": ["Rows {sessionId:'a'} and {sessionId:'b',parentId:'a'} produce sessions=2."],
+      "context_files": ["metric.mjs"],
+      "files": {"metric.mjs": "export function sessions(rows) { return new Set(rows.map(r=>r.sessionId)).size; }\n"}
+    },
+    {
+      "id": "acceptance-formula-conflicts-with-outcome",
+      "design": "User outcome durationMs is SUM over independent session spans. The two parallel [0,72000000] spans total 144000000 ms.",
+      "acceptance": ["Compute the global max(end)-min(start), so the two parallel spans total 72000000 ms."],
+      "context_files": ["metric.mjs"],
+      "files": {"metric.mjs": "export function duration(rows) { return Math.max(...rows.map(r=>r[1])) - Math.min(...rows.map(r=>r[0])); }\n"}
+    },
+    {
+      "id": "milliseconds-contract-seconds-result",
+      "design": "durationMs is the SUM of independent spans in MILLISECONDS, not seconds.",
+      "acceptance": ["Two [0,72000000] millisecond spans produce 144000000 ms."],
+      "context_files": ["metric.mjs"],
+      "files": {"metric.mjs": "export function duration(rows) { return rows.reduce((sum,r)=>sum+r[1]-r[0],0)/1000; }\n"}
+    },
+    {
+      "id": "fork-task-identity-unspecified",
+      "design": "sessions should count the user's logical tasks. How parent/fork identities map to logical tasks is not defined in this contract.",
+      "acceptance": ["Count session files; the fixture contains sessionId a and a fork sessionId b with parentId a."],
+      "context_files": ["metric.mjs"],
+      "files": {"metric.mjs": "export function sessions(rows) { return new Set(rows.map(r=>r.sessionId)).size; }\n"}
+    },
+    {
+      "id": "runtime-recorded-handoff",
+      "design": "Static audit checks the declared R1 checkpoint and bound gate record only. Actual browser gesture is human R1 after static audit, not an in-flight audit criterion. Final delivery must remain pending until R1.",
+      "acceptance": ["The contract declares human R1 and the current impl test gate is recorded passing.", "Human R1 exercises the actual browser gesture after audit."],
+      "context_files": ["record.json"],
+      "files": {"record.json": "{\"fixtureOnly\":true,\"evidence\":{\"human\":[\"R1\"]},\"impl\":{\"gates\":{\"test\":{\"pass\":true}},\"binding\":\"synthetic bound-record assumption; no actual product execution\"},\"attestations\":{}}\n"}
+    }
+  ]
+}

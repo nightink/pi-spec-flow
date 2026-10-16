@@ -222,7 +222,7 @@ node core.mjs check --ci --contracts-only --live  # 不运行项目 gates，但�
 node core.mjs spec-new --json '{"title":"Observable outcome","prefix":"S1.","slug":"feature","goals":["What works"],"nonGoals":["What is excluded"],"design":["Smallest complete design"],"plan":["First slice"],"acceptance":["Executable observable case"],"dryRun":true}'
 ```
 
-同款 `/spec new <JSON>` 和 native tool。缺省语义项留下明确 TODO，不捏造要求或审批；默认 `draft` 是 preReview，旧 pending/startable 保留。新文件没有 impl/audit/attestations；完成合同并按项目规则批准、转为 startable 后才能 begin。新 Spec 会改变其他 active 的全仓快照，宜在 impl 前创建。
+同款 `/spec new <JSON>` 和 native tool。内置模板现为 v2，验收自动编号 `[A1]`、`[A2]`；保留 v1 文件，不重写既有模板版本/hash。缺省语义项留下明确 TODO，不捏造要求或审批；默认 `draft` 是 preReview，旧 pending/startable 保留。新文件没有 impl/audit/attestations；完成合同并按项目规则批准、转为 startable 后才能 begin。新 Spec 会改变其他 active 的全仓快照，宜在 impl 前创建。
 
 可选严格 `creation: {directory, template, defaults}`：目录仅四个扫描目录；未配置时零目录用 docs/specs，一个目录沿用，多个则拒绝。模板是 checkout 内 <=64 KiB 的非 symlink body-only Markdown，heading 开头，六个 literal slots 各一次：title/goals/non_goals/design/plan/acceptance；不执行 JS 或插值。安全 defaults 仅补项目允许的必需元数据（scalar/array），不能覆盖 ID/status/approval/evidence 等保留字段。缺失/无法填的必需字段或 custom lifecycle 无 preReview 时，在预留前失败。生成文件 <=256 KiB，记录模板版本/hash；结构化输入拒绝未知字段、路径/换行注入，永不覆盖；发布失败的编号仍烧掉。数字项目写 YAML integer 与 N.slug.md，prefixed 写 ID-slug.md。预览 ID 是示意值，不是预留。
 
@@ -249,7 +249,7 @@ Pi 项目识别只读取目标 tree/snapshot 的声明/常规入口、路径/mod
 
 ### 工具协议错误可修复，不等于产品 FAIL
 
-`outputInfo` 明确区分 `protocol-error` / `execution-error` / `product-fail` / `pass`。审计摘要、下一步和人工登记拒绝提示不再把字段格式问题说成产品 findings，也不会自动要求另付费重审。新 packet 明确声明 `scope_deviations: string[]` 及限额；结果协议 v2 可无损兼容**恰好只有非空 string file/note** 的有界观察对象，编码成可逆 JSON 字符串。未知/额外字段（尤其 blocking）、缺少判断/证据、截断或未完成执行不能被偷偷补齐。
+`outputInfo` 明确区分 `protocol-error` / `coverage-gap` / `execution-error` / `product-fail` / `pass`。覆盖/证据缺口阻断通过，但不是已确认的产品缺陷；同时存在有效静态失败时保留 `product-fail` 并显示 gap，两层都须处理。审计摘要、下一步和人工登记拒绝提示不再把字段格式问题说成产品 findings，也不会自动要求另付费重审。新 packet 明确声明 `scope_deviations: string[]` 及限额；结果协议 v2 可无损兼容**恰好只有非空 string file/note** 的有界观察对象，编码成可逆 JSON 字符串。未知/额外字段（尤其 blocking）、缺少判断/证据、截断或未完成执行不能被偷偷补齐。
 
 已完成 legacy job 的原 packet/raw/receipt/FAIL 不改；缺版本字段继续用 legacy 规则校验。若 `outputInfo.repairable=true`，可以在**预算耗尽、没有 pi/launcher** 时免费修复：
 
@@ -264,9 +264,31 @@ native `spec_review {action:"repair",jobId}` / `/spec review <JSON>` 等价；na
 
 ### 判据（criteria）边界：运行时/跨仓库/人工事实不是判据
 
-审计 prompt v5（`review-engine.mjs`，结果协议仍为 2）明确：每条 criterion 必须能**仅凭封存 packet** 判定（合同文本、bindings 声明覆盖范围内的 diff，以及 packet 内已记录的 gate/impl/attestation 事实）。只能由运行时执行、远端 CI、**另一个仓库**或人工确认的事实**不得**作为 criterion；合同把这类条目写成验收时，审计只判 packet 内已记录证据的**存在、时效与绑定**，残余的运行时事实写入 `out_of_scope`（理由 `runtime|remote|cross-repository|attestation-deferred`）。超出 bindings 审查覆盖范围的验收条目同样进 `out_of_scope`，而不是 `unverifiable`。`unverifiable` 只保留给 packet 内证据本身有歧义或矛盾；必需记录证据缺失或未绑定一律 `fail`。可静态判定的验收条目**仍必须**作为 criterion，不允许被挪进 `out_of_scope`。
+审计 prompt v9 / result protocol 3 继承 v5 的 criteria 可采性规则（历史 v5 / protocol 2 收据不重解释）：每条 criterion 必须能**仅凭封存 packet** 判定（合同文本、bindings 声明覆盖范围内的 diff，以及 packet 内已记录的 gate/impl/attestation 事实）。只能由运行时执行、远端 CI、**另一个仓库**或人工确认的事实**不得**作为 criterion；合同把这类条目写成验收时，审计只判 packet 内已记录证据的**存在、时效与绑定**，残余的运行时事实写入 `out_of_scope`（理由 `runtime|remote|cross-repository|attestation-deferred`）。超出 bindings 审查覆盖范围的验收条目同样进 `out_of_scope`，而不是 `unverifiable`。`unverifiable` 只保留给 packet 内证据本身有歧义或矛盾；必需记录证据缺失或未绑定一律 `fail`。可静态判定的验收条目**仍必须**作为 criterion，不允许被挪进 `out_of_scope`。
 
 审计摘要与 Spec `audit.out_of_scope`（有界 string[]，仅非空时写入；旧记录不含该字段，字节与 result hash 不变）会显示这些延后项，延后不是看不见的丢弃。fail-closed 语义不变：任一 `fail`/`unverifiable` criterion 仍使 verdict=fail；`out_of_scope` 不能把空 criteria 或 unverifiable 洗成 PASS；人工与运行时条目仍由 `spec_attest` 与 `spec_done` 的 `recordConsistencyGaps` 覆盖。
+
+### v3 源块覆盖、原始 major 与真实接入
+
+新 job 采用 prompt **9** / result protocol **3**（kind 约束自 prompt 7 起）。完整合同之外，确定性 `review_index` 对正文 heading、段落、列表条目、表格行、代码块逐块编号，保留位置/section/text/hash；YAML、状态行和分隔线不作为正文源块。最多 400 块，超限拒绝，不静默截断。checkbox / 明确验收节条目另标 acceptance，评审表 major/blocking 行是待处置提示；**这些不是自然语言义务穷尽算法**。packet 的源块 ID（如 S7）与正文的人类标签（如 A1）不同，ID 只在这一份封存索引内稳定。
+
+每条 criterion 增加结果内 `id`；prompt 7 还要求 `kind=product|evidence`：前者判断已明确定义下的产品行为，后者判断上下文、定义一致性、批准及必要记录/绑定。失败的 evidence criterion 必须关联可见 `gap`，不会仅因 status=fail 被误称产品缺陷；独立静态失败另列 product criterion，不能借 gap 洗掉。旧 prompt 6 无 kind 结果不补字段、不重解释。`coverage` 必须对每个源块恰好返回一项，引用真实 acceptance/criterion ID 与非空证据。遗漏、重复、未知 ID、断链、超限/额外语义字段是协议错误，不能补默认 passing 矩阵。`covered` 需关联验收与静态判据；`context` 需说明为何非义务，不能隐藏已标明的 acceptance/major。`gap` 明示缺验收、缺调用方上下文等，并阻断 PASS，不伪称产品 bug。`rejected/withdrawn` 需要不同的反证/决策来源和静态证据。静态代码可证伪 finding 前提时可以驳回，不需人工批准错误事实；撤销真实义务/豁免才需要实际批准，模型或作者自述不能自批豁免。`previous_closure` 只接受 `review_metadata.prior_findings` 明确列出的 ID；若列表为空必须为 `[]`。正文表格的 F1、新 findings 与外部批准编号不会自动加入历史集合，正文处置用 S 源块 coverage/criterion 对账。`decision_ids` 只能引用其他源块 ID，外部批准编号只放证据文本；纯决策记录本身按 context 对账，不能递归撤销该记录。`deferred` 需要合法范围理由、带 `[源块ID]` 的 `out_of_scope` 说明及静态记录判据；delta/range 范围外可用 `reviewed-coverage`，但不能升级成全量结论。
+
+审查者仍须判断：正文承诺是否真正进入验收、复合维度是否完整、引用是否有语义关系、批准是否真实、数值定义/边界/反例是否正确。机械程序只验证来源与引用/处置的完整性，**不能证明 context 分类或证据语义正确，更不保证零漏报/误报**。一个 helper 可用不证明入口已接通；入口文件未改也不证明未接通，基线可能早已满足。上下文不足应报告 gap，已确认的静态接线缺陷不能洗成 runtime 延后。多会话跨度求和可超过一天，fork 是否合并须依合同口径，不能擅加不变量。
+
+按需在合同 frontmatter 显式声明（在 impl 前完成；字段参与现有 contract hash）：
+
+```yaml
+review_inputs:
+  context_files: [src/Entry.ts, src/refresh.ts]  # 仅示例，换成目标仓库真实入口
+  proposal_reviews: []                        # 同一 Spec 留存 proposal job 的 32-hex ID
+```
+
+`context_files` 最多 20 个普通文件，单个 64 KiB、合计 128 KiB；只读当前 proposal/working tree 或指定 head，保留内容/hash，整包扫描。拒绝越界、symlink、Git 内部、明显凭证路径和不支持的文本（NUL/control/解码替换字符 U+FFFD；即便它是合法原文也拒绝）。不执行文件、不自动爬全仓/另一仓库、不读取生产会话。`proposal_reviews` 最多 5 个同路径、已完成且可重验的 proposal job，带入原结果、packet/raw/result hash 与 blockers/failed criteria/显式 evidence gaps；gap 仍标明不是已确认产品 bug。它不是 approval。全量 audit 不再默认丢掉这些**已声明**来源；不声明的外部报告不会被自动发现。confirmed major 需 acceptance → criterion/证据与 prior closure，作者摘要或“已写进 Design”不算原始独立证据。
+
+索引必须与完整合同及声明的 context/history 清单确定性重建一致，继承原文不能替换成作者摘要。执行前、worker 与状态读取都会重验直接声明的 proposal 原 job/packet/raw/result；来源丢失或篡改不能继续消费或复用。这里只重验直接来源，不递归认证无限历史图。
+
+新增 index/context/history 与完整 packet/job 绑定；audit 保存覆盖摘要与额外 hash，旧 normalized result hash 算法不变。保留新覆盖标记却删改版本字段也不能当成旧记录绕过校验：normalize、run 预预算、worker 和 status/cache 共用协议/prompt 一致性检查；即使删去全部 job 标记，仍含 review_index 的 canonical 封存包也不能当作 legacy。缓存、attest、done、CI 对 **v3** 需要原目标仓库 Git common-dir 中完整留存 job/packet/raw；干净 clone 只有 frontmatter 不足以证明新覆盖结论，须安全恢复私有证据，不能把真实私有 packet 直接提交公开仓库。本仓库公开[脱敏维护摘要](docs/reviews/S1.7/evidence-precision/README.md)，不公开施工 packet、模型原始响应、原生预算/授权或完整日志；合成 fixtures 与离线 probe 工具保留在 tests 下，可自行生成自造输入，不代表模型判定。旧 v1/v2 job、免费缓存、lossless repair、旧缺私有 journal 的兼容语义原样保留，摘要标明历史标准，绝不回算成 v3 PASS。
 
 ### timeout 生效与无 PATH pi 的启动
 

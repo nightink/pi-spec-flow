@@ -160,7 +160,7 @@ try {
   const auditor = write(
     sandbox,
     "fake-auditor.mjs",
-    `#!/usr/bin/env node\nimport fs from "node:fs"; fs.writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2))); console.log(JSON.stringify({verdict:"pass",criteria:[{criterion:"configured lifecycle",status:"pass",evidence:"implementation.txt"}],scope_deviations:[]}));\n`,
+    `#!/usr/bin/env node\nimport fs from "node:fs";import {mechanicalCoverage} from ${JSON.stringify(new URL("../helpers/review-fixture.mjs", import.meta.url).href)};fs.writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2))); console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"configured lifecycle",status:"pass",evidence:"implementation.txt"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o755 }
   );
   const grant = cli(root, ["review-budget", "--json", JSON.stringify({ id: "mechanical-tests", calls: 1, note: "Synthetic configured CLI fake auditor test only; no real review authorization." })]);

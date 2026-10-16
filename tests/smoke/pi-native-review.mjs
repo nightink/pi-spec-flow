@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { writeFrontmatter } from "../../core.mjs";
 import { reviewStore, loadJob, saveJob, digest } from "../../review-storage.mjs";
 import { normalizeReviewResult } from "../../review-engine.mjs";
+import { mechanicalCoverage, seedLegacyReviewFixture } from "../helpers/review-fixture.mjs";
 const sdkRoot = process.env.SPECFLOW_PI_SDK;
 if (!sdkRoot) throw new Error("Set SPECFLOW_PI_SDK to an already-installed trusted Pi 1.x package; never auto-install");
 const { createAgentSession, DefaultResourceLoader, SettingsManager, SessionManager, ModelRuntime } = await import(pathToFileURL(path.join(sdkRoot, "dist/index.js")).href);
@@ -35,6 +36,8 @@ const factory = (pi) => {
       const prepared = await ctx.executeTool("spec_review", { action: "prepare", id: "S1", base: sha, head: sha }, { signal });
       assert.equal(creation.isError, false, JSON.stringify(creation)); assert.equal(prepared.isError, false, JSON.stringify(prepared));
       assert.equal(creation.result.structuredContent.status, "draft"); assert.equal(creation.result.structuredContent.dryRun, true);
+      assert.equal(creation.result.structuredContent.template.version, 2);
+      assert.equal(prepared.result.structuredContent.receipt.result_protocol_version, 3);
       assert.equal(prepared.result.structuredContent.state, "skipped"); assert.equal(prepared.result.structuredContent.modelInvoked, false);
       const replay = await ctx.executeTool("spec_review", { action: "run", jobId: prepared.result.structuredContent.jobId }, { signal });
       assert.equal(replay.isError, false, JSON.stringify(replay));
@@ -78,7 +81,7 @@ const factory = (pi) => {
       const seededRaw = { verdict: "pass", criteria: [{ criterion: "mechanical protocol", status: "pass", evidence: "Synthetic fixture only" }],
         scope_deviations: [{ file: "outside.txt", note: "Synthetic observation only" }] };
       const retained = loadJob(ctx.cwd, jobId), seededBytes = JSON.stringify(seededRaw);
-      delete retained.job.result_protocol_version; delete retained.job.prompt_version;
+      seedLegacyReviewFixture(retained.dir, retained.job);
       Object.assign(retained.job, { state: "completed", model_invoked: true, raw_verdict: "pass", raw_sha256: digest(seededBytes), child_input_sha256: retained.job.packet_sha256 });
       retained.job.result = normalizeReviewResult(seededRaw, retained.job);
       fs.writeFileSync(path.join(retained.dir, "stdout.txt"), seededBytes, { mode: 0o600 }); saveJob(retained.dir, retained.job);
@@ -93,7 +96,25 @@ const factory = (pi) => {
       assert.deepEqual(fs.readFileSync(path.join(retained.dir, "job.json")), sourceBytes);
       assert.deepEqual(fs.readFileSync(path.join(cwd, "docs/specs/S1.md")), beforeSpec);
       assert.equal(fs.existsSync(path.join(store, "budgets")), false);
-      return { content: [{ type: "text", text: "offline native acceptance" }], details: { creation, prepared, replay, defaulted, status, proposal, repaired, rejectedInputs: invalid.length } };
+      // Separate synthetic v3 receipt proves real host serialization/consumption,
+      // NOT a provider finding, executed child, semantic review or acceptance.
+      const coveragePrepared = await ctx.executeTool("spec_review", { mode: "proposal", id: "S1" }, { signal });
+      const v3 = loadJob(ctx.cwd, coveragePrepared.result.structuredContent.jobId);
+      const rawV3 = mechanicalCoverage({ verdict: "pass", criteria: [{ criterion: "fixture static record", status: "pass", evidence: "synthetic only" }], scope_deviations: [] }, fs.readFileSync(path.join(v3.dir, "packet.md"), "utf8"));
+      const acceptance = rawV3.coverage.find(row => v3.job.coverage_index.acceptance_ids.includes(row.id));
+      acceptance.disposition = "gap"; acceptance.acceptance_ids = []; acceptance.criterion_ids = [];
+      acceptance.evidence = "Synthetic missing-entry-evidence classification; no actual model discovery";
+      const rawBytes = JSON.stringify(rawV3);
+      Object.assign(v3.job, { state: "completed", model_invoked: false, raw_verdict: "pass", raw_sha256: digest(rawBytes), child_input_sha256: v3.job.packet_sha256 });
+      v3.job.result = normalizeReviewResult(rawV3, v3.job);
+      fs.writeFileSync(path.join(v3.dir, "stdout.txt"), rawBytes, { mode: 0o600 }); saveJob(v3.dir, v3.job);
+      const coverageStatus = await ctx.executeTool("spec_review", { action: "status", jobId: v3.job.id }, { signal });
+      assert.equal(coverageStatus.isError, false, JSON.stringify(coverageStatus));
+      assert.equal(coverageStatus.result.structuredContent.outputInfo.category, "coverage-gap");
+      assert.equal(coverageStatus.result.structuredContent.result.coverage_summary.semantic_guarantee, false);
+      assert.equal(coverageStatus.result.structuredContent.result.verdict, "fail");
+      assert.equal(coverageStatus.result.structuredContent.modelInvoked, false);
+      return { content: [{ type: "text", text: "offline native acceptance" }], details: { creation, prepared, replay, defaulted, status, proposal, repaired, coverageStatus, rejectedInputs: invalid.length } };
     } });
   pi.registerCommand("fixture-native", { description: "Invokes real wrapped tool; no model", handler: () => {
     commandPromise = (async () => {
@@ -131,7 +152,7 @@ try {
   currentSession.refreshContext();
   await currentSession.prompt("/fixture-native"); await commandPromise; assert.ok(outcome);
   assert.equal(outcome.details?.rejectedInputs, 10, JSON.stringify(outcome));
-  console.log("PASS native default prepare/proposal/status/skipped run, retained-output repair and invalid action/repair-budget requests; no grant, charge or executor spawn");
+  console.log("PASS native v3 index/template v2 and synthetic coverage-gap structured output, default prepare/proposal/status/skipped run, legacy repair, invalid requests; no grant, charge, model or executor spawn");
   assert.ok(seen.some((event) => event.type === "tool_execution_start" && event.toolName === "spec_new" && event.parentToolCallId));
   await currentSession.prompt('/spec new {"title":"Command-created draft","prefix":"S"}');
   assert.ok(fs.existsSync(path.join(cwd, "docs/specs/S2-spec.md")));

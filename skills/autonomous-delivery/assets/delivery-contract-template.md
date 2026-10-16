@@ -34,21 +34,27 @@ Describe the smallest complete behavior, affected boundaries, failure semantics,
 
 ## Executable evidence matrix
 
-| Behavior or risk | Automated evidence | Real acceptance | Isolation |
-|---|---|---|---|
-| <item> | <test/check> | <browser/service/process/device path> | <temporary state> |
+| Promise / finding source | Acceptance ID | Automated evidence | Real acceptance | Isolation |
+|---|---|---|---|---|
+| <Outcome/Design/major source> | <A1> | <test/check and actual caller> | <browser/service/process/device path> | <temporary state> |
+
+Reconcile all normative promises before approval; this author matrix is not a semantic completeness proof. Split compound
+assertions, define metric units/aggregation and include positive/negative counterexamples. Distinguish helper capability,
+actual entry wiring and execution. Explicitly identify needed unchanged caller context rather than assuming the diff contains it.
 
 ## Acceptance
 
-- [ ] <observable success assertion>
-- [ ] <negative/failure assertion>
-- [ ] <real integration assertion where needed>
-- [ ] <full project gates and review evidence recorded>
+- [ ] [A1] <observable success assertion>
+- [ ] [A2] <negative/failure assertion>
+- [ ] [A3] <actual entry and real integration assertion where needed>
+- [ ] [A4] <full project gates and review evidence recorded>
 
 ## Review and decisions
 
 Record proposal findings, parent dispositions, implementation review provenance, waivers, and human checkpoints required by
-this project.
+this project. For confirmed majors record original source → acceptance → fix/test evidence; Design-only notes are not closure.
+Verified rejection or actual approved withdrawal/waiver needs its decision source and rationale. Never invent consent or turn
+protocol/coverage gaps into confirmed product defects.
 
 ## Completion boundary
 

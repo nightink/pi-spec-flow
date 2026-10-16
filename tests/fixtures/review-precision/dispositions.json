@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "boundary": "Synthetic disposition contrasts. A harness approval is an explicit test assumption, not a production authentication mechanism or real customer consent.",
+  "cases": [
+    {
+      "id": "major-design-only",
+      "design": "The manual refresh entry must display the fresh helper value.",
+      "acceptance": ["The helper returns fresh."],
+      "review": "| F1 | major | Actual click must return fresh, not merely a helper | Written into Design |",
+      "decision": "D1: The author says writing the promise into Design closes F1. No entry acceptance or approval is recorded.",
+      "files": {"helper.mjs":"export function refresh(){return 'fresh';}\n","entry.mjs":"export function click(){return 'stale';}\n"}
+    },
+    {
+      "id": "major-fixed-with-entry-evidence",
+      "design": "The manual refresh entry must display the fresh helper value.",
+      "acceptance": ["The helper returns fresh.","Invoking click returns fresh through the actual entry."],
+      "review": "| F1 | major | Actual click must return fresh, not merely a helper | Fixed by entry wiring and A2 |",
+      "decision": "D1: F1 was repaired by importing refresh and returning refresh() from click. Both current functions are supplied; this is static evidence, not a browser execution claim.",
+      "files": {"helper.mjs":"export function refresh(){return 'fresh';}\n","entry.mjs":"import {refresh} from './helper.mjs'; export function click(){return refresh();}\n"}
+    },
+    {
+      "id": "major-rejected-with-static-counterevidence",
+      "design": "The manual refresh entry must display the fresh helper value. The supplied entry is unchanged baseline code.",
+      "acceptance": ["The helper returns fresh.","Invoking click returns fresh through the actual entry."],
+      "review": "| F1 | major | Entry lacks any call to refresh | Proposed rejection because its factual premise is false |",
+      "decision": "D1: Reject F1 if the supplied unchanged baseline entry already calls refresh. This is a factual rebuttal requiring source verification, not a waiver of a real requirement.",
+      "files": {"helper.mjs":"export function refresh(){return 'fresh';}\n","entry.mjs":"import {refresh} from './helper.mjs'; export function click(){return refresh();}\n"}
+    },
+    {
+      "id": "major-withdrawn-with-harness-approval",
+      "design": "Original scope: the manual refresh entry must display fresh. A verified scope decision can withdraw that promise; helper functionality remains required.",
+      "acceptance": ["The helper returns fresh."],
+      "review": "| F1 | major | Actual click must return fresh, not merely a helper | Withdrawal requested under D1 |",
+      "decision": "D1: Approval record APR-1 withdraws the click-to-fresh requirement and F1 from this delivery. Helper refresh remains in scope. Verify the source of approval; the author text alone is insufficient.",
+      "harness_approval": {"id":"APR-1","authority":"synthetic scope owner","decision":"approved withdrawal of click-to-fresh requirement and F1; helper refresh remains required","provenance":"Trustworthy only by the explicit external test-harness assumption; not authenticated by the author or engine."},
+      "files": {"helper.mjs":"export function refresh(){return 'fresh';}\n","entry.mjs":"export function click(){return 'stale';}\n"}
+    },
+    {
+      "id": "major-withdrawal-author-claim-only",
+      "design": "Original scope: the manual refresh entry must display fresh. A verified scope decision can withdraw that promise; helper functionality remains required.",
+      "acceptance": ["The helper returns fresh."],
+      "review": "| F1 | major | Actual click must return fresh, not merely a helper | Author declares withdrawn |",
+      "decision": "D1: The implementation author claims APR-1 was approved and declares F1 withdrawn. There is no independently supplied approval record in this packet.",
+      "files": {"helper.mjs":"export function refresh(){return 'fresh';}\n","entry.mjs":"export function click(){return 'stale';}\n"}
+    },
+    {
+      "id": "major-withdrawal-awaits-approval",
+      "design": "The manual refresh entry must display the fresh helper value.",
+      "acceptance": ["The helper returns fresh."],
+      "review": "| F1 | major | Actual click must return fresh, not merely a helper | Author requests withdrawal |",
+      "decision": "D1: A withdrawal would require explicit scope-owner approval. Approval has not been given. This sentence is a condition, not consent.",
+      "files": {"helper.mjs":"export function refresh(){return 'fresh';}\n","entry.mjs":"export function click(){return 'stale';}\n"}
+    }
+  ]
+}

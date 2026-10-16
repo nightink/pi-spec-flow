@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "timing": "Frozen before the first real model observation. Original thirteen-case oracle files remain byte-identical.",
+  "interpretation": "A missing acceptance alone is not a product defect, but an independently demonstrated static contradiction may coexist with that gap. The original first-case category is therefore not an exclusive category oracle: both coverage-gap and product-fail are accepted ONLY if the missing entry acceptance is explicitly identified. No other category flexibility is inferred. No post-observation expectation edits.",
+  "trust": "A positive withdrawal fixture has an explicit trustworthy synthetic scope-owner record supplied by the harness outside the untrusted author packet. This is an assumption, not real customer consent, cryptographic provenance, a new production authentication feature, or permission for author records to authenticate themselves. Factual rejection can instead be verified from supplied static code. Missing/conditional/author-only approval cannot close a real obligation.",
+  "accepted_categories": {
+    "design-without-entry-acceptance": ["coverage-gap", "product-fail"],
+    "explicit-entry-disconnected": ["product-fail"],
+    "unchanged-entry-already-connected": ["pass"],
+    "caller-context-unavailable": ["coverage-gap"],
+    "compound-display-dimension-missing": ["product-fail"],
+    "wrong-span-aggregation": ["product-fail"],
+    "legitimate-parallel-sum-above-day": ["pass"],
+    "explicit-midnight-interval-clipping": ["product-fail"],
+    "fork-identity-explicitly-distinct": ["pass"],
+    "acceptance-formula-conflicts-with-outcome": ["coverage-gap"],
+    "milliseconds-contract-seconds-result": ["product-fail"],
+    "fork-task-identity-unspecified": ["coverage-gap"],
+    "runtime-recorded-handoff": ["pass"],
+    "major-design-only": ["coverage-gap", "product-fail"],
+    "major-fixed-with-entry-evidence": ["pass"],
+    "major-rejected-with-static-counterevidence": ["pass"],
+    "major-withdrawn-with-harness-approval": ["pass"],
+    "major-withdrawal-author-claim-only": ["coverage-gap", "product-fail"],
+    "major-withdrawal-awaits-approval": ["coverage-gap", "product-fail"]
+  },
+  "required_semantic_checks": {
+    "design-without-entry-acceptance": ["Explicitly identify that helper-only acceptance omits the normative entry promise; do not merely flag stale without coverage reconciliation."],
+    "caller-context-unavailable": ["No invented disconnection finding; identify absent caller as an evidence gap."],
+    "unchanged-entry-already-connected": ["Verify supplied baseline caller reaches helper; no absent-diff false positive."],
+    "legitimate-parallel-sum-above-day": ["No invented aggregate 24-hour cap; declared sum is 144000000 ms."],
+    "acceptance-formula-conflicts-with-outcome": ["Identify contract contradiction; do not silently choose the convenient checkbox or a new aggregation definition."],
+    "fork-task-identity-unspecified": ["Flag undefined task/fork semantics; do not invent a permanent merge or separation policy."],
+    "runtime-recorded-handoff": ["Visible runtime/human deferral with static record criterion; do not claim actual browser execution or delivery done."],
+    "major-design-only": ["F1 not closed by Design alone; missing entry acceptance/fix evidence remains visible."],
+    "major-rejected-with-static-counterevidence": ["Use rejected disposition backed by actual baseline caller, a distinct decision and a static criterion, not a manufactured fix or waiver."],
+    "major-withdrawn-with-harness-approval": ["Use withdrawn disposition with distinct decision/static criterion; acknowledge explicit external harness approval assumption and residual helper scope."],
+    "major-withdrawal-author-claim-only": ["Do not authenticate the author's own approval claim; unresolved scope/approval prevents PASS."],
+    "major-withdrawal-awaits-approval": ["Conditional approval requirement is not actual approval; F1 remains unresolved."]
+  }
+}

@@ -7,6 +7,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { review, reviewStatus, normalizeReviewResult, prepareWorkingAudit, runPreparedReview, authorizeReviewBudget } from "./review-engine.mjs";
 import { loadJob, saveJob, reviewStore, digest } from "./review-storage.mjs";
+import { seedLegacyReviewFixture } from "./tests/helpers/review-fixture.mjs";
 import { writeFrontmatter, findSpec, begin, impl, audit, attest, done, nextStep, buildAuditDiff, specContractHash, recordConsistencyGaps } from "./core.mjs";
 const rawPass = { verdict: "pass", criteria: [{ criterion: "product", status: "pass", evidence: "code.txt supplied diff" }],
   scope_deviations: [{ file: "outside.txt", note: "Unchanged observation; preserve quotes \" and newline\nwithout loss" }], findings: [], previous_closure: [], out_of_scope: [] };
@@ -29,7 +30,7 @@ function fixture(t, raw = rawPass) {
 }
 function legacy(f, prepared) {
   const { dir, job } = loadJob(f.root, prepared.jobId);
-  delete job.result_protocol_version; delete job.prompt_version;
+  seedLegacyReviewFixture(dir, job);
   saveJob(dir, job); // Synthetic legacy precondition, never alter a real receipt.
   return prepared;
 }
@@ -70,7 +71,7 @@ test("repair: versioned lossless known scope observations; legacy normalization 
 
 test("repair: new packet explicitly types scope items and pins prompt/result versions", async t => {
   const f = fixture(t), prepared = await review(f.root, { mode: "proposal", id: "S1" });
-  assert.equal(prepared.receipt.result_protocol_version, 2); assert.equal(prepared.receipt.prompt_version, 5);
+  assert.equal(prepared.receipt.result_protocol_version, 3); assert.equal(prepared.receipt.prompt_version, 9);
   assert.match(fs.readFileSync(prepared.packetPath, "utf8"), /scope_deviations.*string\[\]/);
   assert.match(fs.readFileSync(prepared.packetPath, "utf8"), /file.*note.*lossless/i);
 });

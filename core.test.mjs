@@ -91,7 +91,7 @@ function fakeAuditor(verdict = "pass", criteria, extra = {}) {
   };
   fs.writeFileSync(
     bin,
-    `#!/bin/sh\nprintf '%s\\n' '${JSON.stringify(result).replaceAll("'", "'\\''")}'\n`,
+    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage(${JSON.stringify(result)},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o755 }
   );
   return { bin, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
@@ -403,7 +403,7 @@ test("done: ledger includes bound impl and audit summary", async () => {
   assert.deepEqual(entry.impl_summary.e2e, {});
   assert.equal(entry.impl_summary.migrations.pass, true);
   assert.equal(entry.audit.verdict, "pass");
-  assert.equal(entry.audit.prompt_version, 5);
+  assert.equal(entry.audit.prompt_version, 9);
   assert.match(entry.impl_hash, /^[0-9a-f]{64}$/);
   assert.match(entry.contract_hash, /^[0-9a-f]{64}$/);
 });
@@ -843,7 +843,7 @@ test("audit: failed job is never respawned; explicit re-impl permits a new charg
     { criterion: "c1", status: "fail", evidence: "missing implementation" },
   ]);
   const original = fs.readFileSync(auditor.bin, "utf8");
-  fs.writeFileSync(auditor.bin, original.replace("printf", `echo x >> '${counter}'\nprintf`), { mode: 0o755 });
+  fs.writeFileSync(auditor.bin, original.replace("console.log", `fs.appendFileSync(${JSON.stringify(counter)}, 'x\\n');console.log`), { mode: 0o755 });
   const savedBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor.bin;
   try {
@@ -909,7 +909,7 @@ test("audit: runtime/cross-repository/human acceptance facts defer instead of bl
     assert.match(output, /remote CI greenness/);
     const record = loadSpecs(project)[0].frontmatter.audit;
     assert.equal(record.verdict, "pass");
-    assert.equal(record.prompt_version, 5);
+    assert.equal(record.prompt_version, 9);
     assert.deepEqual(record.out_of_scope, deferred);
     assert.ok(record.criteria.every((criterion) => criterion.status === "pass"));
     attest(project, "S1.0", "R1", "Verified remote CI run URL and human sign-off sample qa-42");

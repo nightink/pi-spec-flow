@@ -121,7 +121,7 @@ function fakeAuditor() {
   const file = path.join(dir, "fake-auditor.mjs");
   fs.writeFileSync(
     file,
-    `#!/usr/bin/env node\nconsole.log(JSON.stringify({verdict:"pass",criteria:[{criterion:"profile lifecycle",status:"pass",evidence:"configured diff"}],scope_deviations:[]}));\n`,
+    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"profile lifecycle",status:"pass",evidence:"configured diff"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o755 }
   );
   return { file, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };

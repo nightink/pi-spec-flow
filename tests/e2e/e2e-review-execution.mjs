@@ -38,11 +38,11 @@ try {
   fs.writeFileSync(path.join(root, "code.txt"), "baseline\n");
   git("init", "-q"); git("config", "user.name", "CLI-fixture"); git("config", "user.email", "fixture@example.invalid"); const base = commit();
   fs.writeFileSync(path.join(root, "code.txt"), "committed implementation\n"); const head = commit();
-  fs.writeFileSync(cliFile, `import fs from 'node:fs';const args=process.argv.slice(2);
+  fs.writeFileSync(cliFile, `import fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("../helpers/review-fixture.mjs", import.meta.url).href)};const args=process.argv.slice(2);
 if(args.includes('--version'))throw new Error('no executable probe permitted');
 for(const flag of ['--no-tools','--no-extensions','--no-session','--no-skills','--no-context-files','--no-prompt-templates','--no-themes','--no-approve'])if(!args.includes(flag))process.exit(2);
 fs.appendFileSync(${JSON.stringify(calls)},'call\\n');fs.copyFileSync(args.at(-1).slice(1),${JSON.stringify(captured)});
-console.log(JSON.stringify({verdict:'pass',criteria:[{criterion:'mechanical CLI',status:'pass',evidence:'disposable fake only'}],scope_deviations:[]}));\n`, { mode: 0o600 });
+console.log(JSON.stringify(mechanicalCoverage({verdict:'pass',criteria:[{criterion:'mechanical CLI',status:'pass',evidence:'disposable fake only'}],scope_deviations:[]},fs.readFileSync(args.at(-1).slice(1),'utf8'))));\n`, { mode: 0o600 });
   json("review-budget", { id: "mechanical", calls: 3, note: "Synthetic disposable CLI executor tests only; never a real reviewer authorization." });
   const prepared = json("review", { id: "S1", base, head });
   const unavailable = cli("review", ["--json", JSON.stringify({ action: "run", jobId: prepared.jobId, budgetId: "mechanical" })]);

@@ -8,6 +8,8 @@ import { newSpec, findSpec, begin, impl, audit, done, checkCI, writeFrontmatter,
 import { review, authorizeReviewBudget, reviewStatus, normalizeReviewResult, recognizePiProject, prepareWorkingAudit, runPreparedReview } from "./review-engine.mjs";
 import { loadJob, saveJob, digest, reviewStore, readPrivate } from "./review-storage.mjs";
 import { readReservations } from "./workspace.mjs";
+import { mechanicalCoverage } from "./tests/helpers/review-fixture.mjs";
+import { buildReviewIndex } from "./review-coverage.mjs";
 const SPEC = writeFrontmatter("# Product\n\n- [ ] a changed implementation\n", { id: "S1", status: "approved", review: { decision: "approved" }, evidence: { e2e: [], migrations: [], human: [] } });
 function fixture(t, files = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-new-review-"));
@@ -24,7 +26,7 @@ function fixture(t, files = {}) {
 function fake(t, result = { verdict: "pass", criteria: [{ criterion: "code", status: "pass", evidence: "code.txt diff" }], scope_deviations: [] }, delay = 0) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-fake-review-")); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, "fake.mjs"), calls = path.join(dir, "calls");
-  fs.writeFileSync(file, `#!/usr/bin/env node\nimport fs from 'node:fs';fs.appendFileSync(${JSON.stringify(calls)},'call\\n');await new Promise(r=>setTimeout(r,${delay}));console.log(${JSON.stringify(JSON.stringify(result))});\n`, { mode: 0o755 });
+  fs.writeFileSync(file, `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};fs.appendFileSync(${JSON.stringify(calls)},'call\\n');await new Promise(r=>setTimeout(r,${delay}));console.log(JSON.stringify(mechanicalCoverage(${JSON.stringify(result)},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`, { mode: 0o755 });
   const old = process.env.SPECFLOW_AUDIT_BIN; process.env.SPECFLOW_AUDIT_BIN = file;
   t.after(() => { if (old === undefined) delete process.env.SPECFLOW_AUDIT_BIN; else process.env.SPECFLOW_AUDIT_BIN = old; });
   return { calls, file };
@@ -43,7 +45,8 @@ test("new: deterministic parseable draft, TODO, YAML title, no evidence/approval
   assert.equal(spec.frontmatter.title, title); assert.equal(spec.frontmatter.review.decision, "pending");
   assert.equal(spec.frontmatter.status, "draft");
   for (const field of ["impl", "audit", "attestations", "workflow_version"]) assert.equal(spec.frontmatter[field], undefined);
-  assert.match(spec.content, /- \[ \] one observable case/);
+  assert.match(spec.content, /- \[ \] \[A1\] one observable case/);
+  assert.equal(spec.frontmatter.template.version, 2);
   assert.match(spec.frontmatter.template.sha256, /^[a-f0-9]{64}$/);
   await assert.rejects(begin(f.root, made.id), /status=|not startable/);
 });
@@ -170,7 +173,9 @@ test("review: high-risk scanner and packet tampering reject before charge/spawn"
   const proposal = await review(f.root, { mode: "proposal", id: "S1" }); grant(f.root, 1);
   fs.appendFileSync(proposal.packetPath, "tamper");
   await assert.rejects(review(f.root, { action: "run", jobId: proposal.jobId, budgetId: "fixture" }), /changed/);
-  assert.equal(reviewStatus(f.root, proposal.jobId).state, "prepared"); assert.equal(prepared.state, "skipped");
+  assert.throws(() => reviewStatus(f.root, proposal.jobId), /changed/);
+  assert.equal(loadJob(f.root, proposal.jobId).job.state, "prepared"); assert.equal(prepared.state, "skipped");
+  assert.equal(JSON.parse(readPrivate(path.join(reviewStore(f.root), "budgets/fixture.json"))).used, 0);
 });
 
 test("review: explicit immutable grant, single charge, exact child bytes, raw response and free cache", async (t) => {
@@ -215,12 +220,15 @@ test("incremental: unchanged baseline observations don't block, and blockers nee
   f.write("code.txt", "baseline\nfixed\n"); f.commit();
   const delta = await prepare(f, { mode: "incremental", base: firstHead, previousReview: prior.jobId });
   assert.equal(delta.receipt.bindings.coverage, "delta-only"); assert.equal(delta.receipt.bindings.implementation_base, f.base);
-  const raw = { verdict: "pass", criteria: [{ criterion: "delta", status: "pass", evidence: "line 2" }], scope_deviations: [], findings: [{ id: "old", classification: "out-of-scope", blocking: false, file: "code.txt", line: 1, evidence: "unchanged baseline" }] };
+  const raw = mechanicalCoverage({ verdict: "pass", criteria: [{ criterion: "delta", status: "pass", evidence: "line 2" }], scope_deviations: [], findings: [{ id: "old", classification: "out-of-scope", blocking: false, file: "code.txt", line: 1, evidence: "unchanged baseline" }] }, fs.readFileSync(delta.packetPath, "utf8"));
   assert.equal(normalizeReviewResult(raw, delta.receipt).verdict, "pass");
   const blocked = { ...raw, verdict: "fail", findings: [{ id: "F1", classification: "regression", file: "code.txt", line: 1, evidence: "not a changed line" }] };
   assert.match(normalizeReviewResult(blocked, delta.receipt).criteria.at(-1).evidence, /changed-line/);
-  assert.equal(normalizeReviewResult({ ...raw, previous_closure: [] }, { ...delta.receipt, prior_findings: ["F0"] }).verdict, "fail");
-  assert.equal(normalizeReviewResult({ ...raw, previous_closure: [{ id: "F0", status: "fixed", evidence: "line 2 correction" }] }, { ...delta.receipt, prior_findings: ["F0"] }).verdict, "pass");
+  const index = buildReviewIndex(SPEC, [{ id: "F0", evidence: "bound prior fixture blocker" }]);
+  const priorJob = { ...delta.receipt, prior_findings: ["F0"], coverage_index: index, bindings: { ...delta.receipt.bindings, review_index_sha256: digest(JSON.stringify(index)) } };
+  const priorRaw = mechanicalCoverage({ verdict: "pass", criteria: raw.criteria, scope_deviations: [] }, { review_index: index });
+  assert.equal(normalizeReviewResult({ ...priorRaw, previous_closure: [] }, priorJob).verdict, "fail");
+  assert.equal(normalizeReviewResult({ ...priorRaw, previous_closure: [{ id: "F0", status: "fixed", evidence: "line 2 correction" }] }, priorJob).verdict, "pass");
 });
 
 test("Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute", async () => {
@@ -238,7 +246,7 @@ test("lifecycle: shared full audit, free attach/cache, ordinary report cannot cl
   assert.match(await audit(f.root, "S1", { budgetId: "fixture" }), /✅ PASS/);
   const record = findSpec(f.root, "S1").frontmatter.audit;
   assert.equal(record.review.mode, "working-tree-audit"); assert.equal(record.review.packet_sha256, record.review.child_input_sha256);
-  assert.equal(record.prompt_version, 5);
+  assert.equal(record.prompt_version, 9);
   assert.match(fs.readFileSync(reviewStatus(f.root, record.review.job_id).packetPath, "utf8"), /Criteria admissibility/);
   assert.match(await audit(f.root, "S1", { budgetId: "missing" }), /缓存复用/);
   f.write("changed-after.txt", "changed\n"); await assert.rejects(done(f.root, "S1"), /实现快照|changed|实现已/); fs.rmSync(path.join(f.root, "changed-after.txt"));

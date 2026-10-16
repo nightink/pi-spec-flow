@@ -4,7 +4,8 @@
 
 | 日期 | 文件 | 摘要 | 状态 |
 |---|---|---|---|
-| 2026-10-10 | [2026-10-10-audit-criteria-out-of-packet.md](./2026-10-10-audit-criteria-out-of-packet.md) | S1.7 归母（issue #2）：审计 prompt v5 增加 criteria 可采性规则（运行时/跨仓库/人工事实进 `out_of_scope`），`out_of_scope` 落地 Spec 并可显示；197 单测/十组 E2E/私有 Pi smoke 通过 | resolved / parent-only（未独立审查） |
+| 2026-10-14 | [2026-10-14-review-coverage-and-evidence-precision.md](./2026-10-14-review-coverage-and-evidence-precision.md) | S1.7 归母修复：protocol 3 / prompt 9、源块/major/gap 与历史 ID 命名空间、受限 caller 上下文、模板 v2 / skill 1.2.0；盲探针 16/19→18/19→13/19→19/19，历史失败保留；原降级与第6次 scope/status 回归均获修后独立确认；232/232、CLI/Pi 通过；实际7/8次，通过即停；[分层关闭依据](../reviews/S1.7/evidence-precision/closure-20261015/closure.md)，非新全量审计或 lifecycle done | closed / 技术维护分层验收 |
+| 2026-10-10 | [2026-10-10-audit-criteria-out-of-packet.md](./2026-10-10-audit-criteria-out-of-packet.md) | S1.7 归母（issue #2）：审计 prompt v5 增加 criteria 可采性规则（运行时/跨仓库/人工事实进 `out_of_scope`），`out_of_scope` 落地 Spec 并可显示；198 单测/CLI E2E/私有 Pi smoke 通过 | resolved / parent-only（未独立审查） |
 | 2026-10-07 | [2026-10-07-recoverable-review-output.md](./2026-10-07-recoverable-review-output.md) | S1.7 归母：协议错误与产品 FAIL 分层、零模型派生修复/绑定附加；真实 Spec70 原结论救回、原 job/预算 2/2 不改；194 单测/九组 E2E/完整 Pi smoke | resolved / parent-only（未独立审查） |
 | 2026-10-06 | [2026-10-06-native-review-object-schema.md](./2026-10-06-native-review-object-schema.md) | S1.7 归母修复：spec_review object 根节点、全部九工具三种 API 离线序列化与严格 action/no-spawn 回归；184 单测/八组 E2E/完整 Pi smoke 通过 | resolved / parent-only（未独立审查） |
 | 2026-10-06 | [2026-10-06-daemon-ui-notify.md](./2026-10-06-daemon-ui-notify.md) | S1.2 归母修复：daemon 缺失 notify 不再中断 impl；原生工具进度、失败提交拦截与人工确认边界；183 单测/八组 E2E/真实 Pi SDK 回归通过 | resolved / parent-only（未独立审查） |

@@ -499,7 +499,7 @@ test("audit cache never bypasses base ancestor validation", async () => {
   const auditor = path.join(auditorDir, "auditor");
   fs.writeFileSync(
     auditor,
-    `#!/bin/sh\nprintf '%s\\n' '{"verdict":"pass","criteria":[{"criterion":"c","status":"pass","evidence":"implementation.txt diff"}],"scope_deviations":[]}'\n`,
+    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"c",status:"pass",evidence:"implementation.txt diff"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o755 }
   );
   const oldBin = process.env.SPECFLOW_AUDIT_BIN;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0 — coverage and evidence precision
+
+- Reconcile body promises, numbered acceptance, source-bound major dispositions and actual entry evidence.
+- Distinguish structural accounting from semantic correctness, static judgment from runtime acceptance, and gaps from product defects.
+- Guide explicit bounded context/proposal inputs for v3 while preserving historical receipt meaning and reviewer authorization.
+- Require positive/negative oracles for compound/numeric/fork semantics; no model-zero-error claim or automatic global installation.
+
 ## 1.1.0 — S1.7 integration
 
 - Route deterministic new Spec creation and sealed implementation/proposal review to spec-flow native tools or trusted CLI.

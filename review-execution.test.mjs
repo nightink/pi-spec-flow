@@ -40,11 +40,11 @@ function fixture(t) {
 }
 function fakeCli(f, delay = 0) {
   const file = path.join(f.sandbox, "fake installed Pi CLI.js"), calls = path.join(f.sandbox, "calls"), captured = path.join(f.sandbox, "captured packet");
-  fs.writeFileSync(file, `import fs from 'node:fs';const args=process.argv.slice(2);
+  fs.writeFileSync(file, `import fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};const args=process.argv.slice(2);
 if(args.includes('--version'))throw new Error('must not probe/execute launcher during preflight');
 for(const flag of ['--no-tools','--no-extensions','--no-session','--no-skills','--no-context-files','--no-prompt-templates','--no-themes','--no-approve'])if(!args.includes(flag))process.exit(2);
 fs.appendFileSync(${JSON.stringify(calls)},'call\\n');fs.copyFileSync(args.at(-1).slice(1),${JSON.stringify(captured)});
-await new Promise(r=>setTimeout(r,${delay}));console.log(JSON.stringify({verdict:'pass',criteria:[{criterion:'mechanical exact bytes',status:'pass',evidence:'fake fixture only'}],scope_deviations:[]}));\n`, { mode: 0o600 });
+await new Promise(r=>setTimeout(r,${delay}));console.log(JSON.stringify(mechanicalCoverage({verdict:'pass',criteria:[{criterion:'mechanical exact bytes',status:'pass',evidence:'fake fixture only'}],scope_deviations:[]},fs.readFileSync(args.at(-1).slice(1),'utf8'))));\n`, { mode: 0o600 });
   return { file, calls, captured };
 }
 const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;

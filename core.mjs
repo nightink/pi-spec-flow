@@ -13,6 +13,7 @@ import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 import { gitWorkspace, gitWorktrees, withWorkspaceLock, readReservations } from "./workspace.mjs";
 import { describeReviewExecution } from "./review-execution.mjs";
+import { reviewStatus as retainedReviewStatus } from "./review-engine.mjs";
 import {
   applyLifecycleWrite,
   approvalProblems,
@@ -27,7 +28,7 @@ import {
 const execFileP = promisify(execFile);
 const WORKFLOW_VERSION = 2;
 const GATE_CACHE_VERSION = 2;
-const AUDIT_PROMPT_VERSION = 5;
+const AUDIT_PROMPT_VERSION = 9;
 const DEFAULT_AUDIT_MAX_BYTES = 512 * 1024;
 const DEFAULT_SNAPSHOT_MAX_BYTES = 512 * 1024 * 1024;
 
@@ -1945,18 +1946,57 @@ export function normalizeAuditResult(value) {
 }
 
 // ─── audit ───────────────────────────────────────────────────────────────────
-async function assertRetainedAuditEvidence(repo, auditRecord) {
+function assertRetainedAuditEvidence(repo, auditRecord) {
   const receipt = auditRecord?.review;
-  if (!receipt) return; // Old v2 records remain portable.
+  if (!receipt) {
+    if (usesCoverageRecord(auditRecord)) throw new Error("Coverage v3 requires its retained review receipt; no inferred approval");
+    return; // Old v2 records remain portable.
+  }
   if (!/^[a-f0-9]{32}$/.test(receipt.job_id || "")) throw new Error("Invalid retained audit job ID");
   const dir = path.join(gitWorkspace(repo).commonDir, "spec-flow/review-v1/jobs", receipt.job_id);
-  try { fs.lstatSync(dir); } catch (error) { if (error.code === "ENOENT") return; throw error; }
-  const { reviewStatus } = await import("./review-engine.mjs");
-  const retained = reviewStatus(repo, receipt.job_id);
+  try { fs.lstatSync(dir); } catch (error) {
+    if (error.code === "ENOENT" && !usesCoverageRecord(auditRecord)) return;
+    if (error.code === "ENOENT") throw new Error("Coverage v3 requires the retained review job; restore packet/raw/receipt, never infer approval from a missing journal", { cause: error });
+    throw error;
+  }
+  const retained = retainedReviewStatus(repo, receipt.job_id);
   if (retained.state !== "completed" || retained.mode !== "working-tree-audit" || retained.result?.verdict !== "pass" ||
       retained.receipt.packet_sha256 !== receipt.packet_sha256 || retained.receipt.raw_sha256 !== receipt.raw_sha256 ||
       sha256(stableJson(normalizeAuditResult(retained.result))) !== receipt.result_sha256) throw new Error("Retained audit evidence mismatch; no cached approval");
+  if (usesCoverageRecord(auditRecord) || retained.receipt.result_protocol_version >= 3) {
+    if (coverageRecordProblems(auditRecord).length || receipt.result_protocol_version !== retained.receipt.result_protocol_version ||
+        receipt.review_index_sha256 !== retained.receipt.bindings.review_index_sha256 ||
+        receipt.coverage_sha256 !== sha256(stableJson(retained.result.coverage)) ||
+        receipt.normalized_review_sha256 !== sha256(stableJson(retained.result)) ||
+        stableJson(auditRecord.coverage) !== stableJson(retained.result.coverage_summary)) throw new Error("Retained review coverage evidence mismatch; no cached approval");
+  }
   return retained;
+}
+function usesCoverageRecord(record) {
+  return record?.review?.result_protocol_version >= 3 || record?.prompt_version >= 6 ||
+    Object.hasOwn(record?.review || {}, "review_index_sha256") ||
+    (record?.coverage?.version === 1 && record.coverage.semantic_guarantee === false && typeof record.coverage.index_sha256 === "string");
+}
+function coverageRecordProblems(record) {
+  const receipt = record?.review;
+  if (!usesCoverageRecord(record)) return [];
+  const c = record.coverage, numbers = ["source_units", "accounted_units", "acceptance_units", "covered_units", "context_units", "deferred_units", "gap_units", "decision_units"];
+  if (receipt?.result_protocol_version !== 3 || !c || c.version !== 1 || c.mechanical_complete !== true || c.semantic_guarantee !== false ||
+      c.scope !== "full-current-audit" || numbers.some(k => !Number.isSafeInteger(c[k]) || c[k] < 0 || c[k] > 400) ||
+      c.acceptance_units < 1 || c.source_units !== c.accounted_units || c.gap_units !== 0 ||
+      c.source_units !== c.covered_units + c.context_units + c.deferred_units + c.decision_units ||
+      !/^[a-f0-9]{64}$/.test(c.index_sha256 || "") || receipt.review_index_sha256 !== c.index_sha256 ||
+      receipt.coverage_summary_sha256 !== sha256(stableJson(c)) || !/^[a-f0-9]{64}$/.test(receipt.coverage_sha256 || "") ||
+      !/^[a-f0-9]{64}$/.test(receipt.normalized_review_sha256 || "")) return ["audit v3 覆盖对账缺失、未通过或绑定不一致（非已确认产品缺陷）"];
+  return [];
+}
+function coverageSummaryLines(record) {
+  const c = record?.coverage;
+  if (!c) return [usesCoverageRecord(record)
+    ? "  v3 源块对账未完成（无有效摘要；不能据此通过）。"
+    : "  审查标准：历史协议（未经过 v3 源块覆盖对账；不升级为新标准 PASS）"];
+  return [`  源块对账：${c.accounted_units}/${c.source_units}，验收 ${c.acceptance_units}，延后 ${c.deferred_units}，缺口 ${c.gap_units}`,
+    "  边界：仅限封存材料的静态判断；机械对账不证明语义完整，不代表运行时或交付验收通过。"];
 }
 
 // Runtime/remote/human facts are not criteria; they are recorded as bounded
@@ -1982,7 +2022,7 @@ function deferredScopeLines(notes) {
 }
 function savedAuditOutputHint(fm) {
   if (!fm.audit || fm.audit.verdict === "pass") return null;
-  if (["protocol-error", "execution-error"].includes(fm.audit.output_info?.category)) return fm.audit.output_info.message;
+  if (["protocol-error", "execution-error", "coverage-gap"].includes(fm.audit.output_info?.category)) return fm.audit.output_info.message;
   const jobId = fm.audit.review?.job_id;
   if (/^[a-f0-9]{32}$/.test(jobId || "") && fm.audit.criteria?.some(item => item.criterion === "审计 scope_deviations 结构校验")) {
     return `工具输出 scope_deviations 协议错误（非产品 FAIL）；先 spec_review ${JSON.stringify({ action: "status", jobId })} 查看无损修复提示，支持时使用 action=repair 零模型修复，再附加匹配的当前审计。不自动付费重审。`;
@@ -1996,7 +2036,7 @@ async function auditOutputRecoveryHint(cwd, fm) {
   try {
     const { reviewStatus } = await import("./review-engine.mjs");
     const info = reviewStatus(implementationRepo(cwd, fm), fm.audit.review.job_id).outputInfo;
-    return ["protocol-error", "execution-error"].includes(info?.category) ? info.message : saved;
+    return ["protocol-error", "execution-error", "coverage-gap"].includes(info?.category) ? info.message : saved;
   } catch {
     return saved ? "保留的工具审计证据当前不可验证；先恢复原始 packet/raw/receipt，再做零调用修复。不要覆盖旧结论或自动付费重审。" : null;
   } // A diagnostic is never cache approval or a Spec write.
@@ -2091,7 +2131,7 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
       summary.push(`    [✓] ${criterion.criterion}`);
       if (criterion.evidence) summary.push(`      ${criterion.evidence.slice(0, 200)}`);
     }
-    summary.push(...deferredScopeLines(deferredScopeNotes(prev.out_of_scope)));
+    summary.push(...coverageSummaryLines(prev), ...deferredScopeLines(deferredScopeNotes(prev.out_of_scope)));
     return summary.join("\n");
   }
 
@@ -2179,12 +2219,18 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
     criteria: auditResult.criteria,
     scope_deviations: auditResult.scope_deviations,
     ...(deferredNotes.length ? { out_of_scope: deferredNotes } : {}),
+    ...(engineReview?.result?.coverage_summary ? { coverage: engineReview.result.coverage_summary } : {}),
     ...(engineReview ? { review: { version: 1, mode: "working-tree-audit", job_id: engineReview.jobId,
       state: engineReview.state, packet_sha256: engineReview.receipt.packet_sha256,
       child_input_sha256: engineReview.receipt.child_input_sha256 ?? null,
       raw_sha256: engineReview.receipt.raw_sha256 ?? null, budget: engineReview.receipt.budget ?? null,
       result_sha256: sha256(stableJson(auditResult)), effective_model: engineReview.receipt.effective_model ?? null,
       usage: engineReview.receipt.usage ?? null,
+      ...(engineReview.receipt.result_protocol_version >= 3 ? { result_protocol_version: engineReview.receipt.result_protocol_version,
+        review_index_sha256: engineReview.receipt.bindings.review_index_sha256,
+        coverage_sha256: sha256(stableJson(engineReview.result?.coverage ?? [])),
+        coverage_summary_sha256: sha256(stableJson(engineReview.result?.coverage_summary ?? null)),
+        normalized_review_sha256: sha256(stableJson(engineReview.result)) } : {}),
       ...(engineReview.receipt.recovery ? { recovery: engineReview.receipt.recovery } : {}) } } : {}),
   };
 
@@ -2204,8 +2250,8 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
   const outputIssue = toolIssue || engineReview?.outputInfo;
   const isToolError = ["protocol-error", "execution-error"].includes(outputIssue?.category);
   const summary = [
-    `Spec ${id} 审计结果: ${isToolError ? "⚠️ 工具/协议错误（非产品 FAIL）" : auditResult.verdict === "pass" ? "✅ PASS" : "❌ FAIL"}`,
-    ...(isToolError ? [outputIssue.message] : []),
+    `Spec ${id} 审计结果: ${isToolError ? "⚠️ 工具/协议错误（非产品 FAIL）" : outputIssue?.category === "coverage-gap" ? "⚠️ 覆盖/证据缺口（非已确认产品 FAIL）" : auditResult.verdict === "pass" ? "✅ PASS" : "❌ FAIL"}`,
+    ...(isToolError || outputIssue?.category === "coverage-gap" ? [outputIssue.message] : []),
     `  sha: ${currentSha}`,
     `  impl_hash: ${snapshot.hash.slice(0, 12)}`,
     `  criteria:`,
@@ -2221,7 +2267,7 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
       summary.push(`    - ${deviation}`);
     }
   }
-  summary.push(...deferredScopeLines(deferredNotes));
+  summary.push(...coverageSummaryLines(fm.audit), ...deferredScopeLines(deferredNotes));
 
   return summary.join("\n");
 }
@@ -2281,18 +2327,15 @@ function attestUnlocked(cwd, id, item, note) {
     contract_hash: contractHash,
   };
 
-  writeSpecLifecycleFile(spec, fm, profile);
-
-  appendLedger(cwd, {
-    type: "attest",
-    spec: id,
-    item,
-    note,
-    impl_hash: fm.impl.snapshot_hash,
-    contract_hash: contractHash,
-  });
-
-  return `Spec ${id}: 人工核验 "${item}" 已登记\n  note: ${note}`;
+  const coverageProblems = coverageRecordProblems(fm.audit);
+  if (coverageProblems.length) throw new Error(coverageProblems.join("; "));
+  const register = () => {
+    writeSpecLifecycleFile(spec, fm, profile);
+    appendLedger(cwd, { type: "attest", spec: id, item, note, impl_hash: fm.impl.snapshot_hash, contract_hash: contractHash });
+    return `Spec ${id}: 人工核验 "${item}" 已登记\n  note: ${note}`;
+  };
+  if (usesCoverageRecord(fm.audit)) assertRetainedAuditEvidence(implementationRepo(cwd, fm), fm.audit);
+  return register();
 }
 
 export function recordConsistencyGaps(spec, profile = spec.profile || defaultProjectProfile()) {
@@ -2365,6 +2408,7 @@ export function recordConsistencyGaps(spec, profile = spec.profile || defaultPro
       fm.audit.review.result_sha256 !== sha256(stableJson(normalizedAudit)))) {
     gaps.push("audit review receipt 非完整当前审计或结果绑定不一致");
   }
+  gaps.push(...coverageRecordProblems(fm.audit));
   const recovery = fm.audit?.review?.recovery;
   if (recovery && (recovery.version !== 1 || recovery.recipe !== "scope-file-note/v1" ||
       !/^[a-f0-9]{32}$/.test(recovery.source_job_id || "") || !/^[a-f0-9]{64}$/.test(recovery.source_job_sha256 || "") ||
@@ -2629,6 +2673,10 @@ export async function checkCI(cwd, { runProjectGates = true, live = false, prefe
       }
     }
 
+    if (usesCoverageRecord(fm.audit) && fm.audit.verdict === "pass") {
+      try { await assertRetainedAuditEvidence(implementationRepo(cwd, fm), fm.audit); }
+      catch (error) { errors.push(`${id}: ${error.message}`); }
+    }
     const drift = detectDrift(spec.content, fm, profile);
     if (drift.drifted) {
       errors.push(`${id}: 状态漂移 (frontmatter=${drift.expected}, body=${drift.got})`);
