@@ -1,9 +1,9 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { checkCI } from "./core.mjs";
 import { loadProjectProfile } from "./project-profile.mjs";
@@ -11,19 +11,32 @@ import { loadProjectProfile } from "./project-profile.mjs";
 const CLI = fileURLToPath(new URL("./core.mjs", import.meta.url));
 const RULES = {
   requiredFields: ["id", "title", "kind", "status", "created", "updated", "author", "depends_on"],
-  kindField: "kind", allowedKinds: ["spec", "plan", "analysis"],
-  numericFileId: true, checkDoneCheckboxes: true,
-  forbidAddendumFilename: true, dependencyIntegrity: true,
+  kindField: "kind",
+  allowedKinds: ["spec", "plan", "analysis"],
+  numericFileId: true,
+  checkDoneCheckboxes: true,
+  forbidAddendumFilename: true,
+  dependencyIntegrity: true,
 };
 const PROFILE = {
   version: 1,
   lifecycle: {
-    preReview: ["draft", "in-review"], startable: ["approved"], active: "in-progress",
-    done: "done", ignored: ["archived"], dependenciesField: "depends_on",
-    updatedField: "updated", bodyStatusLine: false,
-    legacyActive: "external-warning", externalActiveIds: [2],
-    approval: { reviewersField: "reviewers", reviewedAtField: "reviewed_at",
-      minimumReviewers: 1, placeholderReviewers: ["pending"] },
+    preReview: ["draft", "in-review"],
+    startable: ["approved"],
+    active: "in-progress",
+    done: "done",
+    ignored: ["archived"],
+    dependenciesField: "depends_on",
+    updatedField: "updated",
+    bodyStatusLine: false,
+    legacyActive: "external-warning",
+    externalActiveIds: [2],
+    approval: {
+      reviewersField: "reviewers",
+      reviewedAtField: "reviewed_at",
+      minimumReviewers: 1,
+      placeholderReviewers: ["pending"],
+    },
   },
   gates: { mode: "replace", npmScripts: ["verify"] },
   validation: RULES,
@@ -32,16 +45,24 @@ function makeProject() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-contract-check-"));
   fs.mkdirSync(path.join(root, "specs"));
   fs.writeFileSync(path.join(root, ".spec-flow.json"), JSON.stringify(PROFILE));
-  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ scripts: { verify: "node verify.mjs" } }));
-  fs.writeFileSync(path.join(root, "verify.mjs"), "import fs from 'node:fs';fs.writeFileSync('gate-ran','yes');console.log('gate passed');\n");
+  fs.writeFileSync(
+    path.join(root, "package.json"),
+    JSON.stringify({ scripts: { verify: "node verify.mjs" } }),
+  );
+  fs.writeFileSync(
+    path.join(root, "verify.mjs"),
+    "import fs from 'node:fs';fs.writeFileSync('gate-ran','yes');console.log('gate passed');\n",
+  );
   spec(root, 0, "done", [], "- [x] initial\n");
   spec(root, 2, "in-progress", [0], "- [ ] pending\n");
   spec(root, 3, "archived", [0], "archive\n");
   return root;
 }
 function spec(root, id, status, deps, body, name = `${id}.example.md`) {
-  fs.writeFileSync(path.join(root, "specs", name),
-    `---\nid: ${id}\ntitle: Item ${id}\nkind: spec\nstatus: ${status}\ncreated: '2026-09-26'\nupdated: '2026-09-26'\nauthor: agent\ndepends_on: [${deps.join(", ")}]\n---\n\n# Item ${id}\n\n${body}`);
+  fs.writeFileSync(
+    path.join(root, "specs", name),
+    `---\nid: ${id}\ntitle: Item ${id}\nkind: spec\nstatus: ${status}\ncreated: '2026-09-26'\nupdated: '2026-09-26'\nauthor: agent\ndepends_on: [${deps.join(", ")}]\n---\n\n# Item ${id}\n\n${body}`,
+  );
 }
 function mutate(root, filename, before, after) {
   const file = path.join(root, "specs", filename);
@@ -60,7 +81,9 @@ test("without validation profile, project contract rules remain disabled", async
     mutate(root, "0.example.md", "- [x] initial", "- [ ] initial");
     const result = await checkCI(root, { runProjectGates: false });
     assert.equal(result.pass, true, result.output);
-  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("configured contract checker enforces parity across done/legacy/archived", async () => {
@@ -79,7 +102,9 @@ test("configured contract checker enforces parity across done/legacy/archived", 
     assert.match(result.output, /2: 非法 kind/);
     assert.match(result.output, /3: 缺字段 title/);
     assert.equal(fs.existsSync(path.join(root, "gate-ran")), false);
-  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("numeric ID, filename, missing dependency, arbitrary cycle and addendum fail closed", async () => {
@@ -95,7 +120,9 @@ test("numeric ID, filename, missing dependency, arbitrary cycle and addendum fai
     assert.match(result.output, /addendum 文件禁止/);
     assert.match(result.output, /引用了不存在的 id 777/);
     assert.match(result.output, /依赖循环: 4 → 5 → 6 → 4/);
-  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("Action verify stops before gates on invalid contracts while bare CI still diagnoses all gates", async () => {
@@ -110,7 +137,9 @@ test("Action verify stops before gates on invalid contracts while bare CI still 
     result = await checkCI(root);
     assert.equal(result.pass, false);
     assert.equal(fs.readFileSync(path.join(root, "gate-ran"), "utf8"), "yes");
-  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("strict validation schema rejects unknown keys and unsafe required fields", () => {
@@ -129,13 +158,16 @@ test("strict validation schema rejects unknown keys and unsafe required fields",
     data.validation.dependencyIntegrity = "yes";
     fs.writeFileSync(file, JSON.stringify(data));
     assert.throws(() => loadProjectProfile(root), /must be boolean/);
-  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("CLI contracts-only does not execute gates; full CI does; unknown flags fail", () => {
   const root = makeProject();
   try {
-    const run = (...flags) => execFileSync(process.execPath, [CLI, "check", ...flags], { cwd: root, encoding: "utf8" });
+    const run = (...flags) =>
+      execFileSync(process.execPath, [CLI, "check", ...flags], { cwd: root, encoding: "utf8" });
     assert.match(run("--ci", "--contracts-only"), /项目门禁未运行/);
     assert.equal(fs.existsSync(path.join(root, "gate-ran")), false);
     assert.match(run("--ci"), /check --ci 通过/);
@@ -143,5 +175,7 @@ test("CLI contracts-only does not execute gates; full CI does; unknown flags fai
     assert.throws(() => run("--ci", "--typo"), /Command failed/);
     mutate(root, "0.example.md", "- [x] initial", "- [ ] initial");
     assert.throws(() => run("--ci", "--contracts-only"), /Command failed/);
-  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

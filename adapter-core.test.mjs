@@ -1,19 +1,19 @@
 // adapter-core.test.mjs — host-free unit tests for the Pi adapter helpers.
 // Run: node --test adapter-core.test.mjs
 
-import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs, { readFileSync } from "node:fs";
 import os from "node:os";
-import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
+import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   ATTEST_NOTE_DISPLAY_LIMIT,
-  TOOL_TEXT_LIMIT,
   attestationGate,
   formatAttestationPrompt,
+  TOOL_TEXT_LIMIT,
   truncateToolText,
 } from "./adapter-core.mjs";
 
@@ -133,7 +133,7 @@ test("gate: confirm 抛错时向上抛出（不伪造放行/拒绝）", async ()
         throw new Error("dialog exploded");
       },
     }),
-    /dialog exploded/
+    /dialog exploded/,
   );
 });
 
@@ -167,7 +167,7 @@ test("index.ts: begin/impl/audit/attest/done 都在 mutation queue 包裹内", (
 
   for (const fn of ["begin", "impl", "audit", "attest", "done"]) {
     const pattern = new RegExp(
-      `runSpecMutation\\(ctx\\.cwd, params\\.id, \\(\\) =>\\s*${fn}\\(ctx\\.cwd, params\\.id`
+      `runSpecMutation\\(ctx\\.cwd, params\\.id, \\(\\) =>\\s*${fn}\\(ctx\\.cwd, params\\.id`,
     );
     assert.match(adapterSource, pattern, `${fn} 必须经 withFileMutationQueue 包裹`);
   }
@@ -175,7 +175,7 @@ test("index.ts: begin/impl/audit/attest/done 都在 mutation queue 包裹内", (
   assert.match(
     adapterSource,
     /withFileMutationQueue\(resolve\(spec\.path\)/,
-    "队列 key 必须是解析后的真实 spec.path"
+    "队列 key 必须是解析后的真实 spec.path",
   );
 });
 
@@ -220,14 +220,17 @@ export async function withFileMutationQueue(key, fn) {
     if (tails.get(key) === tail) tails.delete(key);
   }
 }
-`
+`,
     );
     const typeboxDir = join(root, "node_modules/typebox");
     fs.mkdirSync(typeboxDir, { recursive: true });
-    fs.writeFileSync(join(typeboxDir, "package.json"), '{"type":"module","exports":"./index.js"}\n');
+    fs.writeFileSync(
+      join(typeboxDir, "package.json"),
+      '{"type":"module","exports":"./index.js"}\n',
+    );
     fs.writeFileSync(
       join(typeboxDir, "index.js"),
-      "export const Type = { Object: (value, options = {}) => ({ type: 'object', properties: value, ...options }), Optional: (value) => value, Array: (value) => ({items:value}), Union: (value) => ({anyOf:value}), Any: () => ({}), Null: () => ({type:'null'}), Literal: (value) => ({const:value}), Boolean: () => ({type:'boolean'}), Integer: () => ({type:'integer'}), String: (value = {}) => ({ type: 'string', ...value }) };\n"
+      "export const Type = { Object: (value, options = {}) => ({ type: 'object', properties: value, ...options }), Optional: (value) => value, Array: (value) => ({items:value}), Union: (value) => ({anyOf:value}), Any: () => ({}), Null: () => ({type:'null'}), Literal: (value) => ({const:value}), Boolean: () => ({type:'boolean'}), Integer: () => ({type:'integer'}), String: (value = {}) => ({ type: 'string', ...value }) };\n",
     );
 
     const project = join(root, "project");
@@ -246,33 +249,60 @@ evidence:
 # Queue smoke
 
 - 状态：已批准
-`
+`,
     );
     execFileSync("git", ["init", "-q"], { cwd: project });
     execFileSync("git", ["add", "."], { cwd: project });
     execFileSync(
       "git",
-      ["-c", "user.name=spec-flow", "-c", "user.email=spec-flow@example.invalid", "commit", "-qm", "init"],
-      { cwd: project }
+      [
+        "-c",
+        "user.name=spec-flow",
+        "-c",
+        "user.email=spec-flow@example.invalid",
+        "commit",
+        "-qm",
+        "init",
+      ],
+      { cwd: project },
     );
 
     const tools = new Map();
     const commands = new Map();
     const events = new Map();
     const fakePi = {
-      registerTool(tool) { tools.set(tool.name, tool); },
-      registerCommand(name, command) { commands.set(name, command); },
-      on(name, handler) { events.set(name, handler); },
+      registerTool(tool) {
+        tools.set(tool.name, tool);
+      },
+      registerCommand(name, command) {
+        commands.set(name, command);
+      },
+      on(name, handler) {
+        events.set(name, handler);
+      },
     };
     const extension = await import(`${pathToFileURL(join(root, "index.ts")).href}?v=${Date.now()}`);
     extension.default(fakePi);
 
+    assert.deepEqual([...tools.keys()].sort(), [
+      "spec_alloc",
+      "spec_attest",
+      "spec_audit",
+      "spec_begin",
+      "spec_board",
+      "spec_done",
+      "spec_impl",
+      "spec_new",
+      "spec_review",
+    ]);
+    const invalidRoots = [...tools.values()]
+      .filter((tool) => tool.parameters?.type !== "object")
+      .map((tool) => tool.name);
     assert.deepEqual(
-      [...tools.keys()].sort(),
-      ["spec_alloc", "spec_attest", "spec_audit", "spec_begin", "spec_board", "spec_done", "spec_impl", "spec_new", "spec_review"]
+      invalidRoots,
+      [],
+      "ALL native function schemas need an explicit object root, even when another tool will execute",
     );
-    const invalidRoots = [...tools.values()].filter(tool => tool.parameters?.type !== "object").map(tool => tool.name);
-    assert.deepEqual(invalidRoots, [], "ALL native function schemas need an explicit object root, even when another tool will execute");
     for (const tool of tools.values()) {
       assert.equal(tool.parameters.anyOf, undefined, `${tool.name}: no root union`);
       assert.equal(tool.parameters.oneOf, undefined, `${tool.name}: no root union`);
@@ -286,7 +316,12 @@ evidence:
     const ctx = {
       cwd: project,
       hasUI: true,
-      ui: { notify() {}, confirm: async () => true },
+      ui: {
+        notify() {
+          // This fixture has no UI notification surface to record.
+        },
+        confirm: async () => true,
+      },
     };
     const results = await Promise.allSettled([
       beginTool.execute("a", { id: "S9" }, undefined, undefined, ctx),
@@ -299,13 +334,17 @@ evidence:
     assert.equal(queueModule.queueState.maxActive, 1);
     assert.equal(queueModule.queueState.calls.length, 2);
     assert.equal(queueModule.queueState.calls[0], join(project, "docs/specs/S9.md"));
-    const allocated = await tools.get("spec_alloc").execute("allocate", { prefix: "S" }, undefined, undefined, ctx);
+    const allocated = await tools
+      .get("spec_alloc")
+      .execute("allocate", { prefix: "S" }, undefined, undefined, ctx);
     assert.equal(allocated.content[0].text, "S10");
     for (const name of ["spec_new", "spec_review"]) {
       assert.ok(tools.get(name).outputSchema);
       assert.ok(tools.get(name).promptSnippet);
     }
-    const preview = await tools.get("spec_new").execute("preview", { title: "Native draft", dryRun: true }, undefined, undefined, ctx);
+    const preview = await tools
+      .get("spec_new")
+      .execute("preview", { title: "Native draft", dryRun: true }, undefined, undefined, ctx);
     assert.equal(preview.structuredContent.status, "draft");
     assert.equal(preview.structuredContent.dryRun, true);
   } finally {

@@ -373,7 +373,9 @@ Legacy 行为：
 ## 自测
 
 ```bash
-npm run lint                     # ESLint flat config：eqeqeq/未使用绑定/promise executor/shadow 等 bug 类规则
+npm run lint                     # Biome（格式化 + import 排序 + 全量 lint，error/warning 均失败）+ 8 条 Biome 无等价实现的残留 ESLint 规则
+npm run lint:residual            # 仅残留 ESLint 门禁（require-atomic-updates 等，见 eslint.config.mjs）
+npm run format                   # 仅按 biome.jsonc 重排格式（等价于 lint 的格式部分）
 npm test                         # unit + adapter fake-Pi integration / partial-UI real gates
 node tests/e2e/e2e-commit-gate.mjs
 node tests/e2e/e2e-trustworthy-closure.mjs

@@ -1,10 +1,11 @@
 // S1.2 trust-boundary regression tests
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { test } from "node:test";
 
 import {
   audit,
@@ -16,8 +17,8 @@ import {
   loadSpecs,
   normalizeAuditResult,
   parseFrontmatter,
-  repositorySnapshotHash,
   recordConsistencyGaps,
+  repositorySnapshotHash,
   runGates,
   specContractHash,
   writeFrontmatter,
@@ -48,26 +49,23 @@ function gitInit(root) {
       "init",
       "--allow-empty",
     ],
-    { cwd: root }
+    { cwd: root },
   );
 }
 
 function approvedSpec({ id = "S1", evidence = {}, extra = {} } = {}) {
-  return writeFrontmatter(
-    `# ${id}\n\n- 状态：已批准\n\n## 验收标准\n\n- required behavior\n`,
-    {
-      id,
-      status: "approved",
-      review: { decision: "approved", note: "proposal evidence" },
-      evidence: { human: [], ...evidence },
-      ...extra,
-    }
-  );
+  return writeFrontmatter(`# ${id}\n\n- 状态：已批准\n\n## 验收标准\n\n- required behavior\n`, {
+    id,
+    status: "approved",
+    review: { decision: "approved", note: "proposal evidence" },
+    evidence: { human: [], ...evidence },
+    ...extra,
+  });
 }
 
 async function begunProject({ evidence = {}, extraSpecs = {}, files = {} } = {}) {
   const root = project({
-    "package.json": JSON.stringify({ scripts: { test: "node -e \"process.exit(0)\"" } }),
+    "package.json": JSON.stringify({ scripts: { test: 'node -e "process.exit(0)"' } }),
     "docs/specs/S1.md": approvedSpec({ evidence }),
     ...extraSpecs,
     ...files,
@@ -102,11 +100,13 @@ process.exit(fs.readFileSync("target.txt", "utf8").trim() === "good" ? 0 : 1);\n
     fs.rmSync(counter, { force: true });
     const diagnostics = [];
     assert.equal(
-      (await runGates(root, gate, {
-        cacheTtlMs: 60_000,
-        onDiagnostic: (message) => diagnostics.push(message),
-      })).probe.pass,
-      false
+      (
+        await runGates(root, gate, {
+          cacheTtlMs: 60_000,
+          onDiagnostic: (message) => diagnostics.push(message),
+        })
+      ).probe.pass,
+      false,
     );
     assert.equal((await runGates(root, gate, { cacheTtlMs: 60_000 })).probe.pass, false);
     assert.equal(lineCount(counter), 1, "unchanged opt-in fingerprint may hit cache");
@@ -164,7 +164,11 @@ test("repository snapshot covers working content but excludes spec lifecycle and
 
   execFileSync("git", ["rm", "-q", "tracked.txt"], { cwd: root });
   const stagedDeletion = await repositorySnapshotHash(root, { excludePaths: [specPath] });
-  assert.notEqual(stagedDeletion.hash, first.hash, "staged tracked deletion invalidates the baseline");
+  assert.notEqual(
+    stagedDeletion.hash,
+    first.hash,
+    "staged tracked deletion invalidates the baseline",
+  );
   execFileSync("git", ["reset", "--hard", "-q", "HEAD"], { cwd: root });
 
   fs.appendFileSync(specPath, "\nworkflow writeback\n");
@@ -174,7 +178,11 @@ test("repository snapshot covers working content but excludes spec lifecycle and
 
   fs.writeFileSync(path.join(root, ".spec-flow-cache.json"), "legacy project cache content\n");
   const legacyCacheFile = await repositorySnapshotHash(root, { excludePaths: [specPath] });
-  assert.notEqual(legacyCacheFile.hash, first.hash, "only the ledger/spec are excluded by contract");
+  assert.notEqual(
+    legacyCacheFile.hash,
+    first.hash,
+    "only the ledger/spec are excluded by contract",
+  );
   fs.rmSync(path.join(root, ".spec-flow-cache.json"));
 
   fs.writeFileSync(path.join(root, "tracked.txt"), "two\n");
@@ -186,11 +194,23 @@ test("repository snapshot covers working content but excludes spec lifecycle and
   execFileSync("git", ["add", "tracked.txt", "untracked.txt"], { cwd: root });
   execFileSync(
     "git",
-    ["-c", "user.name=spec-flow", "-c", "user.email=spec-flow@example.invalid", "commit", "-qm", "same-content"],
-    { cwd: root }
+    [
+      "-c",
+      "user.name=spec-flow",
+      "-c",
+      "user.email=spec-flow@example.invalid",
+      "commit",
+      "-qm",
+      "same-content",
+    ],
+    { cwd: root },
   );
   const afterCommit = await repositorySnapshotHash(root, { excludePaths: [specPath] });
-  assert.equal(afterCommit.hash, beforeCommit.hash, "commit metadata must not invalidate same content");
+  assert.equal(
+    afterCommit.hash,
+    beforeCommit.hash,
+    "commit metadata must not invalidate same content",
+  );
 });
 
 test("snapshot keeps a staged deletion bound after committing identical content", async () => {
@@ -201,7 +221,19 @@ test("snapshot keeps a staged deletion bound after committing identical content"
     execFileSync("git", ["rm", "-q", "removed.txt"], { cwd: root });
     const pending = await repositorySnapshotHash(root);
     assert.notEqual(pending.hash, baseline.hash, "deletion must invalidate the old content");
-    execFileSync("git", ["-c", "user.name=spec-flow", "-c", "user.email=spec-flow@example.invalid", "commit", "-qm", "remove"], { cwd: root });
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=spec-flow",
+        "-c",
+        "user.email=spec-flow@example.invalid",
+        "commit",
+        "-qm",
+        "remove",
+      ],
+      { cwd: root },
+    );
     const committed = await repositorySnapshotHash(root);
     assert.equal(committed.hash, pending.hash, "same deleted content set must survive a commit");
     assert.equal(committed.fileCount, pending.fileCount);
@@ -218,13 +250,21 @@ test("snapshot hashes verified gitlink HEAD and fails closed on an untracked nes
   execFileSync(
     "git",
     ["-c", "protocol.file.allow=always", "submodule", "add", "-q", source, "deps/module"],
-    { cwd: root }
+    { cwd: root },
   );
   execFileSync("git", ["add", "."], { cwd: root });
   execFileSync(
     "git",
-    ["-c", "user.name=spec-flow", "-c", "user.email=spec-flow@example.invalid", "commit", "-qm", "submodule"],
-    { cwd: root }
+    [
+      "-c",
+      "user.name=spec-flow",
+      "-c",
+      "user.email=spec-flow@example.invalid",
+      "commit",
+      "-qm",
+      "submodule",
+    ],
+    { cwd: root },
   );
   const before = await repositorySnapshotHash(root);
   const checkout = path.join(root, "deps/module");
@@ -232,8 +272,16 @@ test("snapshot hashes verified gitlink HEAD and fails closed on an untracked nes
   execFileSync("git", ["add", "."], { cwd: checkout });
   execFileSync(
     "git",
-    ["-c", "user.name=spec-flow", "-c", "user.email=spec-flow@example.invalid", "commit", "-qm", "advance"],
-    { cwd: checkout }
+    [
+      "-c",
+      "user.name=spec-flow",
+      "-c",
+      "user.email=spec-flow@example.invalid",
+      "commit",
+      "-qm",
+      "advance",
+    ],
+    { cwd: checkout },
   );
   const advanced = await repositorySnapshotHash(root);
   assert.notEqual(advanced.hash, before.hash, "working submodule HEAD participates in snapshot");
@@ -251,7 +299,11 @@ test("snapshot hashes verified gitlink HEAD and fails closed on an untracked nes
   assert.equal(sparseMissing.hash, before.hash, "missing non-deleted submodule uses index gitlink");
   execFileSync("git", ["update-index", "--no-skip-worktree", "deps/module"], { cwd: root });
   const deleted = await repositorySnapshotHash(root);
-  assert.notEqual(deleted.hash, before.hash, "actual submodule deletion invalidates its prior identity");
+  assert.notEqual(
+    deleted.hash,
+    before.hash,
+    "actual submodule deletion invalidates its prior identity",
+  );
 
   const nested = path.join(root, "nested");
   fs.mkdirSync(nested);
@@ -260,10 +312,10 @@ test("snapshot hashes verified gitlink HEAD and fails closed on an untracked nes
 });
 
 test("contract hash ignores lifecycle/review evidence/checkmarks but detects contract edits", () => {
-  const original = approvedSpec({
+  const original = `${approvedSpec({
     evidence: { e2e: ["e2e-contract"] },
     extra: { scope: ["src/**"] },
-  }) + `\n## Checklist\n\n- [ ] implementation\n\n## Review 与决策\n\nold review evidence\n`;
+  })}\n## Checklist\n\n- [ ] implementation\n\n## Review 与决策\n\nold review evidence\n`;
   const parsed = parseFrontmatter(original);
   const lifecycleChanged = writeFrontmatter(
     original
@@ -278,12 +330,12 @@ test("contract hash ignores lifecycle/review evidence/checkmarks but detects con
       impl: { pass: true },
       audit: { verdict: "pass" },
       attestations: { R1: { note: "changed" } },
-    }
+    },
   );
   assert.equal(specContractHash(lifecycleChanged), specContractHash(original));
   assert.notEqual(
     specContractHash(original.replace("required behavior", "different required behavior")),
-    specContractHash(original)
+    specContractHash(original),
   );
 });
 
@@ -302,7 +354,7 @@ test("audit diff includes tracked and untracked changes and rejects injection/ov
   const marker = path.join(root, "injection-marker");
   await assert.rejects(
     buildAuditDiff(root, `${base};touch ${marker}`, null),
-    /Invalid impl\.base_sha/
+    /Invalid impl\.base_sha/,
   );
   assert.equal(fs.existsSync(marker), false);
   await assert.rejects(buildAuditDiff(root, base, "../outside"), /safe repository-relative/);
@@ -316,7 +368,7 @@ test("audit normalization makes empty, malformed, or contradictory pass results 
       verdict: "pass",
       criteria: [{ criterion: "c", status: "fail", evidence: "missing" }],
     }).verdict,
-    "fail"
+    "fail",
   );
   const noEvidence = normalizeAuditResult({
     verdict: "pass",
@@ -330,7 +382,7 @@ test("audit normalization makes empty, malformed, or contradictory pass results 
       criteria: [{ criterion: "c", status: "pass", evidence: "diff evidence" }],
     }).verdict,
     "fail",
-    "missing scope_deviations is an invalid audit schema"
+    "missing scope_deviations is an invalid audit schema",
   );
   assert.equal(
     normalizeAuditResult({
@@ -338,7 +390,7 @@ test("audit normalization makes empty, malformed, or contradictory pass results 
       criteria: [{ criterion: "c", status: "pass", evidence: "diff evidence" }],
       scope_deviations: "none",
     }).verdict,
-    "fail"
+    "fail",
   );
 });
 
@@ -365,7 +417,10 @@ test("impl persists explicit failure for missing, traversal, and symlink E2E evi
   });
   const symlinked = await begunProject({ evidence: { e2e: ["e2e-linked"] } });
   fs.mkdirSync(path.join(symlinked, "tests/e2e"), { recursive: true });
-  fs.symlinkSync(path.join(linkedTarget, "outside.mjs"), path.join(symlinked, "tests/e2e/e2e-linked.mjs"));
+  fs.symlinkSync(
+    path.join(linkedTarget, "outside.mjs"),
+    path.join(symlinked, "tests/e2e/e2e-linked.mjs"),
+  );
   const symlinkOutput = await impl(symlinked, "S1");
   assert.match(symlinkOutput, /regular non-symlink/);
   assert.equal(fs.existsSync(marker), false);
@@ -394,7 +449,8 @@ test("impl persists migration missing/conflict evidence and done cannot bypass i
 
 test("legacy matrix: migrate active work explicitly, reject legacy transitions, warn for done", async () => {
   const legacyActive = project({
-    "docs/specs/S1.md": approvedSpec().replace("status: approved", "status: in-progress")
+    "docs/specs/S1.md": approvedSpec()
+      .replace("status: approved", "status: in-progress")
       .replace("- 状态：已批准", "- 状态：进行中"),
   });
   gitInit(legacyActive);
@@ -481,7 +537,7 @@ test("E2E parent-directory symlink cannot escape the implementation repository",
   fs.mkdirSync(path.join(outside, "e2e"), { recursive: true });
   fs.writeFileSync(
     path.join(outside, "e2e/e2e-parent.mjs"),
-    `import fs from "node:fs"; fs.writeFileSync(${JSON.stringify(marker)}, "ran"); console.log("PASS outside");\n`
+    `import fs from "node:fs"; fs.writeFileSync(${JSON.stringify(marker)}, "ran"); console.log("PASS outside");\n`,
   );
   fs.symlinkSync(outside, path.join(root, "tests"));
   gitInit(root);
@@ -500,12 +556,16 @@ test("audit cache never bypasses base ancestor validation", async () => {
   fs.writeFileSync(
     auditor,
     `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"c",status:"pass",evidence:"implementation.txt diff"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
-    { mode: 0o755 }
+    { mode: 0o755 },
   );
   const oldBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor;
   const { authorizeReviewBudget } = await import("./review-engine.mjs");
-  authorizeReviewBudget(root, { id: "mechanical-tests", calls: 2, note: "Synthetic isolated fake-auditor ancestor test; no actual model authorization." });
+  authorizeReviewBudget(root, {
+    id: "mechanical-tests",
+    calls: 2,
+    note: "Synthetic isolated fake-auditor ancestor test; no actual model authorization.",
+  });
   try {
     assert.match(await audit(root, "S1", { budgetId: "mechanical-tests" }), /✅ PASS/);
     execFileSync("git", ["checkout", "--orphan", "rewritten"], { cwd: root, stdio: "pipe" });
@@ -521,7 +581,7 @@ test("audit cache never bypasses base ancestor validation", async () => {
         "-qm",
         "rewritten",
       ],
-      { cwd: root }
+      { cwd: root },
     );
     const rerun = await audit(root, "S1");
     assert.match(rerun, /❌ FAIL/);

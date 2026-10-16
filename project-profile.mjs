@@ -64,11 +64,7 @@ function assertStringArray(value, label, { nonEmpty = false } = {}) {
   if (!Array.isArray(value) || (nonEmpty && value.length === 0)) {
     throw new Error(`${label} must be ${nonEmpty ? "a non-empty" : "an"} array`);
   }
-  if (
-    value.some(
-      (item) => typeof item !== "string" || !item.trim() || item !== item.trim()
-    )
-  ) {
+  if (value.some((item) => typeof item !== "string" || !item.trim() || item !== item.trim())) {
     throw new Error(`${label} items must be non-empty, trimmed strings`);
   }
   if (new Set(value).size !== value.length) {
@@ -103,14 +99,14 @@ function validateExternalActiveIds(lifecycle) {
     throw new Error("lifecycle.externalActiveIds must be an array");
   }
   const ids = lifecycle.externalActiveIds.map((value) =>
-    canonicalConfiguredId(value, "lifecycle.externalActiveIds")
+    canonicalConfiguredId(value, "lifecycle.externalActiveIds"),
   );
   if (new Set(ids).size !== ids.length) {
     throw new Error("lifecycle.externalActiveIds must not contain duplicate IDs");
   }
   if (lifecycle.legacyActive === "external-warning" && ids.length === 0) {
     throw new Error(
-      "lifecycle.externalActiveIds must list each historical active spec when external-warning is enabled"
+      "lifecycle.externalActiveIds must list each historical active spec when external-warning is enabled",
     );
   }
   if (lifecycle.legacyActive === "error" && ids.length > 0) {
@@ -130,7 +126,9 @@ function readProfileFile(root, candidate) {
     stat = fs.lstatSync(candidate);
   } catch (error) {
     if (error?.code === "ENOENT") return null;
-    throw new Error(`Cannot inspect ${PROJECT_PROFILE_FILE}: ${error?.message || error}`, { cause: error });
+    throw new Error(`Cannot inspect ${PROJECT_PROFILE_FILE}: ${error?.message || error}`, {
+      cause: error,
+    });
   }
   if (stat.isSymbolicLink() || !stat.isFile()) {
     throw new Error(`${PROJECT_PROFILE_FILE} must be a regular non-symlink file`);
@@ -155,7 +153,9 @@ function readProfileFile(root, candidate) {
     }
     return fs.readFileSync(fd, "utf8");
   } catch (error) {
-    throw new Error(`Cannot read ${PROJECT_PROFILE_FILE}: ${error?.message || error}`, { cause: error });
+    throw new Error(`Cannot read ${PROJECT_PROFILE_FILE}: ${error?.message || error}`, {
+      cause: error,
+    });
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
   }
@@ -191,7 +191,7 @@ function validateStatusRoles(lifecycle) {
   for (const [status, role] of roles) {
     if (seen.has(status)) {
       throw new Error(
-        `lifecycle status ${JSON.stringify(status)} overlaps ${seen.get(status)} and ${role}`
+        `lifecycle status ${JSON.stringify(status)} overlaps ${seen.get(status)} and ${role}`,
       );
     }
     seen.set(status, role);
@@ -203,10 +203,15 @@ function parseValidation(value) {
   assertExactKeys(
     value,
     [
-      "requiredFields", "kindField", "allowedKinds", "numericFileId",
-      "checkDoneCheckboxes", "forbidAddendumFilename", "dependencyIntegrity",
+      "requiredFields",
+      "kindField",
+      "allowedKinds",
+      "numericFileId",
+      "checkDoneCheckboxes",
+      "forbidAddendumFilename",
+      "dependencyIntegrity",
     ],
-    "validation"
+    "validation",
   );
   assertStringArray(value.requiredFields, "validation.requiredFields", { nonEmpty: true });
   for (const field of value.requiredFields) {
@@ -216,7 +221,12 @@ function parseValidation(value) {
   }
   assertField(value.kindField, "validation.kindField");
   assertStringArray(value.allowedKinds, "validation.allowedKinds", { nonEmpty: true });
-  for (const key of ["numericFileId", "checkDoneCheckboxes", "forbidAddendumFilename", "dependencyIntegrity"]) {
+  for (const key of [
+    "numericFileId",
+    "checkDoneCheckboxes",
+    "forbidAddendumFilename",
+    "dependencyIntegrity",
+  ]) {
     if (typeof value[key] !== "boolean") throw new Error(`validation.${key} must be boolean`);
   }
   return {
@@ -232,21 +242,35 @@ function parseValidation(value) {
 
 // Project code is trusted, but argv is never interpolated into a shell.
 export function validateArgv(value, label) {
-  if (!Array.isArray(value) || value.length === 0 || value.some(
-    (arg) => typeof arg !== "string" || /[\0\r\n]/.test(arg)
-  )) throw new Error(`${label} must be a non-empty argv string array without control characters`);
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((arg) => typeof arg !== "string" || /[\0\r\n]/.test(arg))
+  )
+    throw new Error(`${label} must be a non-empty argv string array without control characters`);
   const file = value[0];
-  if (!file || !/^[A-Za-z0-9_./-]+$/.test(file) || file.startsWith("-") ||
-      path.isAbsolute(file) || file.split("/").includes("..") || file === ".") {
+  if (
+    !file ||
+    !/^[A-Za-z0-9_./-]+$/.test(file) ||
+    file.startsWith("-") ||
+    path.isAbsolute(file) ||
+    file.split("/").includes("..") ||
+    file === "."
+  ) {
     throw new Error(`${label}[0] must be a PATH name or in-project relative executable`);
   }
   return [...value];
 }
 
 export function validateRelativeDirectory(value, label) {
-  if (typeof value !== "string" || !value || /[\0\r\n\\]/.test(value) ||
-      path.isAbsolute(value) || value.startsWith("-") ||
-      value.split("/").some((part) => !part || part === "." || part === "..")) {
+  if (
+    typeof value !== "string" ||
+    !value ||
+    /[\0\r\n\\]/.test(value) ||
+    path.isAbsolute(value) ||
+    value.startsWith("-") ||
+    value.split("/").some((part) => !part || part === "." || part === "..")
+  ) {
     throw new Error(`${label} must be a normalized project-relative directory`);
   }
   return value;
@@ -255,7 +279,8 @@ export function validateRelativeDirectory(value, label) {
 function parseGates(root, value, packageOverride) {
   if (value === undefined) return null;
   assertExactKeys(value, ["mode", "npmScripts", "commands"], "gates");
-  if (value.mode !== "replace") throw new Error('gates.mode must be "replace" in profile version 1');
+  if (value.mode !== "replace")
+    throw new Error('gates.mode must be "replace" in profile version 1');
   if (Object.hasOwn(value, "npmScripts") === Object.hasOwn(value, "commands")) {
     throw new Error("gates requires exactly one of npmScripts or commands");
   }
@@ -266,8 +291,12 @@ function parseGates(root, value, packageOverride) {
     const names = new Set();
     const commands = value.commands.map((command) => {
       assertExactKeys(command, ["name", "argv"], "gates.commands item");
-      if (typeof command.name !== "string" || !SAFE_NPM_SCRIPT.test(command.name) ||
-          FORBIDDEN_KEYS.has(command.name) || names.has(command.name)) {
+      if (
+        typeof command.name !== "string" ||
+        !SAFE_NPM_SCRIPT.test(command.name) ||
+        FORBIDDEN_KEYS.has(command.name) ||
+        names.has(command.name)
+      ) {
         throw new Error("gates.commands names must be safe and unique");
       }
       names.add(command.name);
@@ -277,8 +306,14 @@ function parseGates(root, value, packageOverride) {
   }
   assertStringArray(value.npmScripts, "gates.npmScripts", { nonEmpty: true });
   let pkg;
-  try { pkg = packageOverride !== undefined ? packageOverride : JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")); }
-  catch (error) { throw new Error(`Cannot validate configured npm scripts: ${error.message}`, { cause: error }); }
+  try {
+    pkg =
+      packageOverride !== undefined
+        ? packageOverride
+        : JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+  } catch (error) {
+    throw new Error(`Cannot validate configured npm scripts: ${error.message}`, { cause: error });
+  }
   for (const script of value.npmScripts) {
     if (!SAFE_NPM_SCRIPT.test(script) || FORBIDDEN_KEYS.has(script)) {
       throw new Error(`gates.npmScripts contains unsafe script name: ${script}`);
@@ -310,10 +345,14 @@ function parseEvidence(value) {
   }
   if (value.migrations !== undefined) {
     assertExactKeys(value.migrations, ["dir", "extensions"], "evidence.migrations");
-    assertStringArray(value.migrations.extensions, "evidence.migrations.extensions", { nonEmpty: true });
+    assertStringArray(value.migrations.extensions, "evidence.migrations.extensions", {
+      nonEmpty: true,
+    });
     result.migrations = {
       dir: validateRelativeDirectory(value.migrations.dir, "evidence.migrations.dir"),
-      extensions: value.migrations.extensions.map((item) => extension(item, "evidence.migrations.extensions")),
+      extensions: value.migrations.extensions.map((item) =>
+        extension(item, "evidence.migrations.extensions"),
+      ),
     };
   }
   return result;
@@ -322,25 +361,51 @@ function parseEvidence(value) {
 function parseCreation(value, lifecycle, validation) {
   if (value === undefined) return null;
   assertExactKeys(value, ["directory", "template", "defaults"], "creation");
-  if (value.directory !== undefined && !["docs/specs", "docs/spec", "specs", "spec"].includes(value.directory)) {
+  if (
+    value.directory !== undefined &&
+    !["docs/specs", "docs/spec", "specs", "spec"].includes(value.directory)
+  ) {
     throw new Error("creation.directory must be a recognized Spec directory");
   }
   if (value.template !== undefined) validateRelativeDirectory(value.template, "creation.template");
   const defaults = value.defaults ?? {};
   assertObject(defaults, "creation.defaults");
-  const reserved = new Set([...RESERVED_FRONTMATTER_FIELDS, "title", "created", "template",
-    lifecycle.dependenciesField, lifecycle.updatedField,
-    lifecycle.approval.reviewersField, lifecycle.approval.reviewedAtField]);
-  const allowed = new Set(["author", "kind", validation?.kindField, ...(validation?.requiredFields || [])]);
-  const scalar = (item) => typeof item === "string" || typeof item === "boolean" ||
+  const reserved = new Set([
+    ...RESERVED_FRONTMATTER_FIELDS,
+    "title",
+    "created",
+    "template",
+    lifecycle.dependenciesField,
+    lifecycle.updatedField,
+    lifecycle.approval.reviewersField,
+    lifecycle.approval.reviewedAtField,
+  ]);
+  const allowed = new Set([
+    "author",
+    "kind",
+    validation?.kindField,
+    ...(validation?.requiredFields || []),
+  ]);
+  const scalar = (item) =>
+    typeof item === "string" ||
+    typeof item === "boolean" ||
     (typeof item === "number" && Number.isFinite(item));
   for (const [key, item] of Object.entries(defaults)) {
-    if (!SAFE_FIELD.test(key) || FORBIDDEN_KEYS.has(key) || reserved.has(key) || !allowed.has(key) ||
-        !(scalar(item) || (Array.isArray(item) && item.every(scalar)))) {
+    if (
+      !SAFE_FIELD.test(key) ||
+      FORBIDDEN_KEYS.has(key) ||
+      reserved.has(key) ||
+      !allowed.has(key) ||
+      !(scalar(item) || (Array.isArray(item) && item.every(scalar)))
+    ) {
       throw new Error(`creation.defaults contains unsafe/unfillable field: ${key}`);
     }
   }
-  return { directory: value.directory ?? null, template: value.template ?? null, defaults: { ...defaults } };
+  return {
+    directory: value.directory ?? null,
+    template: value.template ?? null,
+    defaults: { ...defaults },
+  };
 }
 
 function parseConfiguredProfile(root, raw, { packageJson } = {}) {
@@ -348,10 +413,16 @@ function parseConfiguredProfile(root, raw, { packageJson } = {}) {
   try {
     data = JSON.parse(raw.replace(/^\uFEFF/, ""));
   } catch (error) {
-    throw new Error(`Invalid ${PROJECT_PROFILE_FILE} JSON: ${error?.message || error}`, { cause: error });
+    throw new Error(`Invalid ${PROJECT_PROFILE_FILE} JSON: ${error?.message || error}`, {
+      cause: error,
+    });
   }
 
-  assertExactKeys(data, ["version", "lifecycle", "gates", "validation", "evidence", "creation"], PROJECT_PROFILE_FILE);
+  assertExactKeys(
+    data,
+    ["version", "lifecycle", "gates", "validation", "evidence", "creation"],
+    PROJECT_PROFILE_FILE,
+  );
   if (data.version !== 1) throw new Error(`${PROJECT_PROFILE_FILE} version must be 1`);
   const gates = parseGates(root, data.gates, packageJson);
   const evidence = parseEvidence(data.evidence);
@@ -360,8 +431,15 @@ function parseConfiguredProfile(root, raw, { packageJson } = {}) {
     if (validation?.kindField === DEFAULT_PROFILE.lifecycle.dependenciesField) {
       throw new Error("validation.kindField must be distinct from lifecycle metadata fields");
     }
-    return { ...DEFAULT_PROFILE, configured: true, sourcePath: path.join(root, PROJECT_PROFILE_FILE),
-      gates, evidence, validation, creation: parseCreation(data.creation, DEFAULT_PROFILE.lifecycle, validation) };
+    return {
+      ...DEFAULT_PROFILE,
+      configured: true,
+      sourcePath: path.join(root, PROJECT_PROFILE_FILE),
+      gates,
+      evidence,
+      validation,
+      creation: parseCreation(data.creation, DEFAULT_PROFILE.lifecycle, validation),
+    };
   }
 
   assertExactKeys(
@@ -379,7 +457,7 @@ function parseConfiguredProfile(root, raw, { packageJson } = {}) {
       "externalActiveIds",
       "approval",
     ],
-    "lifecycle"
+    "lifecycle",
   );
   const lifecycle = data.lifecycle;
   validateStatusRoles(lifecycle);
@@ -396,7 +474,7 @@ function parseConfiguredProfile(root, raw, { packageJson } = {}) {
   assertExactKeys(
     lifecycle.approval,
     ["reviewersField", "reviewedAtField", "minimumReviewers", "placeholderReviewers"],
-    "lifecycle.approval"
+    "lifecycle.approval",
   );
   const approval = lifecycle.approval;
   assertField(approval.reviewersField, "lifecycle.approval.reviewersField");
@@ -404,10 +482,7 @@ function parseConfiguredProfile(root, raw, { packageJson } = {}) {
   if (!Number.isSafeInteger(approval.minimumReviewers) || approval.minimumReviewers < 1) {
     throw new Error("lifecycle.approval.minimumReviewers must be a positive integer");
   }
-  assertStringArray(
-    approval.placeholderReviewers,
-    "lifecycle.approval.placeholderReviewers"
-  );
+  assertStringArray(approval.placeholderReviewers, "lifecycle.approval.placeholderReviewers");
 
   const metadataFields = [
     lifecycle.updatedField,
@@ -419,10 +494,16 @@ function parseConfiguredProfile(root, raw, { packageJson } = {}) {
   }
 
   const validation = parseValidation(data.validation);
-  if (validation && new Set([
-    validation.kindField, lifecycle.dependenciesField, lifecycle.updatedField,
-    approval.reviewersField, approval.reviewedAtField,
-  ]).size !== 5) {
+  if (
+    validation &&
+    new Set([
+      validation.kindField,
+      lifecycle.dependenciesField,
+      lifecycle.updatedField,
+      approval.reviewersField,
+      approval.reviewedAtField,
+    ]).size !== 5
+  ) {
     throw new Error("validation.kindField must be distinct from lifecycle metadata fields");
   }
 
@@ -505,9 +586,7 @@ export function approvalProblems(profile, frontmatter) {
   if (profile.lifecycle.approval.mode === "decision") {
     return frontmatter?.review?.decision === "approved"
       ? []
-      : [
-          `review.decision=${frontmatter?.review?.decision || "null"} (need "approved")`,
-        ];
+      : [`review.decision=${frontmatter?.review?.decision || "null"} (need "approved")`];
   }
 
   const approval = profile.lifecycle.approval;
@@ -519,14 +598,14 @@ export function approvalProblems(profile, frontmatter) {
           rawReviewers
             .filter((value) => typeof value === "string" && value.trim())
             .map((value) => value.trim())
-            .filter((value) => !placeholders.has(value))
+            .filter((value) => !placeholders.has(value)),
         ),
       ]
     : [];
   const problems = [];
   if (reviewers.length < approval.minimumReviewers) {
     problems.push(
-      `${approval.reviewersField} needs at least ${approval.minimumReviewers} non-placeholder reviewer(s)`
+      `${approval.reviewersField} needs at least ${approval.minimumReviewers} non-placeholder reviewer(s)`,
     );
   }
   const reviewedAt = frontmatter?.[approval.reviewedAtField];

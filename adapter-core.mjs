@@ -26,7 +26,10 @@ export function truncateToolText(text, limit = TOOL_TEXT_LIMIT) {
 // Pi feedback APIs are void, but custom hosts may return rejected promises.
 // Observe those without awaiting a disconnected presentation transport.
 function observeFeedback(result) {
-  if (result && typeof result.then === "function") Promise.resolve(result).catch(() => {});
+  if (result && typeof result.then === "function")
+    Promise.resolve(result).catch(() => {
+      // Dropped on purpose: the presentation transport may already be disconnected.
+    });
 }
 
 /**
@@ -37,7 +40,8 @@ function observeFeedback(result) {
 export function notifySafely(ctx, text, level = "info") {
   try {
     if (ctx?.hasUI !== true) return false;
-    const ui = ctx.ui, notify = ui?.notify;
+    const ui = ctx.ui,
+      notify = ui?.notify;
     if (typeof notify !== "function") return false;
     observeFeedback(notify.call(ui, truncateToolText(text), level));
     return true;
@@ -50,7 +54,9 @@ export function notifySafely(ctx, text, level = "info") {
 export function updateToolProgress(onUpdate, text) {
   if (typeof onUpdate !== "function") return false;
   try {
-    observeFeedback(onUpdate({ content: [{ type: "text", text: truncateToolText(text) }], details: {} }));
+    observeFeedback(
+      onUpdate({ content: [{ type: "text", text: truncateToolText(text) }], details: {} }),
+    );
     return true;
   } catch {
     return false;
@@ -80,14 +86,7 @@ export function formatAttestationPrompt({ id, item, note } = {}) {
  * real UI. `signal` is forwarded only when one is available; an exception from
  * `confirm` propagates (the caller must not write anything on the way out).
  */
-export async function attestationGate({
-  hasUI,
-  confirm,
-  id,
-  item,
-  note,
-  signal,
-} = {}) {
+export async function attestationGate({ hasUI, confirm, id, item, note, signal } = {}) {
   if (hasUI !== true || typeof confirm !== "function") {
     return { allowed: false, reason: "no-ui" };
   }
@@ -95,7 +94,7 @@ export async function attestationGate({
   const confirmed = await confirm(
     "spec-flow 人工核验",
     formatAttestationPrompt({ id, item, note }),
-    signal ? { signal } : undefined
+    signal ? { signal } : undefined,
   );
 
   return confirmed === true

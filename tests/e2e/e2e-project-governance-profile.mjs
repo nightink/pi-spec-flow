@@ -1,9 +1,10 @@
 // S1.4 real CLI acceptance: an opt-in project profile preserves example-app-shaped
 // governance while binding lifecycle evidence to the configured verify gate.
+
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseFrontmatter, writeFrontmatter } from "../../core.mjs";
 
@@ -51,7 +52,10 @@ function profile() {
   };
 }
 
-function spec(id, { status = "approved", reviewers = ["parent"], reviewedAt = "2026-09-21", deps = [] } = {}) {
+function spec(
+  id,
+  { status = "approved", reviewers = ["parent"], reviewedAt = "2026-09-21", deps = [] } = {},
+) {
   return writeFrontmatter(
     `# ${id}. Profile acceptance\n\n## 验收标准\n\n- configured workflow closes\n`,
     {
@@ -67,7 +71,7 @@ function spec(id, { status = "approved", reviewers = ["parent"], reviewedAt = "2
       depends_on: deps,
       supersedes: [],
       evidence: { human: [] },
-    }
+    },
   );
 }
 
@@ -76,8 +80,16 @@ function init(root) {
   execFileSync("git", ["add", "."], { cwd: root });
   execFileSync(
     "git",
-    ["-c", "user.name=profile-e2e", "-c", "user.email=spec-flow@example.invalid", "commit", "-qm", "init"],
-    { cwd: root }
+    [
+      "-c",
+      "user.name=profile-e2e",
+      "-c",
+      "user.email=spec-flow@example.invalid",
+      "commit",
+      "-qm",
+      "init",
+    ],
+    { cwd: root },
   );
 }
 
@@ -103,29 +115,49 @@ try {
         typecheck: "node typecheck.mjs",
         test: "node test.mjs",
       },
-    })
+    }),
   );
   write(root, ".spec-flow.json", JSON.stringify(profile(), null, 2));
-  write(root, "verify.mjs", `import fs from "node:fs"; fs.appendFileSync(${JSON.stringify(marker)}, "verify\\n"); console.log("verify ok");\n`);
-  write(root, "typecheck.mjs", `import fs from "node:fs"; fs.appendFileSync(${JSON.stringify(marker)}, "typecheck\\n");\n`);
-  write(root, "test.mjs", `import fs from "node:fs"; fs.appendFileSync(${JSON.stringify(marker)}, "test\\n");\n`);
+  write(
+    root,
+    "verify.mjs",
+    `import fs from "node:fs"; fs.appendFileSync(${JSON.stringify(marker)}, "verify\\n"); console.log("verify ok");\n`,
+  );
+  write(
+    root,
+    "typecheck.mjs",
+    `import fs from "node:fs"; fs.appendFileSync(${JSON.stringify(marker)}, "typecheck\\n");\n`,
+  );
+  write(
+    root,
+    "test.mjs",
+    `import fs from "node:fs"; fs.appendFileSync(${JSON.stringify(marker)}, "test\\n");\n`,
+  );
   write(root, "specs/1.dependency.md", spec(1, { status: "done" }));
   write(root, "specs/2.delivery.md", spec(2, { deps: [1] }));
   write(root, "specs/3.legacy-active.md", spec(3, { status: "in-progress" }));
-  write(root, "specs/4.draft.md", spec(4, { status: "draft", reviewers: ["pending"], reviewedAt: null }));
-  write(root, "specs/5.archived.md", spec(5, { status: "archived", reviewers: ["pending"], reviewedAt: null }));
+  write(
+    root,
+    "specs/4.draft.md",
+    spec(4, { status: "draft", reviewers: ["pending"], reviewedAt: null }),
+  );
+  write(
+    root,
+    "specs/5.archived.md",
+    spec(5, { status: "archived", reviewers: ["pending"], reviewedAt: null }),
+  );
   init(root);
 
   const board = cli(root, ["board"]);
   check(
     board.status === 0 && /2 \[2\.delivery\.md\]: 已批准/.test(board.stdout),
-    "numeric ID and dot-prefixed filename are discovered by the real CLI"
+    "numeric ID and dot-prefixed filename are discovered by the real CLI",
   );
 
   const initialCI = cli(root, ["check", "--ci"]);
   check(
     initialCI.status === 0 && /external legacy active spec/.test(initialCI.stdout),
-    "configured legacy active specs remain under external project governance"
+    "configured legacy active specs remain under external project governance",
   );
 
   const begun = cli(root, ["begin", "2"]);
@@ -136,15 +168,17 @@ try {
       parsed.data.status === "in-progress" &&
       parsed.data.depends_on[0] === 1 &&
       !/^- 状态：/m.test(content),
-    "begin preserves example-app-shaped fields and does not inject a body status line"
+    "begin preserves example-app-shaped fields and does not inject a body status line",
   );
 
   write(root, "implementation.txt", "configured implementation\n");
   const implemented = cli(root, ["impl", "2"]);
   const gateLines = fs.readFileSync(marker, "utf8").trim().split("\n");
   check(
-    implemented.status === 0 && /✅ PASS/.test(implemented.stdout) && gateLines.every((line) => line === "verify"),
-    "impl runs only the configured authoritative verify npm script"
+    implemented.status === 0 &&
+      /✅ PASS/.test(implemented.stdout) &&
+      gateLines.every((line) => line === "verify"),
+    "impl runs only the configured authoritative verify npm script",
   );
 
   // Review metadata is lifecycle evidence, not contract text; changing it must
@@ -161,18 +195,29 @@ try {
     sandbox,
     "fake-auditor.mjs",
     `#!/usr/bin/env node\nimport fs from "node:fs";import {mechanicalCoverage} from ${JSON.stringify(new URL("../helpers/review-fixture.mjs", import.meta.url).href)};fs.writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2))); console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"configured lifecycle",status:"pass",evidence:"implementation.txt"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
-    { mode: 0o755 }
+    { mode: 0o755 },
   );
-  const grant = cli(root, ["review-budget", "--json", JSON.stringify({ id: "mechanical-tests", calls: 1, note: "Synthetic configured CLI fake auditor test only; no real review authorization." })]);
+  const grant = cli(root, [
+    "review-budget",
+    "--json",
+    JSON.stringify({
+      id: "mechanical-tests",
+      calls: 1,
+      note: "Synthetic configured CLI fake auditor test only; no real review authorization.",
+    }),
+  ]);
   check(grant.status === 0, "explicit finite fake-review grant created");
-  const audited = cli(root, ["audit", "2"], { SPECFLOW_AUDIT_BIN: auditor, SPECFLOW_REVIEW_BUDGET_ID: "mechanical-tests" });
+  const audited = cli(root, ["audit", "2"], {
+    SPECFLOW_AUDIT_BIN: auditor,
+    SPECFLOW_REVIEW_BUDGET_ID: "mechanical-tests",
+  });
   check(
     audited.status === 0 && /✅ PASS/.test(audited.stdout),
-    "audit remains bound after review-only metadata updates"
+    "audit remains bound after review-only metadata updates",
   );
   check(
     JSON.parse(fs.readFileSync(argsFile, "utf8")).includes("--no-tools"),
-    "profile audit keeps the isolated no-tools subprocess boundary"
+    "profile audit keeps the isolated no-tools subprocess boundary",
   );
 
   const closed = cli(root, ["done", "2"]);
@@ -184,7 +229,7 @@ try {
       parsed.data.reviewers.includes("implementation-reviewer") &&
       parsed.data.depends_on[0] === 1 &&
       !/^- 状态：/m.test(content),
-    "done preserves project metadata and writes the configured terminal status"
+    "done preserves project metadata and writes the configured terminal status",
   );
 
   // A second target proves that the profile file itself is snapshot-bound.
@@ -192,8 +237,16 @@ try {
   execFileSync("git", ["add", "specs/6.binding.md"], { cwd: root });
   execFileSync(
     "git",
-    ["-c", "user.name=profile-e2e", "-c", "user.email=spec-flow@example.invalid", "commit", "-qm", "add binding spec"],
-    { cwd: root }
+    [
+      "-c",
+      "user.name=profile-e2e",
+      "-c",
+      "user.email=spec-flow@example.invalid",
+      "commit",
+      "-qm",
+      "add binding spec",
+    ],
+    { cwd: root },
   );
   check(cli(root, ["begin", "6"]).status === 0, "second configured spec begins");
   write(root, "binding.txt", "bound\n");
@@ -204,7 +257,7 @@ try {
   const stale = cli(root, ["audit", "6"], { SPECFLOW_AUDIT_BIN: auditor });
   check(
     stale.status !== 0 && /implementation changed after spec_impl/.test(stale.stderr),
-    "profile changes invalidate previously recorded implementation evidence"
+    "profile changes invalidate previously recorded implementation evidence",
   );
 
   // Invalid profile input must fail rather than silently fall back to defaults.
@@ -216,7 +269,7 @@ try {
   const invalidBoard = cli(invalid, ["board"]);
   check(
     invalidBoard.status !== 0 && /unknown key/.test(invalidBoard.stderr),
-    "invalid profile fails closed at the CLI boundary"
+    "invalid profile fails closed at the CLI boundary",
   );
 } catch (error) {
   failures++;

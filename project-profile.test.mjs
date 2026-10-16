@@ -1,17 +1,10 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-
-import {
-  approvalProblems,
-  dependencyIds,
-  loadProjectProfile,
-  statusRole,
-} from "./project-profile.mjs";
 import {
   audit,
   begin,
@@ -25,6 +18,12 @@ import {
   specContractHash,
   writeFrontmatter,
 } from "./core.mjs";
+import {
+  approvalProblems,
+  dependencyIds,
+  loadProjectProfile,
+  statusRole,
+} from "./project-profile.mjs";
 
 function project(files = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-profile-"));
@@ -50,7 +49,7 @@ function init(root) {
       "-qm",
       "init",
     ],
-    { cwd: root }
+    { cwd: root },
   );
 }
 
@@ -82,7 +81,7 @@ function profile(overrides = {}) {
       ...overrides.gates,
     },
     ...Object.fromEntries(
-      Object.entries(overrides).filter(([key]) => !["lifecycle", "gates"].includes(key))
+      Object.entries(overrides).filter(([key]) => !["lifecycle", "gates"].includes(key)),
     ),
   };
 }
@@ -112,7 +111,7 @@ function exampleAppSpec({
       supersedes: [],
       evidence: { human: [] },
       ...(repo ? { impl: { repo } } : {}),
-    }
+    },
   );
 }
 
@@ -122,14 +121,16 @@ function fakeAuditor() {
   fs.writeFileSync(
     file,
     `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"profile lifecycle",status:"pass",evidence:"configured diff"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
-    { mode: 0o755 }
+    { mode: 0o755 },
   );
   return { file, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
 test("project profile: strict config loads status, approval, dependencies, and replace gates", () => {
   const root = project({
-    "package.json": JSON.stringify({ scripts: { verify: "node verify.mjs", test: "node test.mjs" } }),
+    "package.json": JSON.stringify({
+      scripts: { verify: "node verify.mjs", test: "node test.mjs" },
+    }),
     ".spec-flow.json": JSON.stringify(profile()),
   });
   const loaded = loadProjectProfile(root);
@@ -140,11 +141,11 @@ test("project profile: strict config loads status, approval, dependencies, and r
   assert.deepEqual(dependencyIds(loaded, { depends_on: [1, 2] }), [1, 2]);
   assert.deepEqual(
     approvalProblems(loaded, { reviewers: ["pending"], reviewed_at: "2026-09-21" }),
-    ["reviewers needs at least 1 non-placeholder reviewer(s)"]
+    ["reviewers needs at least 1 non-placeholder reviewer(s)"],
   );
   assert.deepEqual(
     detectProjectConfig(root, loaded).gates.map((gate) => gate.name),
-    ["verify"]
+    ["verify"],
   );
 });
 
@@ -195,10 +196,7 @@ test("project profile: invalid config blocks commit while explicit bypass remain
   const blocked = await commitGateDecision(root, "git commit -m test");
   assert.equal(blocked.action, "block");
   assert.match(blocked.reason, /配置无效/);
-  const bypassed = await commitGateDecision(
-    root,
-    "SPECFLOW_BYPASS=1 git commit -m test"
-  );
+  const bypassed = await commitGateDecision(root, "SPECFLOW_BYPASS=1 git commit -m test");
   assert.equal(bypassed.action, "bypass");
 });
 
@@ -247,8 +245,18 @@ test("project profile: example-app-shaped numeric lifecycle preserves local meta
     "specs/1.dependency.md": exampleAppSpec({ id: 1, status: "done", check: true }),
     "specs/2.feature.md": exampleAppSpec({ id: 2, dependsOn: [1] }),
     "specs/3.legacy-active.md": exampleAppSpec({ id: 3, status: "in-progress" }),
-    "specs/4.draft.md": exampleAppSpec({ id: 4, status: "draft", reviewers: ["pending"], reviewedAt: null }),
-    "specs/5.archived.md": exampleAppSpec({ id: 5, status: "archived", reviewers: ["pending"], reviewedAt: null }),
+    "specs/4.draft.md": exampleAppSpec({
+      id: 4,
+      status: "draft",
+      reviewers: ["pending"],
+      reviewedAt: null,
+    }),
+    "specs/5.archived.md": exampleAppSpec({
+      id: 5,
+      status: "archived",
+      reviewers: ["pending"],
+      reviewedAt: null,
+    }),
   });
   init(root);
 
@@ -272,7 +280,7 @@ test("project profile: example-app-shaped numeric lifecycle preserves local meta
   invalidated.data.reviewers = [" pending "];
   fs.writeFileSync(
     path.join(root, "specs/2.feature.md"),
-    writeFrontmatter(feature.content, invalidated.data)
+    writeFrontmatter(feature.content, invalidated.data),
   );
   await assert.rejects(impl(root, "2"), /non-placeholder reviewer/);
   feature = findSpec(root, "2");
@@ -280,7 +288,7 @@ test("project profile: example-app-shaped numeric lifecycle preserves local meta
   invalidated.data.reviewers = ["parent/2026-09-21"];
   fs.writeFileSync(
     path.join(root, "specs/2.feature.md"),
-    writeFrontmatter(feature.content, invalidated.data)
+    writeFrontmatter(feature.content, invalidated.data),
   );
 
   fs.writeFileSync(path.join(root, "implementation.txt"), "profile implementation\n");
@@ -289,7 +297,7 @@ test("project profile: example-app-shaped numeric lifecycle preserves local meta
   assert.deepEqual(
     fs.readFileSync(marker, "utf8").trim().split("\n"),
     ["verify", "verify"],
-    "checkCI and impl run only the configured verify script"
+    "checkCI and impl run only the configured verify script",
   );
 
   feature = findSpec(root, "2");
@@ -306,7 +314,11 @@ test("project profile: example-app-shaped numeric lifecycle preserves local meta
   const previousBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor.file;
   const { authorizeReviewBudget } = await import("./review-engine.mjs");
-  authorizeReviewBudget(root, { id: "mechanical-tests", calls: 1, note: "Synthetic profile fixture with a fake auditor only; no real review call." });
+  authorizeReviewBudget(root, {
+    id: "mechanical-tests",
+    calls: 1,
+    note: "Synthetic profile fixture with a fake auditor only; no real review call.",
+  });
   try {
     const audited = await audit(root, "2", { budgetId: "mechanical-tests" });
     assert.match(audited, /PASS/);
@@ -341,12 +353,14 @@ test("project profile: config content is snapshot-bound after impl", async () =>
   await impl(root, "1");
 
   const changed = profile({
-    lifecycle: { approval: {
-      reviewersField: "reviewers",
-      reviewedAtField: "reviewed_at",
-      minimumReviewers: 1,
-      placeholderReviewers: ["pending", "todo"],
-    } },
+    lifecycle: {
+      approval: {
+        reviewersField: "reviewers",
+        reviewedAtField: "reviewed_at",
+        minimumReviewers: 1,
+        placeholderReviewers: ["pending", "todo"],
+      },
+    },
   });
   fs.writeFileSync(path.join(root, ".spec-flow.json"), JSON.stringify(changed, null, 2));
   await assert.rejects(audit(root, "1"), /implementation changed after spec_impl/);

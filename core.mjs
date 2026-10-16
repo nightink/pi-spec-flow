@@ -1,19 +1,17 @@
 #!/usr/bin/env node
+
 // spec-flow core.mjs — zero-pi-dependency core logic
 // CLI: node core.mjs board|worktrees|spec-alloc [--prefix PREFIX]|begin|impl|audit|attest|done|migrate-alloc|verify|check --ci [--contracts-only] [--live]
 
-import yaml from "js-yaml";
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
 import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
-import { gitWorkspace, gitWorktrees, withWorkspaceLock, readReservations } from "./workspace.mjs";
-import { describeReviewExecution } from "./review-execution.mjs";
-import { reviewStatus as retainedReviewStatus } from "./review-engine.mjs";
+import { promisify } from "node:util";
+import yaml from "js-yaml";
 import {
   applyLifecycleWrite,
   approvalProblems,
@@ -24,6 +22,9 @@ import {
   loadProjectProfile,
   statusRole,
 } from "./project-profile.mjs";
+import { reviewStatus as retainedReviewStatus } from "./review-engine.mjs";
+import { describeReviewExecution } from "./review-execution.mjs";
+import { gitWorkspace, gitWorktrees, readReservations, withWorkspaceLock } from "./workspace.mjs";
 
 const execFileP = promisify(execFile);
 const WORKFLOW_VERSION = 2;
@@ -47,7 +48,7 @@ function stableValue(value) {
     return Object.fromEntries(
       Object.keys(value)
         .sort()
-        .map((key) => [key, stableValue(value[key])])
+        .map((key) => [key, stableValue(value[key])]),
     );
   }
   return value;
@@ -73,7 +74,7 @@ function atomicWriteFileSync(filePath, content, mode) {
   })();
   const tempPath = path.join(
     dir,
-    `.${base}.specflow-${process.pid}-${crypto.randomBytes(6).toString("hex")}.tmp`
+    `.${base}.specflow-${process.pid}-${crypto.randomBytes(6).toString("hex")}.tmp`,
   );
   try {
     fs.writeFileSync(tempPath, content, { encoding: "utf8", mode: existingMode });
@@ -93,7 +94,7 @@ function atomicWriteFileSync(filePath, content, mode) {
 // AbortError is re-thrown so callers can propagate cancellation (Esc / abort).
 export async function runCmd(
   cmd,
-  { cwd, timeout = 180000, maxBuffer = 10 * 1024 * 1024, signal } = {}
+  { cwd, timeout = 180000, maxBuffer = 10 * 1024 * 1024, signal } = {},
 ) {
   try {
     const { stdout, stderr } = await execFileP(cmd, [], {
@@ -120,7 +121,7 @@ export async function runCmd(
 export async function runArgv(
   file,
   args,
-  { cwd, timeout = 180000, maxBuffer = 10 * 1024 * 1024, signal, env } = {}
+  { cwd, timeout = 180000, maxBuffer = 10 * 1024 * 1024, signal, env } = {},
 ) {
   try {
     const { stdout, stderr } = await execFileP(file, args, {
@@ -159,7 +160,7 @@ export function runSpawn(
     env,
     stdio = ["ignore", "pipe", "pipe"],
     onOutput,
-  } = {}
+  } = {},
 ) {
   return new Promise((resolve, reject) => {
     let child;
@@ -169,31 +170,53 @@ export function runSpawn(
       reject(e);
       return;
     }
-    let stdout = "", stderr = "", outputBytes = 0, tooBig = false, timedOut = false, childError = null, killTimer = null;
+    let stdout = "",
+      stderr = "",
+      outputBytes = 0,
+      tooBig = false,
+      timedOut = false,
+      childError = null,
+      killTimer = null;
     const decoders = { stdout: new StringDecoder("utf8"), stderr: new StringDecoder("utf8") };
     const terminate = () => {
       child.kill("SIGTERM");
       killTimer ||= setTimeout(() => child.kill("SIGKILL"), 2000);
     };
-    const timer = timeout ? setTimeout(() => { timedOut = true; terminate(); }, timeout) : null;
+    const timer = timeout
+      ? setTimeout(() => {
+          timedOut = true;
+          terminate();
+        }, timeout)
+      : null;
     const collect = (kind, chunk) => {
       const accepted = chunk.subarray(0, Math.max(0, maxBuffer - outputBytes));
       outputBytes += chunk.length;
       if (accepted.length) {
-        try { onOutput?.(kind, accepted); }
-        catch (error) { childError = error; terminate(); }
+        try {
+          onOutput?.(kind, accepted);
+        } catch (error) {
+          childError = error;
+          terminate();
+        }
         if (kind === "stdout") stdout += decoders.stdout.write(accepted);
         else stderr += decoders.stderr.write(accepted);
       }
-      if (outputBytes > maxBuffer) { tooBig = true; terminate(); }
+      if (outputBytes > maxBuffer) {
+        tooBig = true;
+        terminate();
+      }
     };
     child.stdout?.on("data", (chunk) => collect("stdout", chunk));
     child.stderr?.on("data", (chunk) => collect("stderr", chunk));
-    child.on("error", (error) => { childError = error; if (child.pid) terminate(); });
+    child.on("error", (error) => {
+      childError = error;
+      if (child.pid) terminate();
+    });
     child.on("close", (code) => {
       if (timer) clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
-      stdout += decoders.stdout.end(); stderr += decoders.stderr.end();
+      stdout += decoders.stdout.end();
+      stderr += decoders.stderr.end();
       if (childError) reject(childError);
       else resolve({ stdout, stderr, code: code ?? 1, tooBig, timedOut });
     });
@@ -208,9 +231,7 @@ async function hashFileInto(hash, filePath, signal, budget) {
       abortIfNeeded(signal);
       bytes += chunk.length;
       if (budget.used + bytes > budget.max) {
-        throw new Error(
-          `Snapshot exceeds ${budget.max} bytes while reading ${filePath}`
-        );
+        throw new Error(`Snapshot exceeds ${budget.max} bytes while reading ${filePath}`);
       }
       hash.update(chunk);
     }
@@ -223,7 +244,7 @@ async function hashFileInto(hash, filePath, signal, budget) {
 
 function pathInside(root, candidate) {
   const relative = path.relative(root, candidate);
-  return relative === "" || (!relative.startsWith(".." + path.sep) && relative !== "..");
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
 
 function normalizePathForHash(filePath) {
@@ -260,7 +281,7 @@ export function writeFrontmatter(content, data) {
   if (match) {
     return content.replace(match[0], newBlock);
   }
-  return newBlock + "\n\n" + content;
+  return `${newBlock}\n\n${content}`;
 }
 
 // ─── Status line ─────────────────────────────────────────────────────────────
@@ -288,9 +309,9 @@ export function updateStatusLine(content, status, note) {
   const fmEnd = content.match(/^---\r?\n[\s\S]*?\r?\n---\n?/);
   if (fmEnd) {
     const after = content.slice(fmEnd[0].length);
-    return fmEnd[0] + "\n" + newLine + "\n" + after;
+    return `${fmEnd[0]}\n${newLine}\n${after}`;
   }
-  return newLine + "\n\n" + content;
+  return `${newLine}\n\n${content}`;
 }
 
 function requireProposalApproval(profile, frontmatter, id) {
@@ -303,7 +324,9 @@ function requireProposalApproval(profile, frontmatter, id) {
 function writeSpecLifecycleFile(spec, frontmatter, profile, { status } = {}) {
   applyLifecycleWrite(profile, frontmatter, { status });
   if (fs.readFileSync(spec.path, "utf8") !== spec.content) {
-    throw new Error(`Spec changed concurrently; refusing to overwrite ${spec.path}. Retry with the current contract.`);
+    throw new Error(
+      `Spec changed concurrently; refusing to overwrite ${spec.path}. Retry with the current contract.`,
+    );
   }
   let content = writeFrontmatter(spec.content, frontmatter);
   if (status !== undefined && profile.lifecycle.bodyStatusLine) {
@@ -325,7 +348,7 @@ export function detectDrift(content, fmData, profile = defaultProjectProfile()) 
   // Strip parenthetical notes and emoji prefixes for comparison
   const bodyBase = bodyStatus
     .replace(/（[^）]*）/g, "")
-    // eslint-disable-next-line no-misleading-character-class -- explicit emoji + variation-selector ranges
+    // biome-ignore lint/suspicious/noMisleadingCharacterClass: explicit emoji + variation-selector ranges
     .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}✀-➿]/gu, "")
     .trim();
   if (bodyBase === expected) return { drifted: false };
@@ -335,7 +358,12 @@ export function detectDrift(content, fmData, profile = defaultProjectProfile()) 
 // ─── Project config detection ────────────────────────────────────────────────
 function argvGate(name, argv, cwd) {
   const file = argv[0].includes("/") ? path.resolve(cwd, argv[0]) : argv[0];
-  return { name, file, args: argv.slice(1), cmd: argv.map((part) => JSON.stringify(part)).join(" ") };
+  return {
+    name,
+    file,
+    args: argv.slice(1),
+    cmd: argv.map((part) => JSON.stringify(part)).join(" "),
+  };
 }
 
 function projectDirectory(cwd, relative) {
@@ -352,14 +380,24 @@ export function detectProjectConfig(cwd, profile = loadProjectProfile(cwd)) {
   const gates = [];
   let hasTypecheck = false;
   let hasVitest = false;
-  const npm = (name, args) => ({ name, cmd: `npm ${args.join(" ")}`,
-    file: process.platform === "win32" ? "npm.cmd" : "npm", args });
+  const npm = (name, args) => ({
+    name,
+    cmd: `npm ${args.join(" ")}`,
+    file: process.platform === "win32" ? "npm.cmd" : "npm",
+    args,
+  });
   const pyproject = path.join(cwd, "pyproject.toml");
-  const pythonProject = ["pyproject.toml", "pytest.ini", "setup.py", "setup.cfg", "requirements.txt"].some(
-    (file) => fs.existsSync(path.join(cwd, file))
-  );
-  const pytestConfigured = fs.existsSync(path.join(cwd, "pytest.ini")) ||
-    (fs.existsSync(pyproject) && /^\s*\[tool\.pytest\.ini_options\]\s*$/m.test(fs.readFileSync(pyproject, "utf8")));
+  const pythonProject = [
+    "pyproject.toml",
+    "pytest.ini",
+    "setup.py",
+    "setup.cfg",
+    "requirements.txt",
+  ].some((file) => fs.existsSync(path.join(cwd, file)));
+  const pytestConfigured =
+    fs.existsSync(path.join(cwd, "pytest.ini")) ||
+    (fs.existsSync(pyproject) &&
+      /^\s*\[tool\.pytest\.ini_options\]\s*$/m.test(fs.readFileSync(pyproject, "utf8")));
   if (profile.gates?.mode === "replace") {
     if (profile.gates.commands) {
       gates.push(...profile.gates.commands.map(({ name, argv }) => argvGate(name, argv, cwd)));
@@ -372,29 +410,73 @@ export function detectProjectConfig(cwd, profile = loadProjectProfile(cwd)) {
       }
     }
   } else {
-    if (pkg?.scripts?.typecheck) { gates.push(npm("typecheck", ["run", "typecheck"])); hasTypecheck = true; }
+    if (pkg?.scripts?.typecheck) {
+      gates.push(npm("typecheck", ["run", "typecheck"]));
+      hasTypecheck = true;
+    }
     hasVitest = Boolean(pkg?.scripts?.test?.includes("vitest"));
     if (pkg?.scripts?.test && !hasVitest) gates.push(npm("test", ["test"]));
-    if (fs.existsSync(path.join(cwd, "biome.json"))) gates.push(argvGate("biome", ["npx", "--no-install", "biome", "check", "."], cwd));
-    if (hasVitest || ["vitest.config.ts", "vitest.config.js", "vitest.config.mjs", "vitest.workspace.ts", "vitest.workspace.js"].some(
-      (file) => fs.existsSync(path.join(cwd, file))
-    )) gates.push(argvGate("vitest", ["npx", "--no-install", "vitest", "run"], cwd));
+    if (fs.existsSync(path.join(cwd, "biome.json")))
+      gates.push(argvGate("biome", ["npx", "--no-install", "biome", "check", "."], cwd));
+    if (
+      hasVitest ||
+      [
+        "vitest.config.ts",
+        "vitest.config.js",
+        "vitest.config.mjs",
+        "vitest.workspace.ts",
+        "vitest.workspace.js",
+      ].some((file) => fs.existsSync(path.join(cwd, file)))
+    )
+      gates.push(argvGate("vitest", ["npx", "--no-install", "vitest", "run"], cwd));
     if (pytestConfigured) {
       const local = path.join(cwd, ".venv/bin/python");
-      gates.push(argvGate("pytest", [fs.existsSync(local) ? ".venv/bin/python" : "python3", "-m", "pytest", "-q"], cwd));
+      gates.push(
+        argvGate(
+          "pytest",
+          [fs.existsSync(local) ? ".venv/bin/python" : "python3", "-m", "pytest", "-q"],
+          cwd,
+        ),
+      );
     }
   }
   const e2e = profile.evidence?.e2e || { dir: "tests/e2e", extension: ".mjs", runner: ["node"] };
-  const migrations = profile.evidence?.migrations || { dir: "packages/db/src/migrations", extensions: [".ts"] };
+  const migrations = profile.evidence?.migrations || {
+    dir: "packages/db/src/migrations",
+    extensions: [".ts"],
+  };
   const e2eDir = projectDirectory(cwd, e2e.dir);
-  const e2eFiles = fs.existsSync(e2eDir) ? fs.readdirSync(e2eDir).filter((file) => validE2eFileName(file, e2e.extension)).sort() : [];
+  const e2eFiles = fs.existsSync(e2eDir)
+    ? fs
+        .readdirSync(e2eDir)
+        .filter((file) => validE2eFileName(file, e2e.extension))
+        .sort()
+    : [];
   const migDir = projectDirectory(cwd, migrations.dir);
-  const migFiles = fs.existsSync(migDir) ? fs.readdirSync(migDir).filter((file) =>
-    /^\d+/.test(file) && migrations.extensions.some((extension) => file.endsWith(extension)) &&
-    fs.lstatSync(path.join(migDir, file)).isFile()
-  ).sort() : [];
-  return { gates, e2eFiles, e2eDir, e2eExtension: e2e.extension, e2eRunner: e2e.runner,
-    migDir, migFiles, hasTypecheck, hasVitest, pythonProject, pkg };
+  const migFiles = fs.existsSync(migDir)
+    ? fs
+        .readdirSync(migDir)
+        .filter(
+          (file) =>
+            /^\d+/.test(file) &&
+            migrations.extensions.some((extension) => file.endsWith(extension)) &&
+            fs.lstatSync(path.join(migDir, file)).isFile(),
+        )
+        .sort()
+    : [];
+  return {
+    gates,
+    e2eFiles,
+    e2eDir,
+    e2eExtension: e2e.extension,
+    e2eRunner: e2e.runner,
+    migDir,
+    migFiles,
+    hasTypecheck,
+    hasVitest,
+    pythonProject,
+    pkg,
+  };
 }
 
 // ─── Spec discovery ──────────────────────────────────────────────────────────
@@ -497,7 +579,7 @@ export function loadSpecs(cwd) {
   }
 
   return specs.sort((a, b) =>
-    a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0
+    a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0,
   );
 }
 
@@ -512,11 +594,11 @@ export function findSpec(cwd, id) {
       s.file === `${requested}.md` ||
       s.file.startsWith(`${requested}.`) ||
       s.file.startsWith(`${requested}-`) ||
-      s.file.startsWith(`${requested}_`)
+      s.file.startsWith(`${requested}_`),
   );
   if (matches.length > 1) {
     throw new Error(
-      `Spec ${id} is ambiguous: ${matches.map((spec) => spec.relativePath).join(", ")}`
+      `Spec ${id} is ambiguous: ${matches.map((spec) => spec.relativePath).join(", ")}`,
     );
   }
   return matches[0];
@@ -549,7 +631,7 @@ function assertProfileRepoBoundary(profile, repo) {
   const implementationRoot = fs.realpathSync(repo);
   if (profileRoot !== implementationRoot) {
     throw new Error(
-      "Configured project governance profiles do not support an external impl.repo; use a same-repository spec"
+      "Configured project governance profiles do not support an external impl.repo; use a same-repository spec",
     );
   }
 }
@@ -557,7 +639,7 @@ function assertProfileRepoBoundary(profile, repo) {
 function snapshotLimit() {
   const parsed = Number.parseInt(
     process.env.SPECFLOW_SNAPSHOT_MAX_BYTES || String(DEFAULT_SNAPSHOT_MAX_BYTES),
-    10
+    10,
   );
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_SNAPSHOT_MAX_BYTES;
 }
@@ -568,7 +650,7 @@ function snapshotLimit() {
  */
 export async function repositorySnapshotHash(
   repo,
-  { excludePaths = [], signal, maxBytes = snapshotLimit() } = {}
+  { excludePaths = [], signal, maxBytes = snapshotLimit() } = {},
 ) {
   const topResult = await runArgv("git", ["rev-parse", "--show-toplevel"], {
     cwd: repo,
@@ -577,14 +659,14 @@ export async function repositorySnapshotHash(
   });
   if (topResult.code !== 0 || !topResult.stdout.trim()) {
     throw new Error(
-      `Cannot snapshot non-git repository ${repo}: ${(topResult.stderr || topResult.stdout).trim()}`
+      `Cannot snapshot non-git repository ${repo}: ${(topResult.stderr || topResult.stdout).trim()}`,
     );
   }
   const root = fs.realpathSync(topResult.stdout.trim());
   const listed = await runArgv(
     "git",
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-    { cwd: root, timeout: 30000, maxBuffer: 64 * 1024 * 1024, signal }
+    { cwd: root, timeout: 30000, maxBuffer: 64 * 1024 * 1024, signal },
   );
   if (listed.tooBig) {
     throw new Error("Cannot snapshot repository: tracked/untracked file list exceeds 64 MiB");
@@ -593,14 +675,15 @@ export async function repositorySnapshotHash(
     throw new Error(`Cannot enumerate repository snapshot: ${listed.stderr.trim()}`);
   }
 
-  const headFiles = await runArgv(
-    "git",
-    ["ls-tree", "-r", "-z", "--name-only", "HEAD"],
-    { cwd: root, timeout: 30000, maxBuffer: 64 * 1024 * 1024, signal }
-  );
+  const headFiles = await runArgv("git", ["ls-tree", "-r", "-z", "--name-only", "HEAD"], {
+    cwd: root,
+    timeout: 30000,
+    maxBuffer: 64 * 1024 * 1024,
+    signal,
+  });
   if (headFiles.tooBig || headFiles.code !== 0) {
     throw new Error(
-      `Cannot enumerate HEAD paths: ${(headFiles.stderr || "too much output").trim()}`
+      `Cannot enumerate HEAD paths: ${(headFiles.stderr || "too much output").trim()}`,
     );
   }
 
@@ -611,21 +694,21 @@ export async function repositorySnapshotHash(
     signal,
   });
   if (staged.tooBig || staged.code !== 0) {
-    throw new Error(`Cannot enumerate repository index: ${(staged.stderr || "too much output").trim()}`);
+    throw new Error(
+      `Cannot enumerate repository index: ${(staged.stderr || "too much output").trim()}`,
+    );
   }
   const deletedResult = await runArgv(
     "git",
     ["diff", "HEAD", "--name-only", "--diff-filter=D", "-z"],
-    { cwd: root, timeout: 30000, maxBuffer: 64 * 1024 * 1024, signal }
+    { cwd: root, timeout: 30000, maxBuffer: 64 * 1024 * 1024, signal },
   );
   if (deletedResult.tooBig || deletedResult.code !== 0) {
     throw new Error(
-      `Cannot enumerate working-tree deletions: ${(deletedResult.stderr || "too much output").trim()}`
+      `Cannot enumerate working-tree deletions: ${(deletedResult.stderr || "too much output").trim()}`,
     );
   }
-  const deletedPaths = new Set(
-    deletedResult.stdout.split("\0").filter(Boolean)
-  );
+  const deletedPaths = new Set(deletedResult.stdout.split("\0").filter(Boolean));
 
   const gitlinks = new Map();
   for (const record of staged.stdout.split("\0").filter(Boolean)) {
@@ -708,11 +791,11 @@ export async function repositorySnapshotHash(
         throw new Error(`Untracked/tracked directory is not a gitlink: ${relativePath}`);
       }
       let submoduleHead = indexedHead;
-      const top = await runArgv(
-        "git",
-        ["-C", absolutePath, "rev-parse", "--show-toplevel"],
-        { cwd: root, timeout: 10000, signal }
-      );
+      const top = await runArgv("git", ["-C", absolutePath, "rev-parse", "--show-toplevel"], {
+        cwd: root,
+        timeout: 10000,
+        signal,
+      });
       const head = await runArgv("git", ["-C", absolutePath, "rev-parse", "HEAD"], {
         cwd: root,
         timeout: 10000,
@@ -766,15 +849,10 @@ function contractFrontmatter(data, profile = defaultProjectProfile()) {
 }
 
 function normalizedContractBody(content, frontmatterMatch) {
-  let body = frontmatterMatch
-    ? content.slice(frontmatterMatch.length)
-    : content;
+  let body = frontmatterMatch ? content.slice(frontmatterMatch.length) : content;
   body = body.replace(/^- 状态：.*(?:\r?\n)?/gm, "");
   body = body.replace(/\[(?:x|X)\]/g, "[ ]");
-  body = body.replace(
-    /^## Review 与决策\s*$[\s\S]*?(?=^##\s|(?![\s\S]))/m,
-    "## Review 与决策\n"
-  );
+  body = body.replace(/^## Review 与决策\s*$[\s\S]*?(?=^##\s|(?![\s\S]))/m, "## Review 与决策\n");
   return body.replace(/\r\n/g, "\n").trim();
 }
 
@@ -784,8 +862,8 @@ export function specContractHash(content, profile = defaultProjectProfile()) {
   return sha256(
     `specflow-contract-v2\0${stableJson(contractFrontmatter(parsed.data, profile))}\0${normalizedContractBody(
       content,
-      parsed.fullMatch
-    )}`
+      parsed.fullMatch,
+    )}`,
   );
 }
 
@@ -797,9 +875,7 @@ function normalizeScope(scope) {
       if (typeof value !== "string" || value.length === 0 || value.includes("\0")) return true;
       const normalized = value.replace(/\\/g, "/");
       return (
-        path.isAbsolute(value) ||
-        normalized.split("/").includes("..") ||
-        value.startsWith("-")
+        path.isAbsolute(value) || normalized.split("/").includes("..") || value.startsWith("-")
       );
     })
   ) {
@@ -811,7 +887,7 @@ function normalizeScope(scope) {
 function auditMaxBytes() {
   const parsed = Number.parseInt(
     process.env.SPECFLOW_AUDIT_MAX_BYTES || String(DEFAULT_AUDIT_MAX_BYTES),
-    10
+    10,
   );
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_AUDIT_MAX_BYTES;
 }
@@ -820,11 +896,11 @@ async function assertAuditBaseAncestor(repo, baseSha, signal) {
   if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(baseSha || "")) {
     throw new Error(`Invalid impl.base_sha: ${baseSha || "(empty)"}`);
   }
-  const ancestor = await runArgv(
-    "git",
-    ["merge-base", "--is-ancestor", baseSha, "HEAD"],
-    { cwd: repo, timeout: 10000, signal }
-  );
+  const ancestor = await runArgv("git", ["merge-base", "--is-ancestor", baseSha, "HEAD"], {
+    cwd: repo,
+    timeout: 10000,
+    signal,
+  });
   if (ancestor.code !== 0) {
     throw new Error(`impl.base_sha ${baseSha.slice(0, 12)} is not an ancestor of HEAD`);
   }
@@ -835,20 +911,23 @@ export async function buildAuditDiff(
   repo,
   baseSha,
   scope,
-  { signal, maxBytes = auditMaxBytes(), excludePaths = [] } = {}
+  { signal, maxBytes = auditMaxBytes(), excludePaths = [] } = {},
 ) {
   await assertAuditBaseAncestor(repo, baseSha, signal);
   const pathspecs = [...normalizeScope(scope), ":(top,exclude,literal).spec-flow-ledger.jsonl"];
   const root = fs.realpathSync(repo);
   for (const candidate of excludePaths) {
     const absolute = fs.realpathSync(candidate);
-    if (pathInside(root, absolute)) pathspecs.push(`:(top,exclude,literal)${normalizePathForHash(path.relative(root, absolute))}`);
+    if (pathInside(root, absolute))
+      pathspecs.push(
+        `:(top,exclude,literal)${normalizePathForHash(path.relative(root, absolute))}`,
+      );
   }
 
   const tracked = await runArgv(
     "git",
     ["diff", "--binary", "--no-ext-diff", "--no-textconv", baseSha, "--", ...pathspecs],
-    { cwd: repo, timeout: 30000, maxBuffer: maxBytes + 1024 * 1024, signal }
+    { cwd: repo, timeout: 30000, maxBuffer: maxBytes + 1024 * 1024, signal },
   );
   if (tracked.tooBig) {
     throw new Error(`Audit diff exceeds ${maxBytes} bytes; narrow spec.scope`);
@@ -865,7 +944,7 @@ export async function buildAuditDiff(
   const untracked = await runArgv(
     "git",
     ["ls-files", "-z", "--others", "--exclude-standard", "--", ...pathspecs],
-    { cwd: repo, timeout: 30000, maxBuffer: 16 * 1024 * 1024, signal }
+    { cwd: repo, timeout: 30000, maxBuffer: 16 * 1024 * 1024, signal },
   );
   if (untracked.tooBig) {
     throw new Error("Too many untracked paths to audit safely");
@@ -886,8 +965,17 @@ export async function buildAuditDiff(
       }
       const patch = await runArgv(
         "git",
-        ["diff", "--no-index", "--binary", "--no-ext-diff", "--no-textconv", "--", emptyFile, relativePath],
-        { cwd: repo, timeout: 30000, maxBuffer: maxBytes + 1024 * 1024, signal }
+        [
+          "diff",
+          "--no-index",
+          "--binary",
+          "--no-ext-diff",
+          "--no-textconv",
+          "--",
+          emptyFile,
+          relativePath,
+        ],
+        { cwd: repo, timeout: 30000, maxBuffer: maxBytes + 1024 * 1024, signal },
       );
       if (patch.tooBig) {
         throw new Error(`Audit diff exceeds ${maxBytes} bytes; narrow spec.scope`);
@@ -956,18 +1044,20 @@ export async function gateFingerprint(cwd, gates, { signal } = {}) {
     const status = await runArgv(
       "git",
       ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-      { cwd, timeout: 30000, maxBuffer: 64 * 1024 * 1024, signal }
+      { cwd, timeout: 30000, maxBuffer: 64 * 1024 * 1024, signal },
     );
-    const diff = await runArgv(
-      "git",
-      ["diff", "HEAD", "--no-color", "--no-ext-diff", "--binary"],
-      { cwd, timeout: 30000, maxBuffer: 64 * 1024 * 1024, signal }
-    );
-    const untracked = await runArgv(
-      "git",
-      ["ls-files", "-z", "--others", "--exclude-standard"],
-      { cwd, timeout: 30000, maxBuffer: 16 * 1024 * 1024, signal }
-    );
+    const diff = await runArgv("git", ["diff", "HEAD", "--no-color", "--no-ext-diff", "--binary"], {
+      cwd,
+      timeout: 30000,
+      maxBuffer: 64 * 1024 * 1024,
+      signal,
+    });
+    const untracked = await runArgv("git", ["ls-files", "-z", "--others", "--exclude-standard"], {
+      cwd,
+      timeout: 30000,
+      maxBuffer: 16 * 1024 * 1024,
+      signal,
+    });
     const failed = [head, status, diff, untracked].find((result) => result.code !== 0);
     if (failed) {
       return {
@@ -999,16 +1089,12 @@ export async function gateFingerprint(cwd, gates, { signal } = {}) {
 
 function gateCacheTtlMs(override) {
   if (override !== undefined) {
-    return Number.isFinite(override) && override > 0
-      ? Math.min(override, 24 * 60 * 60 * 1000)
-      : 0;
+    return Number.isFinite(override) && override > 0 ? Math.min(override, 24 * 60 * 60 * 1000) : 0;
   }
   const raw = process.env.SPECFLOW_GATE_CACHE_TTL_MS;
   if (!raw) return 0;
   const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0
-    ? Math.min(parsed, 24 * 60 * 60 * 1000)
-    : 0;
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 24 * 60 * 60 * 1000) : 0;
 }
 
 /**
@@ -1052,11 +1138,7 @@ function gateCachePath(cwd, gates) {
   return path.join(dir, `gates-${key}.json`);
 }
 
-export async function runGates(
-  cwd,
-  gates,
-  { signal, onGate, onDiagnostic, cacheTtlMs } = {}
-) {
+export async function runGates(cwd, gates, { signal, onGate, onDiagnostic, cacheTtlMs } = {}) {
   const ttl = gateCacheTtlMs(cacheTtlMs);
   let fingerprint = { hash: null, error: null };
   let cachePath = null;
@@ -1080,7 +1162,7 @@ export async function runGates(
               cached.result &&
               typeof cached.result === "object" &&
               Object.values(cached.result).every(
-                (result) => result && typeof result.pass === "boolean"
+                (result) => result && typeof result.pass === "boolean",
               )
             ) {
               onDiagnostic?.("gate cache hit (explicit TTL opt-in)");
@@ -1116,12 +1198,8 @@ export async function runGates(
       const lines = stdout.split("\n").filter(Boolean);
       results[gate.name] = { pass: true, tail: lines.slice(-3).join("\n") };
     } else {
-      const output = stdout + "\n" + stderr;
-      const tail = output
-        .split("\n")
-        .filter(Boolean)
-        .slice(-10)
-        .join("\n");
+      const output = `${stdout}\n${stderr}`;
+      const tail = output.split("\n").filter(Boolean).slice(-10).join("\n");
       results[gate.name] = { pass: false, tail };
     }
   }
@@ -1136,7 +1214,7 @@ export async function runGates(
           fingerprint: fingerprint.hash,
           result: results,
         }),
-        0o600
+        0o600,
       );
       try {
         fs.chmodSync(cachePath, 0o600);
@@ -1175,12 +1253,12 @@ export function shouldBypass(command) {
 const Q = `(?:"[^"]*"|'[^']*'|\\S+)`; // quoted or bare token
 // Detection regex: cd chains may precede git commit (used for gating decision)
 const COMMIT_RE = new RegExp(
-  `(?:^|[;&|(]\\s*)(?:\\S+=\\S+\\s+)*(?:cd\\s+${Q}\\s*(?:&&|\\|\\||;)\\s+)*git(?:(?:\\s+-\\S+(?:\\s+${Q})?)+\\s+commit|\\s+commit)`
+  `(?:^|[;&|(]\\s*)(?:\\S+=\\S+\\s+)*(?:cd\\s+${Q}\\s*(?:&&|\\|\\||;)\\s+)*git(?:(?:\\s+-\\S+(?:\\s+${Q})?)+\\s+commit|\\s+commit)`,
 );
 // Locator regex: WITHOUT cd chains, so m.index points at `git` itself —
 // the cd prefix stays visible for parseCommitTargetRepo.
 const GIT_COMMIT_RE = new RegExp(
-  `(?:^|[;&|(]\\s*)(?:\\S+=\\S+\\s+)*git(?:(?:\\s+-\\S+(?:\\s+${Q})?)+\\s+commit|\\s+commit)`
+  `(?:^|[;&|(]\\s*)(?:\\S+=\\S+\\s+)*git(?:(?:\\s+-\\S+(?:\\s+${Q})?)+\\s+commit|\\s+commit)`,
 );
 
 export function isCommitCommand(command) {
@@ -1201,20 +1279,15 @@ export function parseCommitTargetRepo(command, cwd) {
   const prefix = command.slice(0, m.index);
   const seg = command.slice(m.index, m.index + m[0].length);
 
-  const dirRe = new RegExp(
-    `(?:^|[;&|(]\\s*)(?:\\S+=\\S+\\s+)*cd\\s+(${Q})`,
-    "g"
-  );
+  const dirRe = new RegExp(`(?:^|[;&|(]\\s*)(?:\\S+=\\S+\\s+)*cd\\s+(${Q})`, "g");
   const cdDirs = [];
-  let cm;
-  while ((cm = dirRe.exec(prefix))) cdDirs.push(cm[1].replace(/^["']|["']$/g, ""));
+  for (let cm = dirRe.exec(prefix); cm; cm = dirRe.exec(prefix))
+    cdDirs.push(cm[1].replace(/^["']|["']$/g, ""));
 
-  const cRe = new RegExp(
-    `git(?:\\s+-\\S+(?:\\s+${Q})?)*\\s+-C\\s+(${Q})|git\\s+-C(${Q})`,
-    "g"
-  );
+  const cRe = new RegExp(`git(?:\\s+-\\S+(?:\\s+${Q})?)*\\s+-C\\s+(${Q})|git\\s+-C(${Q})`, "g");
   const cDirs = [];
-  while ((cm = cRe.exec(seg))) cDirs.push((cm[1] ?? cm[2]).replace(/^["']|["']$/g, ""));
+  for (let cm = cRe.exec(seg); cm; cm = cRe.exec(seg))
+    cDirs.push((cm[1] ?? cm[2]).replace(/^["']|["']$/g, ""));
 
   if (cdDirs.length === 0 && cDirs.length === 0) return null;
 
@@ -1283,9 +1356,23 @@ export async function commitGateDecision(cwd, command, { signal, onGate } = {}) 
 
   // Target repo has no gates → allow (no session-project gate spillover).
   // Explicit bypass still wins and is recorded as bypass (S1.1 goal 4).
-  if (config.gates.length === 0 && (config.pythonProject || loadProjectProfile(gatesRepo).configured)) {
-    const gateResults = { "project-gates": { pass: false, tail: "No project gates discovered; configure .spec-flow.json gates.commands" } };
-    return { ...commitGateAction(command, gateResults), repo: gatesRepo, targetRepo, confidence, gateResults };
+  if (
+    config.gates.length === 0 &&
+    (config.pythonProject || loadProjectProfile(gatesRepo).configured)
+  ) {
+    const gateResults = {
+      "project-gates": {
+        pass: false,
+        tail: "No project gates discovered; configure .spec-flow.json gates.commands",
+      },
+    };
+    return {
+      ...commitGateAction(command, gateResults),
+      repo: gatesRepo,
+      targetRepo,
+      confidence,
+      gateResults,
+    };
   }
   if (config.gates.length === 0) {
     if (shouldBypass(command)) {
@@ -1364,7 +1451,7 @@ export function commitGateAction(command, gateResults) {
 // ─── Ledger ──────────────────────────────────────────────────────────────────
 export function appendLedger(cwd, event) {
   const ledgerPath = path.join(cwd, ".spec-flow-ledger.jsonl");
-  const line = JSON.stringify({ ts: new Date().toISOString(), ...event }) + "\n";
+  const line = `${JSON.stringify({ ts: new Date().toISOString(), ...event })}\n`;
   fs.appendFileSync(ledgerPath, line);
 }
 
@@ -1391,9 +1478,7 @@ export function appendCommitLedger(decision, event, sessionCwd) {
 export function migrateAlloc(cwd) {
   const config = detectProjectConfig(cwd);
   if (config.migFiles.length === 0) {
-    throw new Error(
-      `No migrations found at ${config.migDir} (or empty)`
-    );
+    throw new Error(`No migrations found at ${config.migDir} (or empty)`);
   }
   const num = Math.max(...config.migFiles.map((file) => Number(file.match(/^(\d+)/)[1])));
   if (!Number.isSafeInteger(num + 1)) throw new Error("Migration namespace exhausted");
@@ -1448,13 +1533,11 @@ async function beginUnlocked(cwd, id, { signal } = {}) {
     for (const dep of dependencies) {
       const depId = canonicalSpecId(dep);
       const depSpec = allSpecs.find(
-        (candidate) => canonicalSpecId(candidate.frontmatter?.id) === depId
+        (candidate) => canonicalSpecId(candidate.frontmatter?.id) === depId,
       );
       if (!depSpec) throw new Error(`Dependency ${dep} not found`);
       if (statusRole(profile, depSpec.frontmatter?.status) !== "done") {
-        throw new Error(
-          `Dependency ${dep} not done (status=${depSpec.frontmatter?.status})`
-        );
+        throw new Error(`Dependency ${dep} not done (status=${depSpec.frontmatter?.status})`);
       }
     }
   }
@@ -1492,7 +1575,9 @@ async function beginUnlocked(cwd, id, { signal } = {}) {
     repo,
   });
 
-  const branch = canonicalSpecId(id).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const branch = canonicalSpecId(id)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-");
   return `Spec ${id} → 进行中\n  workflow: v${WORKFLOW_VERSION}\n  base_sha: ${baseSha}\n  建议分支: ${branch}/spec-flow\n  前置校验: review=approved ✓`;
 }
 
@@ -1515,7 +1600,9 @@ function evidenceShapeProblems(fm) {
     }
     if (
       key === "migrations" &&
-      value.some((item) => !["string", "number"].includes(typeof item) || !/^\d+$/.test(String(item)))
+      value.some(
+        (item) => !["string", "number"].includes(typeof item) || !/^\d+$/.test(String(item)),
+      )
     ) {
       problems.push("evidence.migrations items must be numeric strings or numbers");
     }
@@ -1560,7 +1647,10 @@ function safeE2eFile(repo, e2eDir, fileName) {
     };
   }
   if (!pathInside(repoRoot, realDir)) {
-    return { path: filePath, problem: "E2E directory resolves outside the implementation repository" };
+    return {
+      path: filePath,
+      problem: "E2E directory resolves outside the implementation repository",
+    };
   }
 
   let stat;
@@ -1573,7 +1663,10 @@ function safeE2eFile(repo, e2eDir, fileName) {
     };
   }
   if (stat.isSymbolicLink() || !stat.isFile()) {
-    return { path: filePath, problem: `E2E evidence must be a regular non-symlink file: ${fileName}` };
+    return {
+      path: filePath,
+      problem: `E2E evidence must be a regular non-symlink file: ${fileName}`,
+    };
   }
   const realFile = fs.realpathSync(filePath);
   if (!pathInside(realDir, realFile) || !pathInside(repoRoot, realFile)) {
@@ -1630,7 +1723,10 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
 
   const beforeGates = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
   const diagnostics = [];
-  if (config.gates.length === 0) diagnostics.push("No project gates discovered; configure .spec-flow.json gates.commands (no-gate impl cannot pass)");
+  if (config.gates.length === 0)
+    diagnostics.push(
+      "No project gates discovered; configure .spec-flow.json gates.commands (no-gate impl cannot pass)",
+    );
   const gateResults = await runGates(repo, config.gates, {
     signal,
     onGate,
@@ -1639,7 +1735,8 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
       onDiagnostic?.(message);
     },
   });
-  const allGatesPass = config.gates.length > 0 && Object.values(gateResults).every((result) => result.pass);
+  const allGatesPass =
+    config.gates.length > 0 && Object.values(gateResults).every((result) => result.pass);
 
   const e2eResults = {};
   const evidenceE2e = evidenceArray(fm, "e2e");
@@ -1658,10 +1755,16 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
       continue;
     }
     const runner = argvGate("e2e", config.e2eRunner, repo);
-    const { stdout, stderr, code } = await runArgv(runner.file, [...runner.args, resolvedE2e.path], {
-      cwd: repo, timeout: 180000, signal,
-      env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
-    });
+    const { stdout, stderr, code } = await runArgv(
+      runner.file,
+      [...runner.args, resolvedE2e.path],
+      {
+        cwd: repo,
+        timeout: 180000,
+        signal,
+        env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+      },
+    );
     if (code === 0) {
       const output = [stdout, stderr].filter(Boolean).join("\n");
       const parsed = parseE2eOutput(output);
@@ -1672,7 +1775,7 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
         tail: output.split("\n").slice(-5).join("\n"),
       };
     } else {
-      const output = stdout + "\n" + stderr;
+      const output = `${stdout}\n${stderr}`;
       e2eResults[e2eId] = {
         pass: false,
         tail: output.split("\n").slice(-5).join("\n"),
@@ -1695,8 +1798,8 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
         canonicalSpecId(candidate.frontmatter?.id) !== canonicalSpecId(fm.id ?? id) &&
         Array.isArray(candidate.frontmatter?.evidence?.migrations) &&
         candidate.frontmatter.evidence.migrations.some(
-          (value) => String(value).padStart(3, "0") === padded
-        )
+          (value) => String(value).padStart(3, "0") === padded,
+        ),
     );
     if (owner) {
       migrationProblems.push({
@@ -1717,7 +1820,10 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
   };
   const snapshot = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
   const stable = snapshot.hash === beforeGates.hash;
-  if (!stable) diagnostics.push("Implementation changed during gates; ignore generated caches/artifacts or rerun impl on stable content");
+  if (!stable)
+    diagnostics.push(
+      "Implementation changed during gates; ignore generated caches/artifacts or rerun impl on stable content",
+    );
   const implPass = allGatesPass && allE2ePass && migrations.pass && stable;
   const contractHash = specContractHash(spec.content, profile);
 
@@ -1754,7 +1860,7 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
     `  snapshot: ${snapshot.hash.slice(0, 12)}`,
     `  门禁:`,
     ...Object.entries(gateResults).map(
-      ([name, result]) => `    ${name}: ${result.pass ? "✓" : "✗"}`
+      ([name, result]) => `    ${name}: ${result.pass ? "✓" : "✗"}`,
     ),
   ];
   if (diagnostics.length > 0) {
@@ -1774,10 +1880,8 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
     for (const problem of migrationProblems) {
       summary.push(
         `    ${String(problem.num).padStart(3, "0")}: ${
-          problem.reason === "missing"
-            ? "文件缺失"
-            : `与 ${problem.conflictWith} 冲突`
-        }`
+          problem.reason === "missing" ? "文件缺失" : `与 ${problem.conflictWith} 冲突`
+        }`,
       );
     }
   }
@@ -1798,11 +1902,15 @@ export function buildAuditorArgs(prompt, model = "", thinking = "off") {
     "--no-extensions",
     "--no-skills",
     "--no-prompt-templates",
-    "--no-context-files", "--no-themes", "--no-approve", "--mode", "json",
+    "--no-context-files",
+    "--no-themes",
+    "--no-approve",
+    "--mode",
+    "json",
   ];
   if (model) args.push("--model", model);
   if (thinking) args.push("--thinking", thinking);
-  args.push("@" + file);
+  args.push(`@${file}`);
   return { args, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
@@ -1837,10 +1945,7 @@ export function parseVerdictJson(raw) {
 
   // Attempt 2: repair lone backslashes that aren't valid JSON escapes
   // Valid JSON escapes after \: " \ / b f n r t u (plus uXXXX)
-  const repaired = jsonStr.replace(
-    /\\(?!["\\/bfnrtu]|u[0-9a-fA-F]{4})/g,
-    "\\\\"
-  );
+  const repaired = jsonStr.replace(/\\(?!["\\/bfnrtu]|u[0-9a-fA-F]{4})/g, "\\\\");
   try {
     return JSON.parse(repaired);
   } catch (e2) {
@@ -1890,15 +1995,9 @@ export function normalizeAuditResult(value) {
     const hasEvidence = typeof criterion.evidence === "string" && criterion.evidence.trim();
     const validStatus = ["pass", "fail", "unverifiable"].includes(criterion.status);
     return {
-      criterion: hasName
-        ? criterion.criterion.slice(0, 1000)
-        : `criterion #${index + 1}`,
-      status: hasName && hasEvidence && validStatus
-        ? criterion.status
-        : "unverifiable",
-      evidence: hasEvidence
-        ? criterion.evidence.slice(0, 10000)
-        : "缺少非空字符串 evidence",
+      criterion: hasName ? criterion.criterion.slice(0, 1000) : `criterion #${index + 1}`,
+      status: hasName && hasEvidence && validStatus ? criterion.status : "unverifiable",
+      evidence: hasEvidence ? criterion.evidence.slice(0, 10000) : "缺少非空字符串 evidence",
     };
   });
   if (value.criteria.length > 100) {
@@ -1949,54 +2048,104 @@ export function normalizeAuditResult(value) {
 function assertRetainedAuditEvidence(repo, auditRecord) {
   const receipt = auditRecord?.review;
   if (!receipt) {
-    if (usesCoverageRecord(auditRecord)) throw new Error("Coverage v3 requires its retained review receipt; no inferred approval");
+    if (usesCoverageRecord(auditRecord))
+      throw new Error("Coverage v3 requires its retained review receipt; no inferred approval");
     return; // Old v2 records remain portable.
   }
-  if (!/^[a-f0-9]{32}$/.test(receipt.job_id || "")) throw new Error("Invalid retained audit job ID");
+  if (!/^[a-f0-9]{32}$/.test(receipt.job_id || ""))
+    throw new Error("Invalid retained audit job ID");
   const dir = path.join(gitWorkspace(repo).commonDir, "spec-flow/review-v1/jobs", receipt.job_id);
-  try { fs.lstatSync(dir); } catch (error) {
+  try {
+    fs.lstatSync(dir);
+  } catch (error) {
     if (error.code === "ENOENT" && !usesCoverageRecord(auditRecord)) return;
-    if (error.code === "ENOENT") throw new Error("Coverage v3 requires the retained review job; restore packet/raw/receipt, never infer approval from a missing journal", { cause: error });
+    if (error.code === "ENOENT")
+      throw new Error(
+        "Coverage v3 requires the retained review job; restore packet/raw/receipt, never infer approval from a missing journal",
+        { cause: error },
+      );
     throw error;
   }
   const retained = retainedReviewStatus(repo, receipt.job_id);
-  if (retained.state !== "completed" || retained.mode !== "working-tree-audit" || retained.result?.verdict !== "pass" ||
-      retained.receipt.packet_sha256 !== receipt.packet_sha256 || retained.receipt.raw_sha256 !== receipt.raw_sha256 ||
-      sha256(stableJson(normalizeAuditResult(retained.result))) !== receipt.result_sha256) throw new Error("Retained audit evidence mismatch; no cached approval");
+  if (
+    retained.state !== "completed" ||
+    retained.mode !== "working-tree-audit" ||
+    retained.result?.verdict !== "pass" ||
+    retained.receipt.packet_sha256 !== receipt.packet_sha256 ||
+    retained.receipt.raw_sha256 !== receipt.raw_sha256 ||
+    sha256(stableJson(normalizeAuditResult(retained.result))) !== receipt.result_sha256
+  )
+    throw new Error("Retained audit evidence mismatch; no cached approval");
   if (usesCoverageRecord(auditRecord) || retained.receipt.result_protocol_version >= 3) {
-    if (coverageRecordProblems(auditRecord).length || receipt.result_protocol_version !== retained.receipt.result_protocol_version ||
-        receipt.review_index_sha256 !== retained.receipt.bindings.review_index_sha256 ||
-        receipt.coverage_sha256 !== sha256(stableJson(retained.result.coverage)) ||
-        receipt.normalized_review_sha256 !== sha256(stableJson(retained.result)) ||
-        stableJson(auditRecord.coverage) !== stableJson(retained.result.coverage_summary)) throw new Error("Retained review coverage evidence mismatch; no cached approval");
+    if (
+      coverageRecordProblems(auditRecord).length ||
+      receipt.result_protocol_version !== retained.receipt.result_protocol_version ||
+      receipt.review_index_sha256 !== retained.receipt.bindings.review_index_sha256 ||
+      receipt.coverage_sha256 !== sha256(stableJson(retained.result.coverage)) ||
+      receipt.normalized_review_sha256 !== sha256(stableJson(retained.result)) ||
+      stableJson(auditRecord.coverage) !== stableJson(retained.result.coverage_summary)
+    )
+      throw new Error("Retained review coverage evidence mismatch; no cached approval");
   }
   return retained;
 }
 function usesCoverageRecord(record) {
-  return record?.review?.result_protocol_version >= 3 || record?.prompt_version >= 6 ||
+  return (
+    record?.review?.result_protocol_version >= 3 ||
+    record?.prompt_version >= 6 ||
     Object.hasOwn(record?.review || {}, "review_index_sha256") ||
-    (record?.coverage?.version === 1 && record.coverage.semantic_guarantee === false && typeof record.coverage.index_sha256 === "string");
+    (record?.coverage?.version === 1 &&
+      record.coverage.semantic_guarantee === false &&
+      typeof record.coverage.index_sha256 === "string")
+  );
 }
 function coverageRecordProblems(record) {
   const receipt = record?.review;
   if (!usesCoverageRecord(record)) return [];
-  const c = record.coverage, numbers = ["source_units", "accounted_units", "acceptance_units", "covered_units", "context_units", "deferred_units", "gap_units", "decision_units"];
-  if (receipt?.result_protocol_version !== 3 || !c || c.version !== 1 || c.mechanical_complete !== true || c.semantic_guarantee !== false ||
-      c.scope !== "full-current-audit" || numbers.some(k => !Number.isSafeInteger(c[k]) || c[k] < 0 || c[k] > 400) ||
-      c.acceptance_units < 1 || c.source_units !== c.accounted_units || c.gap_units !== 0 ||
-      c.source_units !== c.covered_units + c.context_units + c.deferred_units + c.decision_units ||
-      !/^[a-f0-9]{64}$/.test(c.index_sha256 || "") || receipt.review_index_sha256 !== c.index_sha256 ||
-      receipt.coverage_summary_sha256 !== sha256(stableJson(c)) || !/^[a-f0-9]{64}$/.test(receipt.coverage_sha256 || "") ||
-      !/^[a-f0-9]{64}$/.test(receipt.normalized_review_sha256 || "")) return ["audit v3 覆盖对账缺失、未通过或绑定不一致（非已确认产品缺陷）"];
+  const c = record.coverage,
+    numbers = [
+      "source_units",
+      "accounted_units",
+      "acceptance_units",
+      "covered_units",
+      "context_units",
+      "deferred_units",
+      "gap_units",
+      "decision_units",
+    ];
+  if (
+    receipt?.result_protocol_version !== 3 ||
+    !c ||
+    c.version !== 1 ||
+    c.mechanical_complete !== true ||
+    c.semantic_guarantee !== false ||
+    c.scope !== "full-current-audit" ||
+    numbers.some((k) => !Number.isSafeInteger(c[k]) || c[k] < 0 || c[k] > 400) ||
+    c.acceptance_units < 1 ||
+    c.source_units !== c.accounted_units ||
+    c.gap_units !== 0 ||
+    c.source_units !== c.covered_units + c.context_units + c.deferred_units + c.decision_units ||
+    !/^[a-f0-9]{64}$/.test(c.index_sha256 || "") ||
+    receipt.review_index_sha256 !== c.index_sha256 ||
+    receipt.coverage_summary_sha256 !== sha256(stableJson(c)) ||
+    !/^[a-f0-9]{64}$/.test(receipt.coverage_sha256 || "") ||
+    !/^[a-f0-9]{64}$/.test(receipt.normalized_review_sha256 || "")
+  )
+    return ["audit v3 覆盖对账缺失、未通过或绑定不一致（非已确认产品缺陷）"];
   return [];
 }
 function coverageSummaryLines(record) {
   const c = record?.coverage;
-  if (!c) return [usesCoverageRecord(record)
-    ? "  v3 源块对账未完成（无有效摘要；不能据此通过）。"
-    : "  审查标准：历史协议（未经过 v3 源块覆盖对账；不升级为新标准 PASS）"];
-  return [`  源块对账：${c.accounted_units}/${c.source_units}，验收 ${c.acceptance_units}，延后 ${c.deferred_units}，缺口 ${c.gap_units}`,
-    "  边界：仅限封存材料的静态判断；机械对账不证明语义完整，不代表运行时或交付验收通过。"];
+  if (!c)
+    return [
+      usesCoverageRecord(record)
+        ? "  v3 源块对账未完成（无有效摘要；不能据此通过）。"
+        : "  审查标准：历史协议（未经过 v3 源块覆盖对账；不升级为新标准 PASS）",
+    ];
+  return [
+    `  源块对账：${c.accounted_units}/${c.source_units}，验收 ${c.acceptance_units}，延后 ${c.deferred_units}，缺口 ${c.gap_units}`,
+    "  边界：仅限封存材料的静态判断；机械对账不证明语义完整，不代表运行时或交付验收通过。",
+  ];
 }
 
 // Runtime/remote/human facts are not criteria; they are recorded as bounded
@@ -2008,7 +2157,11 @@ function deferredScopeNotes(value) {
     if (notes.length >= 100) break;
     let text = typeof item === "string" ? item : null;
     if (text === null) {
-      try { text = JSON.stringify(item) ?? String(item); } catch { text = String(item); }
+      try {
+        text = JSON.stringify(item) ?? String(item);
+      } catch {
+        text = String(item);
+      }
     }
     if (typeof text !== "string" || !text.trim()) continue;
     notes.push(text.slice(0, 5000));
@@ -2017,14 +2170,22 @@ function deferredScopeNotes(value) {
 }
 function deferredScopeLines(notes) {
   if (!notes.length) return [];
-  return ["  范围外（运行时/跨仓库/人工事实，非判据；由 attestation 与 lifecycle 覆盖）:",
-    ...notes.map((note) => `    - ${note.slice(0, 500)}`)];
+  return [
+    "  范围外（运行时/跨仓库/人工事实，非判据；由 attestation 与 lifecycle 覆盖）:",
+    ...notes.map((note) => `    - ${note.slice(0, 500)}`),
+  ];
 }
 function savedAuditOutputHint(fm) {
   if (!fm.audit || fm.audit.verdict === "pass") return null;
-  if (["protocol-error", "execution-error", "coverage-gap"].includes(fm.audit.output_info?.category)) return fm.audit.output_info.message;
+  if (
+    ["protocol-error", "execution-error", "coverage-gap"].includes(fm.audit.output_info?.category)
+  )
+    return fm.audit.output_info.message;
   const jobId = fm.audit.review?.job_id;
-  if (/^[a-f0-9]{32}$/.test(jobId || "") && fm.audit.criteria?.some(item => item.criterion === "审计 scope_deviations 结构校验")) {
+  if (
+    /^[a-f0-9]{32}$/.test(jobId || "") &&
+    fm.audit.criteria?.some((item) => item.criterion === "审计 scope_deviations 结构校验")
+  ) {
     return `工具输出 scope_deviations 协议错误（非产品 FAIL）；先 spec_review ${JSON.stringify({ action: "status", jobId })} 查看无损修复提示，支持时使用 action=repair 零模型修复，再附加匹配的当前审计。不自动付费重审。`;
   }
   return null;
@@ -2036,9 +2197,13 @@ async function auditOutputRecoveryHint(cwd, fm) {
   try {
     const { reviewStatus } = await import("./review-engine.mjs");
     const info = reviewStatus(implementationRepo(cwd, fm), fm.audit.review.job_id).outputInfo;
-    return ["protocol-error", "execution-error", "coverage-gap"].includes(info?.category) ? info.message : saved;
+    return ["protocol-error", "execution-error", "coverage-gap"].includes(info?.category)
+      ? info.message
+      : saved;
   } catch {
-    return saved ? "保留的工具审计证据当前不可验证；先恢复原始 packet/raw/receipt，再做零调用修复。不要覆盖旧结论或自动付费重审。" : null;
+    return saved
+      ? "保留的工具审计证据当前不可验证；先恢复原始 packet/raw/receipt，再做零调用修复。不要覆盖旧结论或自动付费重审。"
+      : null;
   } // A diagnostic is never cache approval or a Spec write.
 }
 async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobId } = {}) {
@@ -2072,7 +2237,7 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
   });
   if (snapshot.hash !== fm.impl.snapshot_hash) {
     throw new Error(
-      `Spec ${id} implementation changed after spec_impl (${fm.impl.snapshot_hash.slice(0, 12)} → ${snapshot.hash.slice(0, 12)}); rerun spec_impl`
+      `Spec ${id} implementation changed after spec_impl (${fm.impl.snapshot_hash.slice(0, 12)} → ${snapshot.hash.slice(0, 12)}); rerun spec_impl`,
     );
   }
   const contractHash = specContractHash(spec.content, profile);
@@ -2094,11 +2259,13 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
     if (error?.name === "AbortError") throw error;
     auditResult = normalizeAuditResult({
       verdict: "fail",
-      criteria: [{
-        criterion: "base_sha 祖先关系",
-        status: "unverifiable",
-        evidence: error?.message || String(error),
-      }],
+      criteria: [
+        {
+          criterion: "base_sha 祖先关系",
+          status: "unverifiable",
+          evidence: error?.message || String(error),
+        },
+      ],
       scope_deviations: [],
     });
   }
@@ -2111,14 +2278,20 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
     prev.base_sha === baseSha &&
     prev.impl_hash === snapshot.hash &&
     prev.contract_hash === contractHash &&
-    (!prev.review || (prev.review.version === 1 && prev.review.mode === "working-tree-audit" && prev.review.state === "completed" &&
-      prev.review.packet_sha256 === prev.review.child_input_sha256 && prev.review.result_sha256 === sha256(stableJson(normalizedPrev))))
+    (!prev.review ||
+      (prev.review.version === 1 &&
+        prev.review.mode === "working-tree-audit" &&
+        prev.review.state === "completed" &&
+        prev.review.packet_sha256 === prev.review.child_input_sha256 &&
+        prev.review.result_sha256 === sha256(stableJson(normalizedPrev))))
   ) {
     let executionInfo;
     try {
       const retained = await assertRetainedAuditEvidence(repo, prev);
       executionInfo = describeReviewExecution(retained?.receipt || { state: "completed" });
-    } catch (error) { return `❌ ${id} — ${error.message}`; }
+    } catch (error) {
+      return `❌ ${id} — ${error.message}`;
+    }
     onProgress?.(executionInfo.message);
     const summary = [
       `Spec ${id} 审计结果: ✅ PASS（缓存复用 — 实现与合同 hash 未变）`,
@@ -2131,7 +2304,10 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
       summary.push(`    [✓] ${criterion.criterion}`);
       if (criterion.evidence) summary.push(`      ${criterion.evidence.slice(0, 200)}`);
     }
-    summary.push(...coverageSummaryLines(prev), ...deferredScopeLines(deferredScopeNotes(prev.out_of_scope)));
+    summary.push(
+      ...coverageSummaryLines(prev),
+      ...deferredScopeLines(deferredScopeNotes(prev.out_of_scope)),
+    );
     return summary.join("\n");
   }
 
@@ -2145,11 +2321,13 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
       if (error?.name === "AbortError") throw error;
       auditResult = normalizeAuditResult({
         verdict: "fail",
-        criteria: [{
-          criterion: "实施 diff 可验证性",
-          status: "unverifiable",
-          evidence: error?.message || String(error),
-        }],
+        criteria: [
+          {
+            criterion: "实施 diff 可验证性",
+            status: "unverifiable",
+            evidence: error?.message || String(error),
+          },
+        ],
         scope_deviations: [],
       });
     }
@@ -2158,50 +2336,114 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
   const auditorModel = process.env.SPECFLOW_AUDIT_MODEL || "";
   const requestedThinking = process.env.SPECFLOW_AUDIT_THINKING || "off";
   const auditorThinking = ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(
-    requestedThinking
+    requestedThinking,
   )
     ? requestedThinking
     : "off";
   if (!auditResult) {
     const engine = await import("./review-engine.mjs");
-    const bindings = { base_sha: baseSha, head: currentSha, snapshot_hash: snapshot.hash,
+    const bindings = {
+      base_sha: baseSha,
+      head: currentSha,
+      snapshot_hash: snapshot.hash,
       scope_sha256: crypto.createHash("sha256").update(JSON.stringify(scope)).digest("hex"),
-      diff_sha256: sha256(diff), impl_sha256: sha256(JSON.stringify(fm.impl)) };
+      diff_sha256: sha256(diff),
+      impl_sha256: sha256(JSON.stringify(fm.impl)),
+    };
     const reusableId = reviewJobId || prev?.review?.job_id;
     const canonicalRepo = fs.realpathSync(repo);
     try {
-      engineReview = reusableId ? engine.reviewStatus(repo, reusableId)
-        : await engine.prepareWorkingAudit(repo, { spec, content: spec.content, profile, bindings, diff, impl: fm.impl });
+      engineReview = reusableId
+        ? engine.reviewStatus(repo, reusableId)
+        : await engine.prepareWorkingAudit(repo, {
+            spec,
+            content: spec.content,
+            profile,
+            bindings,
+            diff,
+            impl: fm.impl,
+          });
       const actual = engineReview.receipt;
-      if (engineReview.mode !== "working-tree-audit" || actual.repository !== canonicalRepo || actual.bindings?.coverage !== "full-current-audit" || actual.bindings?.spec_id !== String(id) ||
-          actual.bindings?.spec_path !== path.relative(canonicalRepo, fs.realpathSync(spec.path)) || actual.bindings?.contract_hash !== contractHash ||
-          Object.entries(bindings).some(([key, value]) => key !== "head" && actual.bindings?.[key] !== value)) {
-        const mismatch = Object.entries(bindings).filter(([key, value]) => key !== "head" && actual.bindings?.[key] !== value).map(([key]) => key);
+      if (
+        engineReview.mode !== "working-tree-audit" ||
+        actual.repository !== canonicalRepo ||
+        actual.bindings?.coverage !== "full-current-audit" ||
+        actual.bindings?.spec_id !== String(id) ||
+        actual.bindings?.spec_path !== path.relative(canonicalRepo, fs.realpathSync(spec.path)) ||
+        actual.bindings?.contract_hash !== contractHash ||
+        Object.entries(bindings).some(
+          ([key, value]) => key !== "head" && actual.bindings?.[key] !== value,
+        )
+      ) {
+        const mismatch = Object.entries(bindings)
+          .filter(([key, value]) => key !== "head" && actual.bindings?.[key] !== value)
+          .map(([key]) => key);
         engineReview = null;
-        throw new Error(`Review is not a full current working-tree audit for this Spec; ordinary/delta results cannot attach (binding mismatch: ${mismatch.join(", ") || "identity/coverage"})`);
+        throw new Error(
+          `Review is not a full current working-tree audit for this Spec; ordinary/delta results cannot attach (binding mismatch: ${mismatch.join(", ") || "identity/coverage"})`,
+        );
       }
       const beforeSpend = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
-      if (beforeSpend.hash !== snapshot.hash) throw new Error("Implementation changed during packet preparation; no model call");
+      if (beforeSpend.hash !== snapshot.hash)
+        throw new Error("Implementation changed during packet preparation; no model call");
       // Persist a nonpassing job pointer before any potentially metered child.
-      fm.audit = { verdict: "fail", criteria: [{ criterion: "审计执行", status: "unverifiable", evidence: "Prepared/running audit is not approval" }],
-        scope_deviations: [], review: { version: 1, mode: "working-tree-audit", job_id: engineReview.jobId, state: engineReview.state } };
+      fm.audit = {
+        verdict: "fail",
+        criteria: [
+          {
+            criterion: "审计执行",
+            status: "unverifiable",
+            evidence: "Prepared/running audit is not approval",
+          },
+        ],
+        scope_deviations: [],
+        review: {
+          version: 1,
+          mode: "working-tree-audit",
+          job_id: engineReview.jobId,
+          state: engineReview.state,
+        },
+      };
       delete fm.attestations;
       writeSpecLifecycleFile(spec, fm, profile);
       onProgress?.(`隔离审计 job ${engineReview.jobId}（已封存 packet；预算仅消耗一次）…`);
-      engineReview = await engine.runPreparedReview(repo, engineReview.jobId, { budgetId, signal, onProgress });
+      engineReview = await engine.runPreparedReview(repo, engineReview.jobId, {
+        budgetId,
+        signal,
+        onProgress,
+      });
       auditResult = engineReview.result;
-      if (!auditResult) throw new Error(`Review job ${engineReview.state}: ${engineReview.receipt.error || "no passing result"}`);
+      if (!auditResult)
+        throw new Error(
+          `Review job ${engineReview.state}: ${engineReview.receipt.error || "no passing result"}`,
+        );
     } catch (error) {
       if (error?.name === "AbortError") throw error;
-      toolIssue = { category: "execution-error", code: "REVIEW_EXECUTION_OR_BINDING", repairable: false,
-        message: `工具执行/证据绑定错误（非产品 FAIL）：${error?.message || error}。先修复调用参数、宿主或证据绑定；保留原结果，不自动付费重审。` };
-      auditResult = normalizeAuditResult({ verdict: "fail", criteria: [{ criterion: "审计执行", status: "unverifiable",
-        evidence: `审计执行失败: ${error?.message || error}` }], scope_deviations: [] });
+      toolIssue = {
+        category: "execution-error",
+        code: "REVIEW_EXECUTION_OR_BINDING",
+        repairable: false,
+        message: `工具执行/证据绑定错误（非产品 FAIL）：${error?.message || error}。先修复调用参数、宿主或证据绑定；保留原结果，不自动付费重审。`,
+      };
+      auditResult = normalizeAuditResult({
+        verdict: "fail",
+        criteria: [
+          {
+            criterion: "审计执行",
+            status: "unverifiable",
+            evidence: `审计执行失败: ${error?.message || error}`,
+          },
+        ],
+        scope_deviations: [],
+      });
     }
   }
 
   const afterAudit = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
-  if (afterAudit.hash !== snapshot.hash) throw new Error("Implementation changed during audit; rerun impl/audit on stable checkout content");
+  if (afterAudit.hash !== snapshot.hash)
+    throw new Error(
+      "Implementation changed during audit; rerun impl/audit on stable checkout content",
+    );
   // A deferred runtime/cross-repository fact is recorded, never a criterion.
   const deferredNotes = deferredScopeNotes(engineReview?.result?.out_of_scope);
   auditResult = normalizeAuditResult(auditResult);
@@ -2212,26 +2454,47 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
     impl_hash: snapshot.hash,
     contract_hash: contractHash,
     prompt_version: engineReview ? engineReview.receipt.prompt_version || 3 : AUDIT_PROMPT_VERSION,
-    ...(toolIssue || engineReview?.outputInfo ? { output_info: toolIssue || engineReview.outputInfo } : {}),
+    ...(toolIssue || engineReview?.outputInfo
+      ? { output_info: toolIssue || engineReview.outputInfo }
+      : {}),
     model: engineReview?.receipt.execution?.model || auditorModel || "session-default",
     thinking: engineReview?.receipt.execution?.thinking || auditorThinking,
     verdict: auditResult.verdict,
     criteria: auditResult.criteria,
     scope_deviations: auditResult.scope_deviations,
     ...(deferredNotes.length ? { out_of_scope: deferredNotes } : {}),
-    ...(engineReview?.result?.coverage_summary ? { coverage: engineReview.result.coverage_summary } : {}),
-    ...(engineReview ? { review: { version: 1, mode: "working-tree-audit", job_id: engineReview.jobId,
-      state: engineReview.state, packet_sha256: engineReview.receipt.packet_sha256,
-      child_input_sha256: engineReview.receipt.child_input_sha256 ?? null,
-      raw_sha256: engineReview.receipt.raw_sha256 ?? null, budget: engineReview.receipt.budget ?? null,
-      result_sha256: sha256(stableJson(auditResult)), effective_model: engineReview.receipt.effective_model ?? null,
-      usage: engineReview.receipt.usage ?? null,
-      ...(engineReview.receipt.result_protocol_version >= 3 ? { result_protocol_version: engineReview.receipt.result_protocol_version,
-        review_index_sha256: engineReview.receipt.bindings.review_index_sha256,
-        coverage_sha256: sha256(stableJson(engineReview.result?.coverage ?? [])),
-        coverage_summary_sha256: sha256(stableJson(engineReview.result?.coverage_summary ?? null)),
-        normalized_review_sha256: sha256(stableJson(engineReview.result)) } : {}),
-      ...(engineReview.receipt.recovery ? { recovery: engineReview.receipt.recovery } : {}) } } : {}),
+    ...(engineReview?.result?.coverage_summary
+      ? { coverage: engineReview.result.coverage_summary }
+      : {}),
+    ...(engineReview
+      ? {
+          review: {
+            version: 1,
+            mode: "working-tree-audit",
+            job_id: engineReview.jobId,
+            state: engineReview.state,
+            packet_sha256: engineReview.receipt.packet_sha256,
+            child_input_sha256: engineReview.receipt.child_input_sha256 ?? null,
+            raw_sha256: engineReview.receipt.raw_sha256 ?? null,
+            budget: engineReview.receipt.budget ?? null,
+            result_sha256: sha256(stableJson(auditResult)),
+            effective_model: engineReview.receipt.effective_model ?? null,
+            usage: engineReview.receipt.usage ?? null,
+            ...(engineReview.receipt.result_protocol_version >= 3
+              ? {
+                  result_protocol_version: engineReview.receipt.result_protocol_version,
+                  review_index_sha256: engineReview.receipt.bindings.review_index_sha256,
+                  coverage_sha256: sha256(stableJson(engineReview.result?.coverage ?? [])),
+                  coverage_summary_sha256: sha256(
+                    stableJson(engineReview.result?.coverage_summary ?? null),
+                  ),
+                  normalized_review_sha256: sha256(stableJson(engineReview.result)),
+                }
+              : {}),
+            ...(engineReview.receipt.recovery ? { recovery: engineReview.receipt.recovery } : {}),
+          },
+        }
+      : {}),
   };
 
   writeSpecLifecycleFile(spec, fm, profile);
@@ -2276,7 +2539,7 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
 function attestUnlocked(cwd, id, item, note) {
   if (!note || note.length < 20) {
     throw new Error(
-      `Attest note too short (${note?.length || 0} chars, need ≥20). Must describe verification path and sample.`
+      `Attest note too short (${note?.length || 0} chars, need ≥20). Must describe verification path and sample.`,
     );
   }
 
@@ -2286,10 +2549,7 @@ function attestUnlocked(cwd, id, item, note) {
 
   const fm = spec.frontmatter;
   const profile = spec.profile || loadProjectProfile(cwd);
-  if (
-    statusRole(profile, fm.status) !== "active" ||
-    fm.workflow_version !== WORKFLOW_VERSION
-  ) {
+  if (statusRole(profile, fm.status) !== "active" || fm.workflow_version !== WORKFLOW_VERSION) {
     throw new Error(`Spec ${id} must be an in-progress workflow v2 spec`);
   }
   requireProposalApproval(profile, fm, id);
@@ -2297,8 +2557,11 @@ function attestUnlocked(cwd, id, item, note) {
   assertEvidenceShape(fm, id);
   if (fm.impl?.pass !== true || fm.audit?.verdict !== "pass") {
     const recoveryHint = fm.impl?.pass === true ? savedAuditOutputHint(fm) : null;
-    throw new Error(recoveryHint ? `Spec ${id}: ${recoveryHint}；修复后仅附加匹配的当前审计，再登记人工核验。`
-      : `Spec ${id} requires passing impl and audit before human attestation`);
+    throw new Error(
+      recoveryHint
+        ? `Spec ${id}: ${recoveryHint}；修复后仅附加匹配的当前审计，再登记人工核验。`
+        : `Spec ${id} requires passing impl and audit before human attestation`,
+    );
   }
   const normalizedAudit = normalizeAuditResult(fm.audit);
   if (normalizedAudit.verdict !== "pass") {
@@ -2315,7 +2578,7 @@ function attestUnlocked(cwd, id, item, note) {
   const humanItems = evidenceArray(fm, "human");
   if (!humanItems.includes(item)) {
     throw new Error(
-      `Item "${item}" not in evidence.human (available: ${humanItems.join(", ") || "none"})`
+      `Item "${item}" not in evidence.human (available: ${humanItems.join(", ") || "none"})`,
     );
   }
 
@@ -2331,10 +2594,18 @@ function attestUnlocked(cwd, id, item, note) {
   if (coverageProblems.length) throw new Error(coverageProblems.join("; "));
   const register = () => {
     writeSpecLifecycleFile(spec, fm, profile);
-    appendLedger(cwd, { type: "attest", spec: id, item, note, impl_hash: fm.impl.snapshot_hash, contract_hash: contractHash });
+    appendLedger(cwd, {
+      type: "attest",
+      spec: id,
+      item,
+      note,
+      impl_hash: fm.impl.snapshot_hash,
+      contract_hash: contractHash,
+    });
     return `Spec ${id}: 人工核验 "${item}" 已登记\n  note: ${note}`;
   };
-  if (usesCoverageRecord(fm.audit)) assertRetainedAuditEvidence(implementationRepo(cwd, fm), fm.audit);
+  if (usesCoverageRecord(fm.audit))
+    assertRetainedAuditEvidence(implementationRepo(cwd, fm), fm.audit);
   return register();
 }
 
@@ -2342,7 +2613,9 @@ export function recordConsistencyGaps(spec, profile = spec.profile || defaultPro
   const fm = spec.frontmatter || {};
   const gaps = [];
   if (fm.workflow_version !== WORKFLOW_VERSION) {
-    gaps.push(`workflow_version=${fm.workflow_version ?? "legacy"} (need ${WORKFLOW_VERSION}; rerun spec_begin)`);
+    gaps.push(
+      `workflow_version=${fm.workflow_version ?? "legacy"} (need ${WORKFLOW_VERSION}; rerun spec_begin)`,
+    );
     return gaps;
   }
   for (const problem of approvalProblems(profile, fm)) {
@@ -2360,9 +2633,7 @@ export function recordConsistencyGaps(spec, profile = spec.profile || defaultPro
     gaps.push("impl.snapshot_hash 缺失或非法");
   }
 
-  const requiredGates = Array.isArray(fm.impl?.required_gates)
-    ? fm.impl.required_gates
-    : null;
+  const requiredGates = Array.isArray(fm.impl?.required_gates) ? fm.impl.required_gates : null;
   if (!requiredGates) {
     gaps.push("impl.required_gates 缺失");
   } else {
@@ -2402,30 +2673,37 @@ export function recordConsistencyGaps(spec, profile = spec.profile || defaultPro
   } else if (normalizedAudit.verdict !== "pass") {
     gaps.push("audit verdict/criteria 未全绿");
   }
-  if (fm.audit?.review && (fm.audit.review.version !== 1 || fm.audit.review.mode !== "working-tree-audit" ||
-      fm.audit.review.state !== "completed" || !/^[a-f0-9]{64}$/.test(fm.audit.review.packet_sha256 || "") ||
+  if (
+    fm.audit?.review &&
+    (fm.audit.review.version !== 1 ||
+      fm.audit.review.mode !== "working-tree-audit" ||
+      fm.audit.review.state !== "completed" ||
+      !/^[a-f0-9]{64}$/.test(fm.audit.review.packet_sha256 || "") ||
       fm.audit.review.child_input_sha256 !== fm.audit.review.packet_sha256 ||
-      fm.audit.review.result_sha256 !== sha256(stableJson(normalizedAudit)))) {
+      fm.audit.review.result_sha256 !== sha256(stableJson(normalizedAudit)))
+  ) {
     gaps.push("audit review receipt 非完整当前审计或结果绑定不一致");
   }
   gaps.push(...coverageRecordProblems(fm.audit));
   const recovery = fm.audit?.review?.recovery;
-  if (recovery && (recovery.version !== 1 || recovery.recipe !== "scope-file-note/v1" ||
-      !/^[a-f0-9]{32}$/.test(recovery.source_job_id || "") || !/^[a-f0-9]{64}$/.test(recovery.source_job_sha256 || "") ||
-      !/^[a-f0-9]{64}$/.test(recovery.source_result_sha256 || "") || Object.keys(recovery).length !== 5)) {
+  if (
+    recovery &&
+    (recovery.version !== 1 ||
+      recovery.recipe !== "scope-file-note/v1" ||
+      !/^[a-f0-9]{32}$/.test(recovery.source_job_id || "") ||
+      !/^[a-f0-9]{64}$/.test(recovery.source_job_sha256 || "") ||
+      !/^[a-f0-9]{64}$/.test(recovery.source_result_sha256 || "") ||
+      Object.keys(recovery).length !== 5)
+  ) {
     gaps.push("audit repair 来源凭证缺失或非法");
   }
   if (fm.audit?.base_sha !== fm.impl?.base_sha) gaps.push("audit.base_sha 与 impl.base_sha 不一致");
-  if (fm.audit?.impl_hash !== fm.impl?.snapshot_hash) gaps.push("audit.impl_hash 与 impl.snapshot_hash 不一致");
+  if (fm.audit?.impl_hash !== fm.impl?.snapshot_hash)
+    gaps.push("audit.impl_hash 与 impl.snapshot_hash 不一致");
   if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(fm.audit?.sha || "")) {
     gaps.push("audit.sha 缺失或非法");
   }
-  if (
-    !fm.audit?.at ||
-    !fm.audit?.prompt_version ||
-    !fm.audit?.model ||
-    !fm.audit?.thinking
-  ) {
+  if (!fm.audit?.at || !fm.audit?.prompt_version || !fm.audit?.model || !fm.audit?.thinking) {
     gaps.push("audit 执行元数据不完整");
   }
 
@@ -2466,7 +2744,7 @@ function inProgressConsistencyGaps(spec, profile = spec.profile || defaultProjec
   const fm = spec.frontmatter || {};
   if (!fm.impl?.at) {
     const gaps = approvalProblems(profile, fm).map(
-      (problem) => `proposal approval 已失效: ${problem}`
+      (problem) => `proposal approval 已失效: ${problem}`,
     );
     if (fm.audit) gaps.push("impl 未执行但存在 audit 记录");
     if (fm.attestations && Object.keys(fm.attestations).length > 0) {
@@ -2478,11 +2756,7 @@ function inProgressConsistencyGaps(spec, profile = spec.profile || defaultProjec
   return recordConsistencyGaps(spec, profile).filter((gap) => {
     if (gap.startsWith("人工核验未完成:")) return false;
     if (fm.audit) return true;
-    return !(
-      gap === "audit 未执行" ||
-      gap.startsWith("audit.") ||
-      gap.startsWith("audit ")
-    );
+    return !(gap === "audit 未执行" || gap.startsWith("audit.") || gap.startsWith("audit "));
   });
 }
 
@@ -2511,7 +2785,7 @@ async function doneUnlocked(cwd, id, { signal } = {}) {
   });
   if (snapshot.hash !== fm.impl.snapshot_hash) {
     throw new Error(
-      `Spec ${id} 未完成，缺口：\n  实现快照已变化 (${fm.impl.snapshot_hash.slice(0, 12)} → ${snapshot.hash.slice(0, 12)})`
+      `Spec ${id} 未完成，缺口：\n  实现快照已变化 (${fm.impl.snapshot_hash.slice(0, 12)} → ${snapshot.hash.slice(0, 12)})`,
     );
   }
   try {
@@ -2578,13 +2852,21 @@ export function projectContractProblems(spec, profile) {
   if (rules.numericFileId) {
     const basename = path.basename(spec.file);
     const prefix = basename.match(/^([0-9]+)\.[^/]+\.md$/);
-    if (!prefix || !Number.isSafeInteger(fm.id) || fm.id < 0 ||
-        !Number.isSafeInteger(Number(prefix[1])) || Number(prefix[1]) !== fm.id) {
+    if (
+      !prefix ||
+      !Number.isSafeInteger(fm.id) ||
+      fm.id < 0 ||
+      !Number.isSafeInteger(Number(prefix[1])) ||
+      Number(prefix[1]) !== fm.id
+    ) {
       problems.push(`id=${String(fm.id)} 与文件名前缀不符: ${basename}`);
     }
   }
-  if (rules.checkDoneCheckboxes && statusRole(profile, fm.status) === "done" &&
-      /^- \[ \]/gm.test(spec.content.slice(parseFrontmatter(spec.content)?.fullMatch.length || 0))) {
+  if (
+    rules.checkDoneCheckboxes &&
+    statusRole(profile, fm.status) === "done" &&
+    /^- \[ \]/gm.test(spec.content.slice(parseFrontmatter(spec.content)?.fullMatch.length || 0))
+  ) {
     problems.push("status=done 但仍有未勾验收项");
   }
   if (rules.forbidAddendumFilename && path.basename(spec.file).toLowerCase().includes("addendum")) {
@@ -2613,9 +2895,13 @@ function projectDependencyProblems(specs, profile) {
     if (!Array.isArray(deps)) continue;
     const valid = deps.filter((dep) => Number.isSafeInteger(dep) && dep >= 0);
     for (const dep of valid) {
-      if (!byId.has(dep)) errors.push(`${id}: ${profile.lifecycle.dependenciesField} 引用了不存在的 id ${dep}`);
+      if (!byId.has(dep))
+        errors.push(`${id}: ${profile.lifecycle.dependenciesField} 引用了不存在的 id ${dep}`);
     }
-    graph.set(id, valid.filter((dep) => byId.has(dep)));
+    graph.set(
+      id,
+      valid.filter((dep) => byId.has(dep)),
+    );
   }
   const visiting = new Set();
   const visited = new Set();
@@ -2634,13 +2920,21 @@ function projectDependencyProblems(specs, profile) {
   return errors;
 }
 
-export async function checkCI(cwd, { runProjectGates = true, live = false, preferVerify = false } = {}) {
+export async function checkCI(
+  cwd,
+  { runProjectGates = true, live = false, preferVerify = false } = {},
+) {
   const specs = loadSpecs(cwd);
   const profile = specs[0]?.profile || loadProjectProfile(cwd);
   const config = detectProjectConfig(cwd, profile);
   const errors = [];
   const warnings = [];
-  if (preferVerify && !profile.gates && typeof config.pkg?.scripts?.verify === "string" && config.pkg.scripts.verify.trim()) {
+  if (
+    preferVerify &&
+    !profile.gates &&
+    typeof config.pkg?.scripts?.verify === "string" &&
+    config.pkg.scripts.verify.trim()
+  ) {
     config.gates = [argvGate("verify", ["npm", "run", "verify"], cwd)];
   }
 
@@ -2674,8 +2968,11 @@ export async function checkCI(cwd, { runProjectGates = true, live = false, prefe
     }
 
     if (usesCoverageRecord(fm.audit) && fm.audit.verdict === "pass") {
-      try { await assertRetainedAuditEvidence(implementationRepo(cwd, fm), fm.audit); }
-      catch (error) { errors.push(`${id}: ${error.message}`); }
+      try {
+        await assertRetainedAuditEvidence(implementationRepo(cwd, fm), fm.audit);
+      } catch (error) {
+        errors.push(`${id}: ${error.message}`);
+      }
     }
     const drift = detectDrift(spec.content, fm, profile);
     if (drift.drifted) {
@@ -2686,7 +2983,8 @@ export async function checkCI(cwd, { runProjectGates = true, live = false, prefe
       if (role === "done") {
         warnings.push(`${id}: legacy done spec，仅做只读兼容`);
         continue;
-      } else if (role === "active") {
+      }
+      if (role === "active") {
         if (
           profile.lifecycle.legacyActive === "external-warning" &&
           isExternalLegacyActive(profile, id)
@@ -2734,23 +3032,23 @@ export async function checkCI(cwd, { runProjectGates = true, live = false, prefe
         errors.push(`${id}: evidence.e2e 非法 basename: ${String(e2eId)}`);
         continue;
       }
-      const resolvedE2e = safeE2eFile(
-        implRepo,
-        specConfig.e2eDir,
-        fileName
-      );
+      const resolvedE2e = safeE2eFile(implRepo, specConfig.e2eDir, fileName);
       if (resolvedE2e.problem) {
         errors.push(`${id}: evidence.e2e 无效: ${resolvedE2e.problem}`);
       }
     }
 
-    if (live && role === "active" && fm.workflow_version === WORKFLOW_VERSION && fm.impl?.snapshot_hash) {
+    if (
+      live &&
+      role === "active" &&
+      fm.workflow_version === WORKFLOW_VERSION &&
+      fm.impl?.snapshot_hash
+    ) {
       const snapshot = await repositorySnapshotHash(implRepo, { excludePaths: [spec.path] });
-      if (snapshot.hash !== fm.impl.snapshot_hash) errors.push(`${id}: live implementation snapshot stale; rerun impl in this checkout`);
+      if (snapshot.hash !== fm.impl.snapshot_hash)
+        errors.push(`${id}: live implementation snapshot stale; rerun impl in this checkout`);
     }
-    const evidenceMig = Array.isArray(fm.evidence?.migrations)
-      ? fm.evidence.migrations
-      : [];
+    const evidenceMig = Array.isArray(fm.evidence?.migrations) ? fm.evidence.migrations : [];
     for (const migNum of evidenceMig) {
       const padded = String(migNum).padStart(3, "0");
       const owner = specs.find(
@@ -2758,8 +3056,8 @@ export async function checkCI(cwd, { runProjectGates = true, live = false, prefe
           canonicalSpecId(candidate.frontmatter?.id) !== id &&
           Array.isArray(candidate.frontmatter?.evidence?.migrations) &&
           candidate.frontmatter.evidence.migrations.some(
-            (value) => String(value).padStart(3, "0") === padded
-          )
+            (value) => String(value).padStart(3, "0") === padded,
+          ),
       );
       if (owner) {
         errors.push(`${id}: 迁移号 ${padded} 与 ${owner.frontmatter.id} 冲突`);
@@ -2801,9 +3099,11 @@ export async function checkCI(cwd, { runProjectGates = true, live = false, prefe
     for (const w of warnings) lines.push(`  ! ${w}`);
   }
   if (errors.length === 0) {
-    lines.push(runProjectGates
-      ? "✅ check --ci 通过"
-      : "✅ check --ci --contracts-only 通过（项目门禁未运行）");
+    lines.push(
+      runProjectGates
+        ? "✅ check --ci 通过"
+        : "✅ check --ci --contracts-only 通过（项目门禁未运行）",
+    );
   }
 
   return { output: lines.join("\n"), pass: errors.length === 0 };
@@ -2859,7 +3159,7 @@ export async function renderBoard(cwd, signal) {
   const gateNames = config.gates.map((g) => g.name).join(", ");
   const lines = [`📋 spec-flow board — ${specs.length} 个 spec`];
   lines.push(
-    `门禁: ${gateNames || "无"} | e2e: ${config.e2eFiles.length} | 迁移: ${config.migFiles.length}`
+    `门禁: ${gateNames || "无"} | e2e: ${config.e2eFiles.length} | 迁移: ${config.migFiles.length}`,
   );
   lines.push("");
 
@@ -2881,7 +3181,11 @@ export async function renderBoard(cwd, signal) {
         parts.push(`impl ${fm.impl.pass === true ? "✓" : "✗"} ${fm.impl.at.slice(0, 10)}`);
       }
       if (fm.audit?.verdict) {
-        parts.push(fm.audit.output_info?.category === "protocol-error" ? "audit 工具协议错误（可修复）" : `audit ${fm.audit.verdict === "pass" ? "✓" : "✗"}`);
+        parts.push(
+          fm.audit.output_info?.category === "protocol-error"
+            ? "audit 工具协议错误（可修复）"
+            : `audit ${fm.audit.verdict === "pass" ? "✓" : "✗"}`,
+        );
       }
       const human = fm.evidence?.human || [];
       if (human.length > 0) {
@@ -2908,9 +3212,7 @@ export async function renderSpecDetail(cwd, id, signal) {
   const fm = spec.frontmatter;
   const profile = spec.profile || loadProjectProfile(cwd);
   const lines = [
-    `📋 ${fm.id ?? spec.file} [${spec.file}] ${
-      STATUS_MAP[fm.status] || fm.status || "?"
-    }`,
+    `📋 ${fm.id ?? spec.file} [${spec.file}] ${STATUS_MAP[fm.status] || fm.status || "?"}`,
   ];
   if (fm.review?.decision) lines.push(`review: ${fm.review.decision}`);
   const reviewersField = profile.lifecycle.approval.reviewersField;
@@ -2932,8 +3234,11 @@ export async function renderSpecDetail(cwd, id, signal) {
     if (e2e) lines.push(`  e2e: ${e2e}`);
   }
   if (fm.audit?.verdict) {
-    lines.push(`audit: ${fm.audit.output_info?.category === "protocol-error" ? "工具输出协议错误（非产品 FAIL）" : fm.audit.verdict} @${fm.audit.sha?.slice(0, 8)}`);
-    if (fm.audit.output_info?.category === "protocol-error") lines.push(fm.audit.output_info.message);
+    lines.push(
+      `audit: ${fm.audit.output_info?.category === "protocol-error" ? "工具输出协议错误（非产品 FAIL）" : fm.audit.verdict} @${fm.audit.sha?.slice(0, 8)}`,
+    );
+    if (fm.audit.output_info?.category === "protocol-error")
+      lines.push(fm.audit.output_info.message);
   }
   const human = fm.evidence?.human || [];
   if (human.length > 0) {
@@ -2944,9 +3249,7 @@ export async function renderSpecDetail(cwd, id, signal) {
     lines.push(`evidence.e2e: ${fm.evidence.e2e.join(", ")}`);
   }
   if (fm.evidence?.migrations?.length) {
-    const migs = fm.evidence.migrations
-      .map((m) => String(m).padStart(3, "0"))
-      .join(", ");
+    const migs = fm.evidence.migrations.map((m) => String(m).padStart(3, "0")).join(", ");
     lines.push(`evidence.migrations: ${migs}`);
   }
   if (statusRole(profile, fm.status) === "active") {
@@ -2961,53 +3264,74 @@ export async function renderSpecDetail(cwd, id, signal) {
 function mutateSpec(cwd, id, fn) {
   const spec = findSpec(cwd, id);
   if (!spec) return fn();
-  try { gitWorkspace(cwd); } catch { return fn(); }
+  try {
+    gitWorkspace(cwd);
+  } catch {
+    return fn();
+  }
   return withWorkspaceLock(cwd, `spec:${canonicalSpecId(spec.frontmatter?.id ?? id)}`, fn);
 }
-export async function begin(cwd, id, options) { return mutateSpec(cwd, id, () => beginUnlocked(cwd, id, options)); }
-export async function impl(cwd, id, options) { return mutateSpec(cwd, id, () => implUnlocked(cwd, id, options)); }
-export async function audit(cwd, id, options) { return mutateSpec(cwd, id, () => auditUnlocked(cwd, id, options)); }
-export function attest(cwd, id, item, note) { return mutateSpec(cwd, id, () => attestUnlocked(cwd, id, item, note)); }
-export async function done(cwd, id, options) { return mutateSpec(cwd, id, () => doneUnlocked(cwd, id, options)); }
+export async function begin(cwd, id, options) {
+  return mutateSpec(cwd, id, () => beginUnlocked(cwd, id, options));
+}
+export async function impl(cwd, id, options) {
+  return mutateSpec(cwd, id, () => implUnlocked(cwd, id, options));
+}
+export async function audit(cwd, id, options) {
+  return mutateSpec(cwd, id, () => auditUnlocked(cwd, id, options));
+}
+export function attest(cwd, id, item, note) {
+  return mutateSpec(cwd, id, () => attestUnlocked(cwd, id, item, note));
+}
+export async function done(cwd, id, options) {
+  return mutateSpec(cwd, id, () => doneUnlocked(cwd, id, options));
+}
 
 export function reserveSpecIdUnlocked(cwd, prefix = "") {
-  if (typeof prefix !== "string" || prefix.length > 80 ||
-      (prefix && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(prefix))) throw new Error("Invalid Spec ID prefix");
-    const { file, ids } = readReservations(cwd);
-    const observed = [...ids];
-    for (const tree of gitWorktrees(cwd)) {
-      for (const spec of loadSpecs(tree.root)) {
-        if (!spec.hasFrontmatter || !["string", "number"].includes(typeof spec.frontmatter.id)) {
-          throw new Error(`Cannot allocate with malformed/unmanaged Spec: ${spec.path}`);
-        }
-        observed.push(canonicalSpecId(spec.frontmatter.id));
-        // Filename candidates are burned too, even without strict numericFileId.
-        const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const match = spec.file.match(new RegExp(`^(${escaped}\\d+)(?:[._-]|\\.md$)`));
-        if (match) observed.push(match[1]);
+  if (
+    typeof prefix !== "string" ||
+    prefix.length > 80 ||
+    (prefix && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(prefix))
+  )
+    throw new Error("Invalid Spec ID prefix");
+  const { file, ids } = readReservations(cwd);
+  const observed = [...ids];
+  for (const tree of gitWorktrees(cwd)) {
+    for (const spec of loadSpecs(tree.root)) {
+      if (!spec.hasFrontmatter || !["string", "number"].includes(typeof spec.frontmatter.id)) {
+        throw new Error(`Cannot allocate with malformed/unmanaged Spec: ${spec.path}`);
       }
+      observed.push(canonicalSpecId(spec.frontmatter.id));
+      // Filename candidates are burned too, even without strict numericFileId.
+      const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const match = spec.file.match(new RegExp(`^(${escaped}\\d+)(?:[._-]|\\.md$)`));
+      if (match) observed.push(match[1]);
     }
-    let maximum = 0;
-    for (const id of observed) {
-      if (!id.startsWith(prefix)) continue;
-      const suffix = id.slice(prefix.length);
-      if (!/^\d+$/.test(suffix)) continue;
-      const number = Number(suffix);
-      if (!Number.isSafeInteger(number)) throw new Error("Spec ID namespace exceeds safe integers");
-      maximum = Math.max(maximum, number);
-    }
-    if (!Number.isSafeInteger(maximum + 1)) throw new Error("Spec ID namespace exhausted");
-    const id = prefix + (maximum + 1);
-    atomicWriteFileSync(file, JSON.stringify([...ids, id]) + "\n", 0o600);
-    return id;
+  }
+  let maximum = 0;
+  for (const id of observed) {
+    if (!id.startsWith(prefix)) continue;
+    const suffix = id.slice(prefix.length);
+    if (!/^\d+$/.test(suffix)) continue;
+    const number = Number(suffix);
+    if (!Number.isSafeInteger(number)) throw new Error("Spec ID namespace exceeds safe integers");
+    maximum = Math.max(maximum, number);
+  }
+  if (!Number.isSafeInteger(maximum + 1)) throw new Error("Spec ID namespace exhausted");
+  const id = prefix + (maximum + 1);
+  atomicWriteFileSync(file, `${JSON.stringify([...ids, id])}\n`, 0o600);
+  return id;
 }
 
 export async function withAllocator(cwd, fn) {
   for (let attempt = 0; ; attempt++) {
-    try { return await withWorkspaceLock(cwd, "spec-allocator", fn); }
-    catch (error) {
+    try {
+      return await withWorkspaceLock(cwd, "spec-allocator", fn);
+    } catch (error) {
       if (error.code !== "SPECFLOW_BUSY" || attempt >= 200) throw error;
-      await new Promise((resolve) => { setTimeout(resolve, 50); });
+      await new Promise((resolve) => {
+        setTimeout(resolve, 50);
+      });
     }
   }
 }
@@ -3034,8 +3358,12 @@ export async function renderWorktrees(cwd) {
       const fm = spec.frontmatter;
       let freshness = "";
       if (fm?.status === spec.profile.lifecycle.active && fm.impl?.snapshot_hash) {
-        const snapshot = await repositorySnapshotHash(implementationRepo(tree.root, fm), { excludePaths: [spec.path] });
-        const fresh = snapshot.hash === fm.impl.snapshot_hash && specContractHash(spec.content, spec.profile) === fm.impl.contract_hash;
+        const snapshot = await repositorySnapshotHash(implementationRepo(tree.root, fm), {
+          excludePaths: [spec.path],
+        });
+        const fresh =
+          snapshot.hash === fm.impl.snapshot_hash &&
+          specContractHash(spec.content, spec.profile) === fm.impl.contract_hash;
         freshness = fresh ? " | live fresh" : " | live STALE — rerun impl in this checkout";
       }
       lines.push(`  ${fm?.id ?? spec.file}: ${fm?.status ?? "unmanaged"}${freshness}`);
@@ -3051,7 +3379,7 @@ async function main() {
 
   if (!cmd) {
     console.log(
-      "Usage: node core.mjs board|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id> [--review-job JOB_ID]|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]"
+      "Usage: node core.mjs board|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id> [--review-job JOB_ID]|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]",
     );
     process.exit(1);
   }
@@ -3066,16 +3394,22 @@ async function main() {
         console.log(await renderWorktrees(cwd));
         break;
       case "spec-alloc":
-        if (args.length && (args.length !== 2 || args[0] !== "--prefix")) throw new Error("spec-alloc accepts only --prefix PREFIX");
+        if (args.length && (args.length !== 2 || args[0] !== "--prefix"))
+          throw new Error("spec-alloc accepts only --prefix PREFIX");
         console.log(await allocateSpecId(cwd, args[1] || ""));
         break;
       case "spec-new":
       case "review":
       case "review-budget": {
-        if (args.length !== 2 || args[0] !== "--json") throw new Error(`${cmd} requires --json <object>`);
+        if (args.length !== 2 || args[0] !== "--json")
+          throw new Error(`${cmd} requires --json <object>`);
         const input = JSON.parse(args[1]);
-        const result = cmd === "spec-new" ? await newSpec(cwd, input) : cmd === "review" ? await reviewSpec(cwd, input)
-          : await (await import("./review-engine.mjs")).authorizeReviewBudget(cwd, input);
+        const result =
+          cmd === "spec-new"
+            ? await newSpec(cwd, input)
+            : cmd === "review"
+              ? await reviewSpec(cwd, input)
+              : await (await import("./review-engine.mjs")).authorizeReviewBudget(cwd, input);
         console.log(JSON.stringify(result, null, 2));
         break;
       }
@@ -3096,18 +3430,20 @@ async function main() {
         break;
       case "audit": {
         const reviewJobId = args.length === 3 && args[1] === "--review-job" ? args[2] : undefined;
-        if (!args[0] || !(args.length === 1 || /^[a-f0-9]{32}$/.test(reviewJobId || ""))) throw new Error("audit requires <id> and optional --review-job <32-hex JOB_ID>; invalid parameters never prepare/spend");
+        if (!args[0] || !(args.length === 1 || /^[a-f0-9]{32}$/.test(reviewJobId || "")))
+          throw new Error(
+            "audit requires <id> and optional --review-job <32-hex JOB_ID>; invalid parameters never prepare/spend",
+          );
         console.log(
           await audit(cwd, args[0], {
             ...(reviewJobId ? { reviewJobId } : {}),
             onProgress: (t) => console.error(`⏳ ${t}`),
-          })
+          }),
         );
         break;
       }
       case "attest":
-        if (!args[0] || !args[1] || !args[2])
-          throw new Error("attest requires <id> <item> <note>");
+        if (!args[0] || !args[1] || !args[2]) throw new Error("attest requires <id> <item> <note>");
         console.log(attest(cwd, args[0], args[1], args.slice(2).join(" ")));
         break;
       case "done":
@@ -3119,11 +3455,16 @@ async function main() {
         break;
       case "check":
         if (args.includes("--ci")) {
-          if (args.length !== new Set(args).size ||
-              args.some((arg) => !["--ci", "--contracts-only", "--live"].includes(arg))) {
+          if (
+            args.length !== new Set(args).size ||
+            args.some((arg) => !["--ci", "--contracts-only", "--live"].includes(arg))
+          ) {
             throw new Error("check accepts only --ci and optional --contracts-only / --live");
           }
-          const result = await checkCI(cwd, { runProjectGates: !args.includes("--contracts-only"), live: args.includes("--live") });
+          const result = await checkCI(cwd, {
+            runProjectGates: !args.includes("--contracts-only"),
+            live: args.includes("--live"),
+          });
           console.log(result.output);
           process.exit(result.pass ? 0 : 1);
         } else {
@@ -3142,7 +3483,10 @@ async function main() {
 // Run if executed directly
 // Node resolves symlinked /tmp paths to /private/tmp on macOS; compare actual files,
 // not raw URL strings, so a downloaded/copied private Action CLI really executes.
-if (process.argv[1] && fs.existsSync(process.argv[1]) &&
-    fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
+if (
+  process.argv[1] &&
+  fs.existsSync(process.argv[1]) &&
+  fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))
+) {
   main();
 }

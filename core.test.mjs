@@ -1,45 +1,47 @@
 // spec-flow core.test.mjs — node --test self-verification
-import { test } from "node:test";
+
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
 import { execSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { test } from "node:test";
 import {
-  parseFrontmatter,
-  writeFrontmatter,
-  extractStatusLine,
-  updateStatusLine,
+  appendCommitLedger,
+  attest,
+  audit,
+  begin,
+  board,
+  buildAuditorArgs,
+  checkCI,
+  commitGateAction,
+  commitGateDecision,
   detectDrift,
   detectProjectConfig,
-  runGates,
-  loadSpecs,
-  getSpecDirectories,
-  findSpec,
-  migrateAlloc,
-  begin,
-  attest,
   done,
-  board,
-  checkCI,
-  audit,
-  shouldBypass,
-  commitGateAction,
-  isCommitCommand,
-  parseCommitTargetRepo,
-  resolveCommitRepo,
-  commitGateDecision,
-  appendCommitLedger,
-  parseE2eOutput,
+  extractStatusLine,
+  findSpec,
+  getSpecDirectories,
   impl,
-  buildAuditorArgs,
+  isCommitCommand,
+  loadSpecs,
+  migrateAlloc,
   nextStep,
+  parseCommitTargetRepo,
+  parseE2eOutput,
+  parseFrontmatter,
   parseVerdictJson,
   renderBoard,
   renderSpecDetail,
+  resolveCommitRepo,
+  runGates,
+  shouldBypass,
+  updateStatusLine,
+  writeFrontmatter,
 } from "./core.mjs";
 
 import { authorizeReviewBudget } from "./review-engine.mjs";
+
 process.env.SPECFLOW_REVIEW_BUDGET_ID = "mechanical-tests";
 
 // Helper: create temp project
@@ -56,22 +58,23 @@ function mkProject(files = {}) {
 function gitInit(dir) {
   execSync(
     "git init -q && git config user.email spec-flow@example.invalid && git config user.name spec-flow && git add . && git commit -qm init --allow-empty",
-    { cwd: dir, stdio: "pipe" }
+    { cwd: dir, stdio: "pipe" },
   );
-  authorizeReviewBudget(dir, { id: "mechanical-tests", calls: 30, note: "Synthetic fake-auditor fixture only; never this delivery's real review grant." });
+  authorizeReviewBudget(dir, {
+    id: "mechanical-tests",
+    calls: 30,
+    note: "Synthetic fake-auditor fixture only; never this delivery's real review grant.",
+  });
 }
 
 function approvedSpec({ id = "S1.0", repo, evidence = {}, body = "## 验收标准\n\n- works" } = {}) {
-  return writeFrontmatter(
-    `# ${id}\n\n- 状态：已批准\n\n${body}\n`,
-    {
-      id,
-      status: "approved",
-      review: { decision: "approved" },
-      evidence: { human: [], ...evidence },
-      ...(repo ? { impl: { repo } } : {}),
-    }
-  );
+  return writeFrontmatter(`# ${id}\n\n- 状态：已批准\n\n${body}\n`, {
+    id,
+    status: "approved",
+    review: { decision: "approved" },
+    evidence: { human: [], ...evidence },
+    ...(repo ? { impl: { repo } } : {}),
+  });
 }
 
 function fakeAuditor(verdict = "pass", criteria, extra = {}) {
@@ -92,7 +95,7 @@ function fakeAuditor(verdict = "pass", criteria, extra = {}) {
   fs.writeFileSync(
     bin,
     `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage(${JSON.stringify(result)},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
-    { mode: 0o755 }
+    { mode: 0o755 },
   );
   return { bin, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
@@ -100,7 +103,7 @@ function fakeAuditor(verdict = "pass", criteria, extra = {}) {
 async function implementedLifecycle({
   externalRepo = false,
   evidence = {},
-  gatesPackage = { scripts: { test: "node -e \"process.exit(0)\"" } },
+  gatesPackage = { scripts: { test: 'node -e "process.exit(0)"' } },
   implementationFiles = {},
 } = {}) {
   const project = mkProject({});
@@ -114,7 +117,7 @@ async function implementedLifecycle({
   }
   fs.writeFileSync(
     path.join(project, "docs/specs/S1.0.md"),
-    approvedSpec({ repo: externalRepo ? repo : undefined, evidence })
+    approvedSpec({ repo: externalRepo ? repo : undefined, evidence }),
   );
   gitInit(repo);
   if (externalRepo) gitInit(project);
@@ -318,10 +321,7 @@ evidence:
 - 状态：进行中`,
   });
 
-  assert.throws(
-    () => attest(dir, "S1.0", "R1", "short"),
-    /too short/
-  );
+  assert.throws(() => attest(dir, "S1.0", "R1", "short"), /too short/);
 });
 
 test("attest: accept valid note and bind both hashes", async () => {
@@ -330,7 +330,7 @@ test("attest: accept valid note and bind both hashes", async () => {
     project,
     "S1.0",
     "R1",
-    "Verified settings save and reload with fixture account qa-17"
+    "Verified settings save and reload with fixture account qa-17",
   );
   assert.ok(output.includes("已登记"));
 
@@ -387,7 +387,7 @@ test("check --ci keeps v2 done historical: no live snapshot or current evidence-
 
 test("done: ledger includes bound impl and audit summary", async () => {
   const { project } = await passingLifecycle({
-    gatesPackage: { scripts: { typecheck: "node -e \"process.exit(0)\"" } },
+    gatesPackage: { scripts: { typecheck: 'node -e "process.exit(0)"' } },
   });
   const output = await done(project, "S1.0");
   assert.ok(output.includes("已完成"));
@@ -430,14 +430,17 @@ test("spec discovery: scans docs/project singular and plural directories without
 
   assert.deepEqual(
     getSpecDirectories(dir).map((item) => item.relativePath),
-    ["docs/specs", "docs/spec", "specs", "spec"]
+    ["docs/specs", "docs/spec", "specs", "spec"],
   );
   assert.deepEqual(
     loadSpecs(dir).map((item) => item.relativePath),
-    ["docs/spec/S2.md", "docs/specs/S1.md", "spec/S4.md", "specs/S3.md"]
+    ["docs/spec/S2.md", "docs/specs/S1.md", "spec/S4.md", "specs/S3.md"],
   );
   assert.equal(findSpec(dir, "S3").relativePath, "specs/S3.md");
-  assert.equal(loadSpecs(dir).some((item) => item.frontmatter?.id === "S5"), false);
+  assert.equal(
+    loadSpecs(dir).some((item) => item.frontmatter?.id === "S5"),
+    false,
+  );
 });
 
 test("spec discovery: ignores a candidate symlink that escapes the project", () => {
@@ -528,7 +531,10 @@ test("parseCommitTargetRepo: cd / -C chains resolve to target dir (S1.1)", () =>
   // S1.1 audit findings: quoted dirs, ~ expansion, -C in other segment
   assert.equal(parseCommitTargetRepo('git -C "/tmp/my dir" commit', cwd), "/tmp/my dir");
   assert.equal(parseCommitTargetRepo('cd "/tmp/my dir" && git commit', cwd), "/tmp/my dir");
-  assert.equal(parseCommitTargetRepo("cd ~/pages && git commit", cwd), path.join(os.homedir(), "pages"));
+  assert.equal(
+    parseCommitTargetRepo("cd ~/pages && git commit", cwd),
+    path.join(os.homedir(), "pages"),
+  );
   assert.equal(parseCommitTargetRepo("git -C /a status && git commit", cwd), null);
 });
 
@@ -559,7 +565,7 @@ test("commitGateDecision: external repo without gates → allow (S1.1)", async (
   // The commit must be allowed — session gates must not spill over (S1.1 case).
   const session = mkProject({
     "package.json": JSON.stringify({
-      scripts: { typecheck: "node -e \"process.exit(1)\"" },
+      scripts: { typecheck: 'node -e "process.exit(1)"' },
     }),
   });
   const target = mkProject({}); // no package.json → no gates
@@ -572,10 +578,7 @@ test("commitGateDecision: external repo without gates → allow (S1.1)", async (
     return; // skip if git unavailable
   }
 
-  const decision = await commitGateDecision(
-    session,
-    `cd ${target} && git commit -m x`
-  );
+  const decision = await commitGateDecision(session, `cd ${target} && git commit -m x`);
   assert.equal(decision.action, "allow");
   assert.equal(decision.external, true);
   assert.equal(decision.repo, fs.realpathSync(target));
@@ -585,7 +588,7 @@ test("commitGateDecision: block reason includes the repo path (S1.1 audit)", asy
   const session = mkProject({ "package.json": "{}" });
   const target = mkProject({
     "package.json": JSON.stringify({
-      scripts: { typecheck: "node -e \"process.exit(1)\"" },
+      scripts: { typecheck: 'node -e "process.exit(1)"' },
     }),
   });
   try {
@@ -609,7 +612,7 @@ test("commitGateDecision: unresolved target falls back to session gating (S1.1 a
   // targetRepo marked unknown.
   const session = mkProject({
     "package.json": JSON.stringify({
-      scripts: { typecheck: "node -e \"process.exit(1)\"" },
+      scripts: { typecheck: 'node -e "process.exit(1)"' },
     }),
   });
   const noGit = mkProject({});
@@ -681,7 +684,7 @@ test("commitGateDecision: external repo gates red → block with repo context (S
   const session = mkProject({ "package.json": "{}" });
   const target = mkProject({
     "package.json": JSON.stringify({
-      scripts: { typecheck: "node -e \"process.exit(1)\"" },
+      scripts: { typecheck: 'node -e "process.exit(1)"' },
     }),
   });
   try {
@@ -720,14 +723,8 @@ test("bypass: after separator is recognized", () => {
 });
 
 test("bypass: substring in commit message is NOT recognized", () => {
-  assert.equal(
-    shouldBypass('git commit -m "document SPECFLOW_BYPASS=1 behavior"'),
-    false
-  );
-  assert.equal(
-    shouldBypass('git commit -m "fix: SPECFLOW_BYPASS=1 now works"'),
-    false
-  );
+  assert.equal(shouldBypass('git commit -m "document SPECFLOW_BYPASS=1 behavior"'), false);
+  assert.equal(shouldBypass('git commit -m "fix: SPECFLOW_BYPASS=1 now works"'), false);
 });
 
 test("bypass: no bypass var is not recognized", () => {
@@ -778,7 +775,7 @@ test("e2e parse: PASS must be at line start", () => {
 
 async function implE2eFixture(source, evidence = ["e2e-01"]) {
   const dir = mkProject({
-    "package.json": JSON.stringify({ scripts: { test: "node -e \"process.exit(0)\"" } }),
+    "package.json": JSON.stringify({ scripts: { test: 'node -e "process.exit(0)"' } }),
     "tests/e2e/e2e-01.mjs": source,
     "docs/specs/S1.0.md": approvedSpec({ evidence: { e2e: evidence } }),
   });
@@ -789,24 +786,20 @@ async function implE2eFixture(source, evidence = ["e2e-01"]) {
 
 test("impl: e2e with FAIL lines in output is detected as failure", async () => {
   const { output } = await implE2eFixture(
-    `console.log("PASS x"); console.error("FAIL y"); process.exit(0);`
+    `console.log("PASS x"); console.error("FAIL y"); process.exit(0);`,
   );
   assert.match(output, /❌ FAIL/);
   assert.match(output, /e2e-01: ✗/);
 });
 
 test("impl: e2e with all PASS lines passes", async () => {
-  const { output } = await implE2eFixture(
-    `console.log("PASS a"); console.log("PASS b");`
-  );
+  const { output } = await implE2eFixture(`console.log("PASS a"); console.log("PASS b");`);
   assert.match(output, /✅ PASS/);
   assert.match(output, /2 PASS/);
 });
 
 test("impl: e2e with non-zero exit is failure", async () => {
-  const { output } = await implE2eFixture(
-    `console.log("PASS x"); process.exit(1);`
-  );
+  const { output } = await implE2eFixture(`console.log("PASS x"); process.exit(1);`);
   assert.match(output, /❌ FAIL/);
 });
 
@@ -836,14 +829,21 @@ test("audit: pass result caches only on unchanged implementation and contract ha
   await assert.rejects(audit(project, "S1.0"), /contract changed/);
 });
 
-test("audit: failed job is never respawned; explicit re-impl permits a new charged review",  async () => {
+test("audit: failed job is never respawned; explicit re-impl permits a new charged review", async () => {
   const { project } = await implementedLifecycle();
   const counter = path.join(os.tmpdir(), `specflow-audit-count-${process.pid}-${Date.now()}`);
   const auditor = fakeAuditor("fail", [
     { criterion: "c1", status: "fail", evidence: "missing implementation" },
   ]);
   const original = fs.readFileSync(auditor.bin, "utf8");
-  fs.writeFileSync(auditor.bin, original.replace("console.log", `fs.appendFileSync(${JSON.stringify(counter)}, 'x\\n');console.log`), { mode: 0o755 });
+  fs.writeFileSync(
+    auditor.bin,
+    original.replace(
+      "console.log",
+      `fs.appendFileSync(${JSON.stringify(counter)}, 'x\\n');console.log`,
+    ),
+    { mode: 0o755 },
+  );
   const savedBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor.bin;
   try {
@@ -893,13 +893,19 @@ test("audit: runtime/cross-repository/human acceptance facts defer instead of bl
     "cross-repository engine parity is remote evidence; deferred to the owning repository",
     "human R1 sign-off is an attestation fact; deferred to spec_attest",
   ];
-  const auditor = fakeAuditor("pass", [
-    {
-      criterion: "recorded gate/impl evidence is present, current and bound to the audited revision",
-      status: "pass",
-      evidence: "recorded impl.gates.test.pass=true together with bound snapshot/contract hashes in the packet",
-    },
-  ], { out_of_scope: deferred });
+  const auditor = fakeAuditor(
+    "pass",
+    [
+      {
+        criterion:
+          "recorded gate/impl evidence is present, current and bound to the audited revision",
+        status: "pass",
+        evidence:
+          "recorded impl.gates.test.pass=true together with bound snapshot/contract hashes in the packet",
+      },
+    ],
+    { out_of_scope: deferred },
+  );
   const savedBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor.bin;
   try {
@@ -924,9 +930,17 @@ test("audit: runtime/cross-repository/human acceptance facts defer instead of bl
 test("audit: out_of_scope never rescues unverifiable or empty criteria (fail closed)", async () => {
   const savedBin = process.env.SPECFLOW_AUDIT_BIN;
   const runtime = await implementedLifecycle();
-  const unverifiable = fakeAuditor("pass", [
-    { criterion: "the external Action really ran check/verify in the other repository", status: "unverifiable", evidence: "needs cross-repository runtime truth" },
-  ], { out_of_scope: ["all runtime facts deferred"] });
+  const unverifiable = fakeAuditor(
+    "pass",
+    [
+      {
+        criterion: "the external Action really ran check/verify in the other repository",
+        status: "unverifiable",
+        evidence: "needs cross-repository runtime truth",
+      },
+    ],
+    { out_of_scope: ["all runtime facts deferred"] },
+  );
   const empty = fakeAuditor("pass", [], { out_of_scope: ["all acceptance items deferred"] });
   try {
     process.env.SPECFLOW_AUDIT_BIN = unverifiable.bin;
@@ -934,7 +948,10 @@ test("audit: out_of_scope never rescues unverifiable or empty criteria (fail clo
     const runtimeRecord = loadSpecs(runtime.project)[0].frontmatter.audit;
     assert.equal(runtimeRecord.verdict, "fail");
     assert.equal(runtimeRecord.criteria[0].status, "unverifiable");
-    assert.throws(() => attest(runtime.project, "S1.0", "R1", "note long enough for the human gate sample"), /passing impl and audit|not consistently passing/);
+    assert.throws(
+      () => attest(runtime.project, "S1.0", "R1", "note long enough for the human gate sample"),
+      /passing impl and audit|not consistently passing/,
+    );
 
     const noCriteria = await implementedLifecycle();
     process.env.SPECFLOW_AUDIT_BIN = empty.bin;
@@ -979,7 +996,11 @@ test("buildAuditorArgs: includes --model when model is provided", () => {
     "--no-extensions",
     "--no-skills",
     "--no-prompt-templates",
-    "--no-context-files", "--no-themes", "--no-approve", "--mode", "json",
+    "--no-context-files",
+    "--no-themes",
+    "--no-approve",
+    "--mode",
+    "json",
     "--model",
     "gpt-4",
   ]);
@@ -988,14 +1009,17 @@ test("buildAuditorArgs: includes --model when model is provided", () => {
   cleanup();
 });
 
+// biome-ignore lint/suspicious/noTemplateCurlyInString: the title documents the literal ${} placeholder
 test("buildAuditorArgs: preserves backticks, ${}, $(), double quotes in prompt file", () => {
-  const nasty = 'echo `whoami` && ${HOME} && $(cat /etc/passwd) and "quoted"'; // eslint-disable-line no-template-curly-in-string -- must stay literal
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: must stay literal
+  const nasty = 'echo `whoami` && ${HOME} && $(cat /etc/passwd) and "quoted"';
   const { args, cleanup } = buildAuditorArgs(nasty);
   const file = args[args.length - 1].slice(1);
   const content = fs.readFileSync(file, "utf8");
   assert.strictEqual(content, nasty);
   assert.ok(content.includes("`whoami`"));
-  assert.ok(content.includes("${HOME}")); // eslint-disable-line no-template-curly-in-string -- must stay literal
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: must stay literal
+  assert.ok(content.includes("${HOME}"));
   assert.ok(content.includes("$(cat /etc/passwd)"));
   assert.ok(content.includes('"quoted"'));
   cleanup();
@@ -1006,7 +1030,8 @@ test("buildAuditorArgs: returns a new array each call (no shared mutation)", () 
   const { args: b, cleanup: cb } = buildAuditorArgs("y");
   a.push("MUTATE");
   assert.ok(!b.includes("MUTATE"));
-  ca(); cb();
+  ca();
+  cb();
 });
 
 test("buildAuditorArgs: long prompt over argv limit goes to file", () => {
@@ -1151,10 +1176,7 @@ test("nextStep: board stays record-only; done owns live snapshot validation", as
   const { project, repo } = await passingLifecycle({ externalRepo: true });
   assert.equal(await nextStep(project, loadSpecs(project)[0]), "下一步：spec_done S1.0");
   fs.writeFileSync(path.join(repo, "external-change.txt"), "changed\n");
-  assert.equal(
-    await nextStep(project, loadSpecs(project)[0]),
-    "下一步：spec_done S1.0"
-  );
+  assert.equal(await nextStep(project, loadSpecs(project)[0]), "下一步：spec_done S1.0");
   await assert.rejects(done(project, "S1.0"), /实现快照已变化/);
 });
 
@@ -1172,7 +1194,7 @@ test("renderBoard: shows status, impl/audit/attest, and accurate next step", asy
   attest(project, "S1.0", "R1", "Verified settings save and reload with fixture account qa-17");
   fs.writeFileSync(
     path.join(project, "package.json"),
-    JSON.stringify({ scripts: { typecheck: "node -e \"\"" } })
+    JSON.stringify({ scripts: { typecheck: 'node -e ""' } }),
   );
   fs.writeFileSync(path.join(project, "docs/specs/S2.0.md"), "# No frontmatter\n\nBody\n");
 
@@ -1264,7 +1286,10 @@ attestations:
   }
   // Patch the audit sha to the real HEAD so nextStep says spec_done
   let specContent = fs.readFileSync(path.join(dir, "docs/specs/S1.0.md"), "utf8");
-  specContent = specContent.replace("abc12345", execSync("git rev-parse HEAD", { cwd: dir, stdio: "pipe" }).toString().trim());
+  specContent = specContent.replace(
+    "abc12345",
+    execSync("git rev-parse HEAD", { cwd: dir, stdio: "pipe" }).toString().trim(),
+  );
   fs.writeFileSync(path.join(dir, "docs/specs/S1.0.md"), specContent);
 
   const output = await renderSpecDetail(dir, "S1.0");
@@ -1358,7 +1383,9 @@ console.log("✅ All tests defined");
 
 test("runGates: success captures stdout tail for evidence", async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-gates-tail-"));
-  const res = await runGates(cwd, [{ name: "echo", cmd: "node -e \"console.log('a');console.log('Tests 218 passed')\"" }]);
+  const res = await runGates(cwd, [
+    { name: "echo", cmd: "node -e \"console.log('a');console.log('Tests 218 passed')\"" },
+  ]);
   assert.equal(res.echo.pass, true);
   assert.match(res.echo.tail, /Tests 218 passed/);
 });
@@ -1374,12 +1401,17 @@ test("runGates: gate timeout defaults to 15min and is configurable via SPECFLOW_
 
     // 显式设成 1s → 睡 3s 的命令必须被判失败（证明变量真的生效）
     process.env.SPECFLOW_GATE_TIMEOUT = "1000";
-    const slow = await runGates(cwd, [{ name: "slow", cmd: "node -e \"setTimeout(() => console.log('late'), 3000)\"" }]);
+    const slow = await runGates(cwd, [
+      { name: "slow", cmd: "node -e \"setTimeout(() => console.log('late'), 3000)\"" },
+    ]);
     assert.equal(slow.slow.pass, false);
 
     // 非法值 fail closed，不静默回退
     process.env.SPECFLOW_GATE_TIMEOUT = "abc";
-    await assert.rejects(() => runGates(cwd, [{ name: "x", cmd: "node -e 0" }]), /Invalid SPECFLOW_GATE_TIMEOUT/);
+    await assert.rejects(
+      () => runGates(cwd, [{ name: "x", cmd: "node -e 0" }]),
+      /Invalid SPECFLOW_GATE_TIMEOUT/,
+    );
   } finally {
     if (saved === undefined) delete process.env.SPECFLOW_GATE_TIMEOUT;
     else process.env.SPECFLOW_GATE_TIMEOUT = saved;

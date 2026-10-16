@@ -1,15 +1,12 @@
 // S1.2 real CLI/subprocess acceptance: evidence cannot disappear into empty sets,
 // the auditor is isolated, and terminal closure is hash/criteria bound.
+
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import {
-  loadSpecs,
-  parseFrontmatter,
-  writeFrontmatter,
-} from "../../core.mjs";
+import { loadSpecs, parseFrontmatter, writeFrontmatter } from "../../core.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const core = path.resolve(here, "../../core.mjs");
@@ -39,7 +36,7 @@ function spec(id, { evidence = {}, scope } = {}) {
       review: { decision: "approved" },
       evidence: { human: [], ...evidence },
       ...(scope ? { scope } : {}),
-    }
+    },
   );
 }
 
@@ -57,7 +54,7 @@ function init(root) {
       "-qm",
       "init",
     ],
-    { cwd: root }
+    { cwd: root },
   );
 }
 
@@ -78,38 +75,39 @@ try {
   write(
     evidenceRepo,
     "docs/specs/S1.md",
-    spec("S1", { evidence: { e2e: ["../escape", "e2e-missing"], migrations: [1] } })
+    spec("S1", { evidence: { e2e: ["../escape", "e2e-missing"], migrations: [1] } }),
   );
-  write(
-    evidenceRepo,
-    "docs/specs/S2.md",
-    spec("S2", { evidence: { migrations: [1] } })
-  );
+  write(evidenceRepo, "docs/specs/S2.md", spec("S2", { evidence: { migrations: [1] } }));
   write(
     evidenceRepo,
     "tests/escape.mjs",
-    `import fs from "node:fs"; fs.writeFileSync(${JSON.stringify(marker)}, "executed"); console.log("PASS escaped");\n`
+    `import fs from "node:fs"; fs.writeFileSync(${JSON.stringify(marker)}, "executed"); console.log("PASS escaped");\n`,
   );
   write(evidenceRepo, "packages/db/src/migrations/001-conflict.ts", "export {};\n");
   init(evidenceRepo);
 
-  check(cli(evidenceRepo, "begin", "S1").status === 0, "CLI begin migrates approved spec to workflow v2");
+  check(
+    cli(evidenceRepo, "begin", "S1").status === 0,
+    "CLI begin migrates approved spec to workflow v2",
+  );
   const failedImpl = cli(evidenceRepo, "impl", "S1");
   check(
     failedImpl.status === 0 && /❌ FAIL/.test(failedImpl.stdout),
-    "CLI impl reports non-passing evidence instead of an empty success"
+    "CLI impl reports non-passing evidence instead of an empty success",
   );
-  const failedRecord = loadSpecs(evidenceRepo).find((item) => item.frontmatter.id === "S1").frontmatter;
+  const failedRecord = loadSpecs(evidenceRepo).find(
+    (item) => item.frontmatter.id === "S1",
+  ).frontmatter;
   check(
     failedRecord.impl.pass === false &&
       failedRecord.impl.e2e["../escape"].pass === false &&
       failedRecord.impl.e2e["e2e-missing"].pass === false,
-    "invalid and missing E2E results are persisted explicitly"
+    "invalid and missing E2E results are persisted explicitly",
   );
   check(
     failedRecord.impl.migrations.pass === false &&
       failedRecord.impl.migrations.problems[0].conflictWith === "S2",
-    "migration conflict is persisted"
+    "migration conflict is persisted",
   );
   check(!fs.existsSync(marker), "path-traversal E2E was not executed");
   check(cli(evidenceRepo, "done", "S1").status !== 0, "done rejects failed E2E/migration evidence");
@@ -118,12 +116,21 @@ try {
   const closureRepo = path.join(sandbox, "closure");
   fs.mkdirSync(closureRepo, { recursive: true });
   write(closureRepo, "docs/specs/S3.md", spec("S3"));
-  write(closureRepo, "package.json", JSON.stringify({ scripts: { test: "node -e \"require('node:fs').readFileSync('implementation.txt')\"" } }));
+  write(
+    closureRepo,
+    "package.json",
+    JSON.stringify({
+      scripts: { test: "node -e \"require('node:fs').readFileSync('implementation.txt')\"" },
+    }),
+  );
   init(closureRepo);
   check(cli(closureRepo, "begin", "S3").status === 0, "second spec begins");
   write(closureRepo, "implementation.txt", "untracked implementation evidence\n");
   const goodImpl = cli(closureRepo, "impl", "S3");
-  check(goodImpl.status === 0 && /✅ PASS/.test(goodImpl.stdout), "clean impl records explicit pass and snapshot");
+  check(
+    goodImpl.status === 0 && /✅ PASS/.test(goodImpl.stdout),
+    "clean impl records explicit pass and snapshot",
+  );
 
   const argsFile = path.join(sandbox, "auditor-args.json");
   const promptFile = path.join(sandbox, "auditor-prompt.txt");
@@ -143,21 +150,38 @@ console.log(JSON.stringify(mechanicalCoverage({
   scope_deviations: []
 }, fs.readFileSync(atFile.slice(1), "utf8"))));
 `,
-    { mode: 0o755 }
+    { mode: 0o755 },
   );
   process.env.SPECFLOW_AUDIT_BIN = auditor;
   process.env.SPECFLOW_REVIEW_BUDGET_ID = "mechanical-tests";
-  check(cli(closureRepo, "review-budget", "--json", JSON.stringify({ id: "mechanical-tests", calls: 1, note: "Synthetic CLI fake auditor fixture only, not the real delivery's budget." })).status === 0, "fake CLI review has an explicit finite grant");
+  check(
+    cli(
+      closureRepo,
+      "review-budget",
+      "--json",
+      JSON.stringify({
+        id: "mechanical-tests",
+        calls: 1,
+        note: "Synthetic CLI fake auditor fixture only, not the real delivery's budget.",
+      }),
+    ).status === 0,
+    "fake CLI review has an explicit finite grant",
+  );
   const auditResult = cli(closureRepo, "audit", "S3");
-  check(auditResult.status === 0 && /✅ PASS/.test(auditResult.stdout), "isolated fake auditor produces bound pass evidence");
+  check(
+    auditResult.status === 0 && /✅ PASS/.test(auditResult.stdout),
+    "isolated fake auditor produces bound pass evidence",
+  );
   const childArgs = JSON.parse(fs.readFileSync(argsFile, "utf8"));
   check(
-    childArgs.includes("--no-tools") && childArgs.includes("--no-session") && childArgs.includes("--no-extensions"),
-    "audit subprocess disables tools, session, and extensions"
+    childArgs.includes("--no-tools") &&
+      childArgs.includes("--no-session") &&
+      childArgs.includes("--no-extensions"),
+    "audit subprocess disables tools, session, and extensions",
   );
   check(
     fs.readFileSync(promptFile, "utf8").includes("# untracked: implementation.txt"),
-    "audit prompt contains untracked implementation patch without truncation placeholder"
+    "audit prompt contains untracked implementation patch without truncation placeholder",
   );
 
   const specFile = path.join(closureRepo, "docs/specs/S3.md");
@@ -172,14 +196,18 @@ console.log(JSON.stringify(mechanicalCoverage({
   parsed.data.audit.criteria[0].status = "pass";
   fs.writeFileSync(specFile, writeFrontmatter(content, parsed.data));
   write(closureRepo, "dirty-after-audit.txt", "dirty\n");
-  check(cli(closureRepo, "done", "S3").status !== 0, "done rejects a changed live implementation snapshot");
+  check(
+    cli(closureRepo, "done", "S3").status !== 0,
+    "done rejects a changed live implementation snapshot",
+  );
   fs.rmSync(path.join(closureRepo, "dirty-after-audit.txt"));
 
   const closed = cli(closureRepo, "done", "S3");
   check(closed.status === 0 && /已完成/.test(closed.stdout), "unchanged bound record reaches done");
   check(
-    loadSpecs(closureRepo).find((item) => item.frontmatter.id === "S3").frontmatter.status === "done",
-    "terminal status is persisted"
+    loadSpecs(closureRepo).find((item) => item.frontmatter.id === "S3").frontmatter.status ===
+      "done",
+    "terminal status is persisted",
   );
 } catch (error) {
   failures++;

@@ -1,0 +1,115 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+
+  // Single formatter, import sorter and full linter. Every rule below that
+  // Biome does not recommend on its own is annotated with the ESLint rule it
+  // took over from the former ESLint setup. The eight bug classes Biome cannot
+  // express today live in `eslint.config.mjs` (residual gate, `**/*.mjs` only).
+  // The gate lives in package.json: `biome check --error-on-warnings` fails on
+  // errors *and* warnings, so a rule Biome ships as "warn" still blocks here.
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  // Never reformat content that is verified by hash: `docs/**` holds retained
+  // review evidence, and `tests/fixtures/review-precision/**` is pinned by
+  // sha256 in `manifest.json` / the frozen probe inputs. The lockfile is
+  // generated. Everything else (source, tests, E2E harnesses, manifests) is
+  // formatted.
+  "files": {
+    "includes": [
+      "**",
+      "!node_modules",
+      "!docs",
+      "!coverage",
+      "!.pi",
+      "!package-lock.json",
+      "!tests/fixtures/review-precision"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": { "source": { "organizeImports": "on" } }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      // Biome's stable recommended set already covers the bug classes the
+      // ESLint gate was built around (loose equality, unreachable code,
+      // duplicate keys/cases, unsafe `finally`, promise-executor misuse,
+      // unused bindings, `any` leaks, ...).
+      "preset": "recommended",
+
+      // ── enabled by the ESLint gate, not recommended by Biome ────────────
+      "complexity": {
+        "noImplicitCoercions": "error", // no-implicit-coercion
+        "noUselessReturn": "error" // no-useless-return
+      },
+      "correctness": {
+        "noUndeclaredVariables": "error" // no-undef
+      },
+      "performance": {
+        "noAwaitInLoops": "off" // no-await-in-loop: sequential gates are intentional
+      },
+      "style": {
+        "noCommonJs": "error", // @typescript-eslint/no-require-imports
+        "noNamespace": "error", // @typescript-eslint/no-namespace
+        "noUselessElse": "error", // no-else-return
+        "useAsConstAssertion": "error", // @typescript-eslint/prefer-as-const
+        "useCollapsedElseIf": "error", // no-lonely-if
+        "useConsistentObjectDefinitions": "error", // object-shorthand
+        "useErrorCause": "error", // keep the original error when re-wrapping
+        "useObjectSpread": "error", // prefer-object-spread
+        "useSpreadOverApply": "error", // prefer-spread
+        "useThrowOnlyError": "error" // no-throw-literal
+      },
+      "suspicious": {
+        "noConstantBinaryExpressions": "error", // no-constant-binary-expression
+        "noEmptyBlockStatements": "error", // no-empty (a comment exempts a block, like allowEmptyCatch)
+        "noShadow": "error", // no-shadow
+        "noUnassignedVariables": "error", // no-undef
+        "noUnusedExpressions": "error", // no-unused-expressions
+        "noVar": "error", // no-var
+        "useIterableCallbackReturn": {
+          // array-callback-return { checkForEach: false, allowImplicit: false }
+          "level": "error",
+          "options": { "checkForEach": false, "allowImplicit": false }
+        }
+      },
+      // Nursery rules carrying the remaining ESLint bug classes. Pinned to
+      // "error" so a nursery rename/release surfaces as a config error instead
+      // of silently disabling the check.
+      "nursery": {
+        "noExtendNative": "error", // no-extend-native
+        "noImpliedEval": "error", // no-implied-eval
+        "noUnmodifiedLoopCondition": "error", // no-unmodified-loop-condition
+        "usePromiseRejectErrors": "error" // prefer-promise-reject-errors
+      }
+    }
+  },
+  "overrides": [
+    {
+      // In TypeScript, type-only names are not runtime globals and unused
+      // non-null assertions are `tsc`'s business, so `noUndeclaredVariables`
+      // is left to the `.mjs` sources.
+      "includes": ["**/*.ts"],
+      "linter": { "rules": { "correctness": { "noUndeclaredVariables": "off" } } }
+    }
+  ]
+}

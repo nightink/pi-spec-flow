@@ -1,8 +1,9 @@
 // S1.3 real CLI acceptance: discover project/docs spec directories in singular/plural forms.
+
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { loadSpecs, writeFrontmatter } from "../../core.mjs";
 
@@ -26,15 +27,12 @@ function write(root, relative, content) {
 }
 
 function spec(id) {
-  return writeFrontmatter(
-    `# ${id}\n\n- 状态：已批准\n\n## 验收标准\n\n- discovery works\n`,
-    {
-      id,
-      status: "approved",
-      review: { decision: "approved" },
-      evidence: { human: [] },
-    }
-  );
+  return writeFrontmatter(`# ${id}\n\n- 状态：已批准\n\n## 验收标准\n\n- discovery works\n`, {
+    id,
+    status: "approved",
+    review: { decision: "approved" },
+    evidence: { human: [] },
+  });
 }
 
 function init(root) {
@@ -51,7 +49,7 @@ function init(root) {
       "-qm",
       "init",
     ],
-    { cwd: root }
+    { cwd: root },
   );
 }
 
@@ -78,7 +76,7 @@ try {
   check(board.status === 0, "CLI board scans all supported directories");
   check(
     ["S1", "S2", "S3", "S4"].every((id) => board.stdout.includes(id)),
-    "board merges singular/plural docs and project directories"
+    "board merges singular/plural docs and project directories",
   );
   check(!board.stdout.includes("S5"), "discovery does not recurse into nested directories");
 
@@ -86,17 +84,18 @@ try {
   check(
     JSON.stringify(paths) ===
       JSON.stringify(["docs/spec/S2.md", "docs/specs/S1.md", "spec/S4.md", "specs/S3.md"]),
-    "discovery order is deterministic"
+    "discovery order is deterministic",
   );
 
   const began = cli(project, "begin", "S3");
   check(
     began.status === 0 && /workflow: v2/.test(began.stdout),
-    "CLI lifecycle resolves a project-level specs file"
+    "CLI lifecycle resolves a project-level specs file",
   );
   check(
-    loadSpecs(project).find((item) => item.frontmatter?.id === "S3")?.frontmatter?.workflow_version === 2,
-    "project-level spec receives normal lifecycle writeback"
+    loadSpecs(project).find((item) => item.frontmatter?.id === "S3")?.frontmatter
+      ?.workflow_version === 2,
+    "project-level spec receives normal lifecycle writeback",
   );
 } catch (error) {
   failures++;
