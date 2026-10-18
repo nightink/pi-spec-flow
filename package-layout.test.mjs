@@ -71,6 +71,19 @@ test("packages/pi depends on core by semver and keeps host SDKs as optional peer
   assert.ok(fs.existsSync(path.join(root, "packages/pi/index.ts")));
 });
 
+test("repository and publishable packages declare the MIT license", () => {
+  for (const file of ["package.json", "packages/core/package.json", "packages/pi/package.json"]) {
+    assert.equal(json(file).license, "MIT", `${file} must declare MIT`);
+  }
+  for (const file of ["LICENSE", "packages/core/LICENSE", "packages/pi/LICENSE"]) {
+    const content = read(file);
+    assert.match(content, /^MIT License/);
+    assert.match(content, /Copyright \(c\) 2026 nightink/);
+  }
+  assert.ok(json("packages/core/package.json").files.includes("LICENSE"));
+  assert.ok(json("packages/pi/package.json").files.includes("LICENSE"));
+});
+
 test("action.yml pins an existing packages/core CLI path", () => {
   const match = read("action.yml").match(
     /SPECFLOW_CLI:\s*\$\{\{\s*github\.action_path\s*\}\}\/(\S+)/,

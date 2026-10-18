@@ -2,6 +2,7 @@
   "name": "@nightink/pi-spec-flow",
   "version": "0.3.0",
   "description": "Pi adapter: spec-flow lifecycle tools, notifications and the autonomous-delivery skill",
+  "license": "MIT",
   "type": "module",
   "private": true,
   "keywords": [
@@ -21,7 +22,8 @@
   "files": [
     "index.ts",
     "adapter-core.mjs",
-    "skills"
+    "skills",
+    "LICENSE"
   ],
   "dependencies": {
     "@nightink/spec-flow-core": "^0.3.0"

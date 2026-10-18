@@ -62,6 +62,7 @@ try {
   for (const required of [
     "package.json",
     "README.md",
+    "LICENSE",
     "src/core.mjs",
     "src/review-executor.mjs",
     "src/executors/pi-cli.mjs",
@@ -77,6 +78,7 @@ try {
   }
   const coreManifest = JSON.parse(fs.readFileSync(path.join(coreDir, "package.json"), "utf8"));
   assert.equal(coreManifest.private, undefined);
+  assert.equal(coreManifest.license, "MIT");
   assert.deepEqual(coreManifest.bin, { "spec-flow": "./src/core.mjs" });
   assert.equal(coreManifest.dependencies["@earendil-works/pi-coding-agent"], undefined);
   assert.equal(coreManifest.dependencies.typebox, undefined);

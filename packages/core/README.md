@@ -134,3 +134,7 @@ The package is prepared for `npm publish` from `packages/core` with
 `publishConfig.access = "public"`. `npm pack --dry-run` is verified by the
 repository E2E suite. Publication, scope ownership and versioning remain the
 maintainer's decision.
+
+## License
+
+MIT © 2026 nightink. See [LICENSE](LICENSE).

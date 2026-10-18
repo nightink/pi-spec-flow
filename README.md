@@ -421,3 +421,7 @@ SPECFLOW_PI_BIN=/trusted/installed/pi SPECFLOW_PI_SDK=/trusted/installed/pi-pack
 # 私有临时 agent/project：真实 RPC /spec、typed native/partial-UI、三种 API 的 pre-network 工具声明、
 # root pi manifest 的 skill 发现；无 provider 请求
 ```
+
+## License
+
+[MIT](LICENSE) © 2026 nightink

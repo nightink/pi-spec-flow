@@ -2,6 +2,7 @@
   "name": "pi-spec-flow",
   "version": "0.3.0",
   "description": "Evidence-bound spec workflow gates for the pi coding agent (monorepo)",
+  "license": "MIT",
   "type": "module",
   "private": true,
   "keywords": [

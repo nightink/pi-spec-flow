@@ -2,6 +2,7 @@
   "name": "@nightink/spec-flow-core",
   "version": "0.3.0",
   "description": "Harness-neutral evidence-bound spec workflow engine and CLI for spec-flow",
+  "license": "MIT",
   "type": "module",
   "keywords": [
     "spec-flow",
@@ -30,7 +31,8 @@
   "files": [
     "src",
     "templates",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "board": "node src/core.mjs board",
