@@ -1,16 +1,28 @@
-// Shared review/audit launch configuration. Filesystem preflight never executes a target.
+// Shared review execution settings and receipt formatting. Harness launch
+// resolution lives in review-executor.mjs plus the selected executor module
+// (the bundled reference is executors/pi-cli.mjs), so the engine never depends
+// on a particular agent CLI.
 import fs from "node:fs";
 import path from "node:path";
 
 const DEFAULT_TIMEOUT = 180000;
 const MAX_TIMEOUT = 1800000;
+export const REVIEW_THINKING_LEVELS = Object.freeze([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
 export function reviewTimeout(value) {
   const timeout = value === undefined || value === "" ? DEFAULT_TIMEOUT : Number(value);
   if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > MAX_TIMEOUT)
     throw new Error("Invalid review timeout: require 1..1800000 milliseconds");
   return timeout;
 }
-function regularAccessible(file, mode) {
+export function regularAccessible(file, mode) {
   try {
     if (!fs.statSync(file).isFile()) return false;
     fs.accessSync(file, mode);
@@ -19,7 +31,7 @@ function regularAccessible(file, mode) {
     return false;
   }
 }
-function safeSetting(value, name) {
+export function safeSetting(value, name) {
   if (
     typeof value !== "string" ||
     !value ||
@@ -30,7 +42,7 @@ function safeSetting(value, name) {
     throw new Error(`Invalid ${name}`);
   return value;
 }
-function executable(cwd, bin, env) {
+export function executable(cwd, bin, env) {
   safeSetting(bin, "SPECFLOW_AUDIT_BIN");
   const searchPath = env.PATH === undefined ? ["/usr/bin", "/bin"] : env.PATH.split(path.delimiter);
   const candidates =
@@ -40,50 +52,9 @@ function executable(cwd, bin, env) {
   const selected = candidates.find((file) => regularAccessible(file, fs.constants.X_OK));
   if (!selected)
     throw new Error(
-      "Review executable not found or not executable; set SPECFLOW_AUDIT_BIN to a trusted executable or SPECFLOW_PI_CLI to a trusted absolute installed Pi CLI",
+      "Review executable not found or not executable; check the selected review executor configuration",
     );
   return selected;
-}
-export function resolveReviewExecution(cwd, env = process.env) {
-  const thinking = env.SPECFLOW_AUDIT_THINKING || "off",
-    timeout = reviewTimeout(env.SPECFLOW_AUDIT_TIMEOUT);
-  if (!["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(thinking))
-    throw new Error("Invalid review execution settings");
-  const model = env.SPECFLOW_AUDIT_MODEL || "";
-  if (model) safeSetting(model, "SPECFLOW_AUDIT_MODEL");
-  if (env.SPECFLOW_AUDIT_BIN) {
-    return {
-      bin: executable(cwd, env.SPECFLOW_AUDIT_BIN, env),
-      prefixArgs: [],
-      launcher: "explicit-bin",
-      model,
-      thinking,
-      timeout,
-    };
-  }
-  if (env.SPECFLOW_PI_CLI) {
-    const cli = safeSetting(env.SPECFLOW_PI_CLI, "SPECFLOW_PI_CLI");
-    if (!path.isAbsolute(cli) || !regularAccessible(cli, fs.constants.R_OK))
-      throw new Error(
-        "SPECFLOW_PI_CLI must be an absolute readable regular file for a caller-trusted installed Pi CLI",
-      );
-    return {
-      bin: executable(cwd, process.execPath, env),
-      prefixArgs: [cli],
-      launcher: "node-cli",
-      model,
-      thinking,
-      timeout,
-    };
-  }
-  return {
-    bin: executable(cwd, "pi", env),
-    prefixArgs: [],
-    launcher: "path",
-    model,
-    thinking,
-    timeout,
-  };
 }
 
 // Transient frontend feedback is separate from the immutable execution receipt.

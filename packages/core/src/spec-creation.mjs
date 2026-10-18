@@ -31,7 +31,7 @@ const INPUT_KEYS = [
   "dryRun",
 ];
 const hash = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
-const builtin = fileURLToPath(new URL("./templates/spec-v2.md", import.meta.url));
+const builtin = fileURLToPath(new URL("../templates/spec-v2.md", import.meta.url));
 function text(value, name, max = 4000) {
   if (
     typeof value !== "string" ||

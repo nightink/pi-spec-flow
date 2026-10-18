@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-// spec-flow core.mjs — zero-pi-dependency core logic
-// CLI: node core.mjs board|worktrees|spec-alloc [--prefix PREFIX]|begin|impl|audit|attest|done|migrate-alloc|verify|check --ci [--contracts-only] [--live]
+// spec-flow core.mjs — harness-neutral core logic (no Pi SDK dependency)
+// CLI: spec-flow board|worktrees|spec-alloc [--prefix PREFIX]|begin|impl|audit|attest|done|migrate-alloc|verify|check --ci [--contracts-only] [--live]
 
 import { execFile, spawn } from "node:child_process";
 import crypto from "node:crypto";
@@ -12,6 +12,7 @@ import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import yaml from "js-yaml";
+import { buildPromptArgs } from "./executors/pi-cli.mjs";
 import {
   applyLifecycleWrite,
   approvalProblems,
@@ -1889,29 +1890,17 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
 }
 
 // ─── buildAuditorArgs ────────────────────────────────────────────────────────
-// Returns { args, cleanup } for pi subprocess — prompt 经 @file 传入：
-// 大 diff（如锁文件 1.3 万行）会撑爆 argv 单参数上限（E2BIG），文件无此限。
+// Compatibility wrapper for the historical public helper. The pi-cli executor
+// owns the argv protocol; the engine itself passes the sealed packet directly.
+// Prompt is passed via @file: large diffs exceed the argv size limit (E2BIG).
 export function buildAuditorArgs(prompt, model = "", thinking = "off") {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-audit-"));
   const file = path.join(dir, "prompt.txt");
   fs.writeFileSync(file, prompt, { encoding: "utf8", mode: 0o600 });
-  const args = [
-    "-p",
-    "--no-session",
-    "--no-tools",
-    "--no-extensions",
-    "--no-skills",
-    "--no-prompt-templates",
-    "--no-context-files",
-    "--no-themes",
-    "--no-approve",
-    "--mode",
-    "json",
-  ];
-  if (model) args.push("--model", model);
-  if (thinking) args.push("--thinking", thinking);
-  args.push(`@${file}`);
-  return { args, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
+  return {
+    args: buildPromptArgs(file, model, thinking),
+    cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
+  };
 }
 
 // ─── parseVerdictJson ────────────────────────────────────────────────────────
@@ -2206,7 +2195,11 @@ async function auditOutputRecoveryHint(cwd, fm) {
       : null;
   } // A diagnostic is never cache approval or a Spec write.
 }
-async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobId } = {}) {
+async function auditUnlocked(
+  cwd,
+  id,
+  { signal, onProgress, budgetId, reviewJobId, executor } = {},
+) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
   if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
@@ -2411,6 +2404,7 @@ async function auditUnlocked(cwd, id, { signal, onProgress, budgetId, reviewJobI
         budgetId,
         signal,
         onProgress,
+        executor,
       });
       auditResult = engineReview.result;
       if (!auditResult)
@@ -3379,7 +3373,7 @@ async function main() {
 
   if (!cmd) {
     console.log(
-      "Usage: node core.mjs board|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id> [--review-job JOB_ID]|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]",
+      "Usage: spec-flow board|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id> [--review-job JOB_ID]|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]",
     );
     process.exit(1);
   }

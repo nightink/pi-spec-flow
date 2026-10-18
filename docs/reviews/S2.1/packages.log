@@ -1,0 +1,28 @@
+== workspace link (.bin + @nightink)
+lrwxr-xr-x@ 1 user staff  40 10月 18 15:44 <repo>/node_modules/.bin/spec-flow -> ../@nightink/spec-flow-core/src/core.mjs
+../../packages/core
+../../packages/pi
+package-name import: ok
+== fixture board through workspace bin
+(no specs found in docs/specs/, docs/spec/, specs/, spec/)
+== pi git-install shape (npm install --omit=dev --legacy-peer-deps)
+install shape: ok
+== CI/Action shape (npm ci --omit=dev --omit=peer)
+ci shape: ok
+== npm pack surface (packages/core)
+name: @nightink/spec-flow-core files: 15
+  README.md
+  package.json
+  src/core.mjs
+  src/executors/pi-cli.mjs
+  src/project-profile.mjs
+  src/review-coverage.mjs
+  src/review-engine.mjs
+  src/review-execution.mjs
+  src/review-executor.mjs
+  src/review-storage.mjs
+  src/review-worker.mjs
+  src/spec-creation.mjs
+  src/workspace.mjs
+  templates/spec-v1.md
+  templates/spec-v2.md

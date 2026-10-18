@@ -1,0 +1,50 @@
+{
+  "name": "@nightink/spec-flow-core",
+  "version": "0.3.0",
+  "description": "Harness-neutral evidence-bound spec workflow engine and CLI for spec-flow",
+  "type": "module",
+  "keywords": [
+    "spec-flow",
+    "spec-driven-development",
+    "review",
+    "governance",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "bin": {
+    "spec-flow": "./src/core.mjs"
+  },
+  "exports": {
+    ".": "./src/core.mjs",
+    "./review": "./src/review-engine.mjs",
+    "./coverage": "./src/review-coverage.mjs",
+    "./executor": "./src/review-executor.mjs",
+    "./executors/pi-cli": "./src/executors/pi-cli.mjs",
+    "./profile": "./src/project-profile.mjs",
+    "./workspace": "./src/workspace.mjs",
+    "./spec-creation": "./src/spec-creation.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "templates",
+    "README.md"
+  ],
+  "scripts": {
+    "board": "node src/core.mjs board",
+    "check:contracts": "node src/core.mjs check --ci --contracts-only"
+  },
+  "dependencies": {
+    "js-yaml": "^4.3.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nightink/pi-spec-flow.git",
+    "directory": "packages/core"
+  }
+}

@@ -8,9 +8,9 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import * as feedback from "./adapter-core.mjs";
-import { findSpec, writeFrontmatter } from "./core.mjs";
-import { loadProjectProfile } from "./project-profile.mjs";
+import { findSpec, writeFrontmatter } from "./packages/core/src/core.mjs";
+import { loadProjectProfile } from "./packages/core/src/project-profile.mjs";
+import * as feedback from "./packages/pi/adapter-core.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const note = "Disposable fixture: verified the gate result and exact no-write behavior.";
@@ -26,9 +26,17 @@ async function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-partial-ui-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.writeFileSync(path.join(root, "package.json"), '{"type":"module"}\n');
-  fs.copyFileSync(path.join(here, "index.ts"), path.join(root, "index.ts"));
-  for (const name of ["core.mjs", "adapter-core.mjs"])
-    fs.symlinkSync(path.join(here, name), path.join(root, name));
+  fs.copyFileSync(path.join(here, "packages/pi/index.ts"), path.join(root, "index.ts"));
+  fs.mkdirSync(path.join(root, "node_modules/@nightink"), { recursive: true });
+  fs.symlinkSync(
+    path.join(here, "packages/core"),
+    path.join(root, "node_modules/@nightink/spec-flow-core"),
+    "dir",
+  );
+  fs.symlinkSync(
+    path.join(here, "packages/pi/adapter-core.mjs"),
+    path.join(root, "adapter-core.mjs"),
+  );
   const agent = path.join(root, "node_modules/@earendil-works/pi-coding-agent");
   fs.mkdirSync(agent, { recursive: true });
   fs.writeFileSync(path.join(agent, "package.json"), '{"type":"module","exports":"./index.js"}\n');
@@ -459,7 +467,7 @@ test("safe feedback helpers: capability/receiver/caps and sync/async transport f
 });
 
 test("adapter source: no direct notify invocation bypasses the capability guard", () => {
-  const source = fs.readFileSync(path.join(here, "index.ts"), "utf8");
+  const source = fs.readFileSync(path.join(here, "packages/pi/index.ts"), "utf8");
   const directCalls = source.match(/\.notify\s*(?:\?\.)?\s*\(/g) || [];
   assert.equal(directCalls.length, 0, "direct calls bypass the presentation capability guard");
   assert.equal(loadProjectProfile(here).gates.npmScripts[0], "check");

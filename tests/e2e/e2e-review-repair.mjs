@@ -6,12 +6,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildAuditDiff, findSpec, writeFrontmatter } from "../../core.mjs";
-import { prepareWorkingAudit } from "../../review-engine.mjs";
-import { digest, loadJob, reviewStore, saveJob } from "../../review-storage.mjs";
+import { buildAuditDiff, findSpec, writeFrontmatter } from "../../packages/core/src/core.mjs";
+import { prepareWorkingAudit } from "../../packages/core/src/review-engine.mjs";
+import { digest, loadJob, reviewStore, saveJob } from "../../packages/core/src/review-storage.mjs";
 import { seedLegacyReviewFixture } from "../helpers/review-fixture.mjs";
 
-const core = fileURLToPath(new URL("../../core.mjs", import.meta.url));
+const core = fileURLToPath(new URL("../../packages/core/src/core.mjs", import.meta.url));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-repair-cli-")),
   root = path.join(tmp, "main checkout"),
   linked = path.join(tmp, "linked checkout");

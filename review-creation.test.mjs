@@ -15,8 +15,8 @@ import {
   newSpec,
   repositorySnapshotHash,
   writeFrontmatter,
-} from "./core.mjs";
-import { buildReviewIndex } from "./review-coverage.mjs";
+} from "./packages/core/src/core.mjs";
+import { buildReviewIndex } from "./packages/core/src/review-coverage.mjs";
 import {
   authorizeReviewBudget,
   normalizeReviewResult,
@@ -25,10 +25,16 @@ import {
   review,
   reviewStatus,
   runPreparedReview,
-} from "./review-engine.mjs";
-import { digest, loadJob, readPrivate, reviewStore, saveJob } from "./review-storage.mjs";
+} from "./packages/core/src/review-engine.mjs";
+import {
+  digest,
+  loadJob,
+  readPrivate,
+  reviewStore,
+  saveJob,
+} from "./packages/core/src/review-storage.mjs";
+import { readReservations } from "./packages/core/src/workspace.mjs";
 import { mechanicalCoverage } from "./tests/helpers/review-fixture.mjs";
-import { readReservations } from "./workspace.mjs";
 
 const SPEC = writeFrontmatter("# Product\n\n- [ ] a changed implementation\n", {
   id: "S1",

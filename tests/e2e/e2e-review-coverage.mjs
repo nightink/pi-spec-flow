@@ -6,10 +6,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { findSpec, writeFrontmatter } from "../../core.mjs";
-import { digest, reviewStore } from "../../review-storage.mjs";
+import { findSpec, writeFrontmatter } from "../../packages/core/src/core.mjs";
+import { digest, reviewStore } from "../../packages/core/src/review-storage.mjs";
 
-const core = fileURLToPath(new URL("../../core.mjs", import.meta.url));
+const core = fileURLToPath(new URL("../../packages/core/src/core.mjs", import.meta.url));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-coverage-cli-")),
   root = path.join(tmp, "caller");
 fs.mkdirSync(path.join(root, "docs/specs"), { recursive: true });

@@ -11,13 +11,23 @@ Pi 的证据绑定 spec 工作流扩展。它把 `begin → impl → audit → a
 - 本仓库全量自测还需要 Python 3；不会自动 pip/uv/npm 安装被管理项目的依赖
 - 当前支持并在 macOS/Linux 验证；Windows 不是本版本的保证范围
 
-`package.json#pi` 声明 `index.ts` 扩展入口与 `skills/` 目录，仓库公开并通过 Pi 的 git 包机制安装（扩展与 skill 随包一起加载）：
+仓库是 npm workspaces monorepo，能力分层而不再要求通过文件路径查找 `core.mjs`：
+
+| 路径 | 包 | 职责 |
+|---|---|---|
+| `packages/core` | `@nightink/spec-flow-core` | 与宿主无关的引擎 + `spec-flow` CLI（可发布 npm） |
+| `packages/pi` | `@nightink/pi-spec-flow` | Pi 扩展入口、通知/队列 glue 与 `autonomous-delivery` skill |
+| 根 `package.json` | 私有 `pi-spec-flow` | workspace 根，同时保留 `pi` manifest 供 git 安装 |
+
+根 `package.json#pi` 声明 `packages/pi/index.ts` 扩展入口与 `packages/pi/skills/` 目录；仓库公开并通过 Pi 的 git 包机制安装（扩展与 skill 随包一起加载）。包内扩展按包名 `@nightink/spec-flow-core` 导入引擎，npm workspaces 在安装时完成链接；目标项目不需要再定位本仓库文件：
 
 ```bash
 pi install git:github.com/nightink/pi-spec-flow   # 可加 @<tag-or-commit> 固定版本
 pi list                                           # 确认包已注册
 pi update --extensions                            # 按配置的 ref 更新
 ```
+
+`packages/core` 已准备发布为公开 npm 包（`publishConfig.access = public`），但**发布动作与 scope/版本由维护者执行**；仓库不自带 publish。发布后目标项目可 `npm install --save-dev @nightink/spec-flow-core` 并用 `npx spec-flow ...` 调用 CLI。
 
 本地开发/自测直接使用源码仓库，不改变安装方式：
 
@@ -27,6 +37,8 @@ cd pi-spec-flow
 npm ci
 npm run check
 ```
+
+只使用源码、不安装 workspace 时，可直接运行 `node packages/core/src/core.mjs <command>`；安装后统一使用 `spec-flow <command>`。
 
 静态声明不等于当前宿主已加载或工具可调用。Pi 1.x 支持本版本的 typed/structured 新工具；安装或修改后现有会话需要 `/reload`，不要为此自动重启生产进程。
 
@@ -169,11 +181,11 @@ Pi 的 begin/impl/audit/attest/done 仍使用 `withFileMutationQueue()`；核心
 
 ```bash
 cd /path/to/agent-worktree
-node /path/to/spec-flow/core.mjs spec-alloc --prefix S1.  # 跨 worktree 预留 S1.N
-node /path/to/spec-flow/core.mjs begin S1.N
-node /path/to/spec-flow/core.mjs impl S1.N
-node /path/to/spec-flow/core.mjs worktrees                 # 仓库家族看板 + 实时 freshness
-node /path/to/spec-flow/core.mjs check --ci --contracts-only --live
+spec-flow spec-alloc --prefix S1.  # 跨 worktree 预留 S1.N
+spec-flow begin S1.N
+spec-flow impl S1.N
+spec-flow worktrees                 # 仓库家族看板 + 实时 freshness
+spec-flow check --ci --contracts-only --live
 ```
 
 每个 worktree 的 spec、门禁、ledger 和完整内容快照独立；main 的脏文件不影响隔离分支的证据。看板支持 detached checkout 和带空格路径。`spec-alloc` 从所有已注册 worktree 的 Spec/文件名及预留记录中取 PREFIX 命名空间的最大数字 + 1；删除 worktree 不回收编号。编号记录和锁位于 `.git` 的 common directory，不提交、不当作第二份合同；仅协调本机同一 Git 仓库，不保证手写编号、独立 clone/其他机器的唯一性。不可访问/非法 Spec 的 worktree 会阻止分配，避免猜测空闲编号。
@@ -185,7 +197,7 @@ node /path/to/spec-flow/core.mjs check --ci --contracts-only --live
 Pi 工具要求 `ctx.hasUI` 且用户在确认框中看到 item + note 后同意；无 UI 时拒绝。CLI `attest` 被视为用户在终端中的显式操作：
 
 ```bash
-node core.mjs attest S3.13 R1 "在 staging 的设置页验证保存与刷新，样本账号 qa-17"
+spec-flow attest S3.13 R1 "在 staging 的设置页验证保存与刷新，样本账号 qa-17"
 ```
 
 note 至少 20 个字符，并与当前 implementation/contract hash 绑定。
@@ -202,24 +214,24 @@ note 至少 20 个字符，并与当前 implementation/contract hash 绑定。
 ```
 
 ```bash
-node core.mjs board
-node core.mjs begin S3.13
-node core.mjs impl S3.13
-node core.mjs audit S3.13
-node core.mjs attest S3.13 R1 "核验路径和样本（至少 20 字）"
-node core.mjs done S3.13
-node core.mjs migrate-alloc
-node core.mjs spec-alloc --prefix S1.
-node core.mjs worktrees
-node core.mjs verify                     # Action 同款：配置门禁 / 旧 npm verify / 默认探测
-node core.mjs check --ci
-node core.mjs check --ci --contracts-only --live  # 不运行项目 gates，但比对 active 实时快照
+spec-flow board
+spec-flow begin S3.13
+spec-flow impl S3.13
+spec-flow audit S3.13
+spec-flow attest S3.13 R1 "核验路径和样本（至少 20 字）"
+spec-flow done S3.13
+spec-flow migrate-alloc
+spec-flow spec-alloc --prefix S1.
+spec-flow worktrees
+spec-flow verify                     # Action 同款：配置门禁 / 旧 npm verify / 默认探测
+spec-flow check --ci
+spec-flow check --ci --contracts-only --live  # 不运行项目 gates，但比对 active 实时快照
 ```
 
 ## 固定模板 `spec_new`
 
 ```bash
-node core.mjs spec-new --json '{"title":"Observable outcome","prefix":"S1.","slug":"feature","goals":["What works"],"nonGoals":["What is excluded"],"design":["Smallest complete design"],"plan":["First slice"],"acceptance":["Executable observable case"],"dryRun":true}'
+spec-flow spec-new --json '{"title":"Observable outcome","prefix":"S1.","slug":"feature","goals":["What works"],"nonGoals":["What is excluded"],"design":["Smallest complete design"],"plan":["First slice"],"acceptance":["Executable observable case"],"dryRun":true}'
 ```
 
 同款 `/spec new <JSON>` 和 native tool。内置模板现为 v2，验收自动编号 `[A1]`、`[A2]`；保留 v1 文件，不重写既有模板版本/hash。缺省语义项留下明确 TODO，不捏造要求或审批；默认 `draft` 是 preReview，旧 pending/startable 保留。新文件没有 impl/audit/attestations；完成合同并按项目规则批准、转为 startable 后才能 begin。新 Spec 会改变其他 active 的全仓快照，宜在 impl 前创建。
@@ -230,11 +242,11 @@ node core.mjs spec-new --json '{"title":"Observable outcome","prefix":"S1.","slu
 
 ```bash
 # 仅在本 delivery cycle 得到用户授权后由终端/API 初始化；已用外部审查必须计入 used。
-node core.mjs review-budget --json '{"id":"delivery-example-1","calls":3,"used":1,"note":"User explicitly authorized this delivery cycle; one external proposal call already used."}'
-node core.mjs review --json '{"action":"prepare","id":"S1.7","base":"BASE_COMMIT","head":"HEAD_COMMIT"}'
+spec-flow review-budget --json '{"id":"delivery-example-1","calls":3,"used":1,"note":"User explicitly authorized this delivery cycle; one external proposal call already used."}'
+spec-flow review --json '{"action":"prepare","id":"S1.7","base":"BASE_COMMIT","head":"HEAD_COMMIT"}'
 # 检查输出 packetPath，对同一完整文件做 check_secrets；prepare 无模型调用。
-node core.mjs review --json '{"action":"run","jobId":"PREPARED_JOB_ID","budgetId":"delivery-example-1"}'
-node core.mjs review --json '{"action":"status","jobId":"PREPARED_JOB_ID"}'
+spec-flow review --json '{"action":"run","jobId":"PREPARED_JOB_ID","budgetId":"delivery-example-1"}'
+spec-flow review --json '{"action":"status","jobId":"PREPARED_JOB_ID"}'
 ```
 
 `/spec review <JSON>` / native `spec_review` 相同。committed 解析完整 commit SHA、验证祖先，只读指定 head 的 Spec/profile/package 与精确 base..head；缺省拒绝脏 tracked/staged/untracked，allowDirty 明示排除项。incremental 还需要 prior engine job ID，保留 original implementation base、独立 review base、report hash 与 closure matrix；阻断需准确 changed-line + introduced-by-diff/regression/incomplete-fix 分类，baseline 观察不阻断。合同/profile 改变需 full review。proposal 读取当前声明 Spec，不以空 diff 批准；普通空 diff skipped，无模型、不是 PASS。
@@ -254,10 +266,10 @@ Pi 项目识别只读取目标 tree/snapshot 的声明/常规入口、路径/mod
 已完成 legacy job 的原 packet/raw/receipt/FAIL 不改；缺版本字段继续用 legacy 规则校验。若 `outputInfo.repairable=true`，可以在**预算耗尽、没有 pi/launcher** 时免费修复：
 
 ```bash
-node /trusted/spec-flow/core.mjs review --json '{"action":"repair","jobId":"ORIGINAL_32_HEX_JOB_ID"}'
+spec-flow review --json '{"action":"repair","jobId":"ORIGINAL_32_HEX_JOB_ID"}'
 # 返回独立 derived jobId；原始独立结论、raw 字节、版本绑定和原计次引用都保留。
 # 仅 full-current-audit 且当前证据仍匹配时才附加；此步骤也不重新调用模型。
-node /trusted/spec-flow/core.mjs audit SPEC_ID --review-job DERIVED_32_HEX_JOB_ID
+spec-flow audit SPEC_ID --review-job DERIVED_32_HEX_JOB_ID
 ```
 
 native `spec_review {action:"repair",jobId}` / `/spec review <JSON>` 等价；native 附加用 `spec_audit {id,reviewJobId}`。repair 不接受 budgetId、verdict、criteria 或自定义修补内容。完整原始证据和派生来源均重验；重复 repair/replay 幂等，写入失败不留半成品，既不消耗新调用也不退款/重置旧授权。它只修工具格式，不做第二次审查：真正的产品 FAIL 仍是 FAIL，普通/delta 仍不能冒充 full audit，当前实现/合同/scope/diff/impl 绑定不匹配仍须先解决版本/证据问题，人工确认规则不变。源码更新不会刷新运行宿主缓存；旧宿主可先走可信 CLI，不需要为 CLI 修复重启生产。
@@ -294,15 +306,23 @@ review_inputs:
 
 `prepared` job 首次 run 才读取当前执行参数；提高 `SPECFLOW_AUDIT_TIMEOUT` 后可直接启动尚未执行的同一 job。`running` 只等待原 worker，终态只重放原结果，不刷新 timeout/bin/model/thinking，也不重启或退款。run 返回 `executionInfo`（requested/effective timeout、是否 applied/ignored、started/wait-existing/reuse-result）；native tool 同时更新进度，audit 缓存也显示沿用值。`receipt.execution` 始终保留原参数。需要更长 timeout 的**新执行**须 prepare 新 job 并使用仍有效的授权，不能靠重放旧 job 自动再调用。
 
-review/audit 共享计次前 launcher preflight：显式 `SPECFLOW_AUDIT_BIN`（包括已有可信 shim）优先；否则显式 `SPECFLOW_PI_CLI` 使用当前 Node + 已安装 CLI 的绝对路径，**不需要 PATH 中有 pi 或生成 shim**；均未配置时才从宿主 PATH 查找 pi。缺失/不可执行 bin、缺失/不可读 CLI、非法 timeout 在 spawn/charge 前失败，prepared job 可修正配置后再次 run。只做文件系统检查，不执行 `--version` 探测、不自动安装/发现目标项目 CLI、不猜 npx 缓存、不修改全局 PATH 或重启服务。已计费之后的失败仍不退款；preflight 不是版本兼容性或防文件替换的安全沙箱。
+review/audit 共享计次前 launcher preflight：设置绝对路径 `SPECFLOW_REVIEW_EXECUTOR` 时加载该 executor 模块（其他 agent harness 用它提供自己的 argv）；否则使用内置 `executors/pi-cli`。pi-cli 中显式 `SPECFLOW_AUDIT_BIN`（包括已有可信 shim）优先；否则显式 `SPECFLOW_REVIEW_CLI`（或兼容别名 `SPECFLOW_PI_CLI`）使用当前 Node + 已安装 CLI 的绝对路径，**不需要 PATH 中有 pi 或生成 shim**；均未配置时才从宿主 PATH 查找 pi。executor 加载、bin/CLI 校验、非法 timeout 和 invocation 构造都在 spawn/charge 前完成，prepared job 可修正配置后再次 run。只做文件系统检查，不执行 `--version` 探测、不自动安装/发现目标项目 CLI、不猜 npx 缓存、不修改全局 PATH 或重启服务。已计费之后的失败仍不退款；preflight 不是版本兼容性或防文件替换的安全沙箱。
+
+其他 harness 的 executor 模块是 ESM 文件，导出 `resolve(cwd, env)` 与 `buildArgs(execution, promptFile)`；最后一个参数必须是 `@<packetFile>`，以便 worker 证明子进程输入与封存 packet 完全一致。接口与示例见 [packages/core/README.md](packages/core/README.md)；新增其他 agent harness 的适配器边界与模板见 [docs/adapters.md](docs/adapters.md)。
+
+```bash
+# 使用自定义 executor 模块（绝对路径）；默认 pi-cli executor 不受影响。
+export SPECFLOW_REVIEW_EXECUTOR=/absolute/trusted/my-executor.mjs
+```
+
 
 ```bash
 # 选择已安装、明确受信的 Pi CLI；不要求它在宿主 PATH 中。
 export SPECFLOW_PI_CLI=/absolute/trusted/pi/dist/cli.js
 export SPECFLOW_AUDIT_TIMEOUT=600000
 # 使用相同环境执行 review run 或 lifecycle audit，无需 caller 的 spec:audit 专用 wrapper。
-node core.mjs review --json '{"action":"run","jobId":"PREPARED_JOB_ID","budgetId":"AUTHORIZED_CYCLE"}'
-node core.mjs audit SPEC_ID
+spec-flow review --json '{"action":"run","jobId":"PREPARED_JOB_ID","budgetId":"AUTHORIZED_CYCLE"}'
+spec-flow audit SPEC_ID
 ```
 
 配置应传入**实际宿主/worker 的环境**；交互 shell 能运行 pi/npx 不证明 daemon 能解析它。现有 shim 仍可通过 `SPECFLOW_AUDIT_BIN=/absolute/trusted/shim` 使用；此变量优先于 `SPECFLOW_PI_CLI`。
@@ -311,13 +331,15 @@ node core.mjs audit SPEC_ID
 
 审计 patch 使用 argv 形式的 Git 命令，包含从 `base_sha` 到当前 working tree 的 committed/staged/unstaged tracked 变化和未跟踪文件。以下情况 fail closed：base 非 HEAD 祖先、非法 scope、Git 失败、diff 超限、空 diff、非法审计 JSON。
 
-审计子进程使用 `--no-session --no-tools --no-extensions --no-skills --no-prompt-templates --no-context-files --no-themes --no-approve --mode json`。spec/diff 仍是不可信输入；禁用工具降低 prompt injection 的影响，但不构成进程级沙箱。
+默认 pi-cli executor 构造的审计子进程使用 `--no-session --no-tools --no-extensions --no-skills --no-prompt-templates --no-context-files --no-themes --no-approve --mode json`；其他 executor 可以定义自己的 argv，但必须保持 `@<packetFile>` 末参数契约。spec/diff 仍是不可信输入；禁用工具降低 prompt injection 的影响，但不构成进程级沙箱。
 
 | 环境变量 | 默认 | 说明 |
 |---|---:|---|
 | `SPECFLOW_AUDIT_MODEL` | 子 Pi 默认模型 | 模型名/别名 |
-| `SPECFLOW_AUDIT_BIN` | PATH 的 `pi` | review/audit 共用可信可执行文件或 shim；显式设置优先 |
-| `SPECFLOW_PI_CLI` | 无 | 可信已安装 Pi JS CLI 的绝对路径；未指定 BIN 时使用当前 Node 执行，无需 PATH pi |
+| `SPECFLOW_REVIEW_EXECUTOR` | 内置 pi-cli | 绝对路径的 executor 模块，决定 argv 协议；加载失败在计次前 fail closed |
+| `SPECFLOW_AUDIT_BIN` | PATH 的 `pi` | pi-cli 使用的可信可执行文件或 shim；显式设置优先 |
+| `SPECFLOW_REVIEW_CLI` | 无 | 可信已安装 agent JS CLI 的绝对路径；未指定 BIN 时使用当前 Node 执行 |
+| `SPECFLOW_PI_CLI` | 无 | `SPECFLOW_REVIEW_CLI` 的兼容别名（Pi 场景） |
 | `SPECFLOW_AUDIT_TIMEOUT` | `180000` | 首次执行的超时毫秒（1..1800000）；复用不修改旧计时器 |
 | `SPECFLOW_AUDIT_THINKING` | `off` | 子 Pi thinking 等级；可显式提高到 `low`/`medium`/`high` 等 |
 | `SPECFLOW_AUDIT_MAX_BYTES` | `524288` | 限制 patch/完整 child packet，不能提高 512 KiB packet cap；超限失败 |
@@ -328,9 +350,16 @@ node core.mjs audit SPEC_ID
 
 ### 与项目 `verify` / 跨仓 GitHub Action 组合
 
-项目的 `verify` 可以调用 `node core.mjs check --ci --contracts-only` 作为元数据门禁；`spec_impl` 仍运行 profile 的权威 `npm run verify`。**不要**在 `verify` 内调用完整 `check --ci`：它会再次执行 `verify`，产生递归。contracts-only 明示未运行项目 gates，不能单独冒充完整 CI；独立 `check --ci` 仍执行项目 gates 且缓存禁用。
+目标项目接入 core npm 包（发布后）作为普通开发依赖，不再引用本仓库路径：
 
-此仓库根目录提供 `action.yml` composite Action，仓库公开，任意仓库可直接按完整 SHA 引用：调用方 `uses: nightink/pi-spec-flow@<full-40-char-commit-SHA>`，使用真实已推送 SHA，不用 `main` 等可变引用。Action 用自己的 `package-lock.json` 安装运行时依赖，然后调用 `node "$SPECFLOW_CLI" verify`：显式 gates 优先；没有 gates 配置时保留 caller 的 npm `verify`（若存在）且只运行一次，否则用默认探测。无可执行门禁时 Action 失败。`verify` 先校验 Spec 合同/证据，失败即退出且不执行 caller gates；有效合同才运行各 gate，非零退出传播为失败。普通 `check --ci` 为兼容诊断仍执行全部配置 gates，即使文档校验失败；contracts-only 始终不执行 gates。`SPECFLOW_CLI` 指向该 Action 路径，项目 verify 内仍仅调用 contracts-only 避免递归；不需要跨仓 checkout 的 PAT。Caller 应使用 `permissions: contents: read`，先 checkout，准备 Node >=22.19.0（引擎要求）及自身 Python/uv/venv/npm 等测试环境；Action 不安装 caller 依赖。本地 CLI 仍需从可信安装的 Pi 扩展运行（Action 只提供 CI，不自动部署 Pi skill 或扩展）。
+```bash
+npm install --save-dev @nightink/spec-flow-core
+# package.json: "scripts": { "verify": "spec-flow check --ci --contracts-only" }
+```
+
+项目的 `verify` 可以调用 `spec-flow check --ci --contracts-only` 作为元数据门禁；`spec_impl` 仍运行 profile 的权威 `npm run verify`。**不要**在 `verify` 内调用完整 `check --ci`：它会再次执行 `verify`，产生递归。contracts-only 明示未运行项目 gates，不能单独冒充完整 CI；独立 `check --ci` 仍执行项目 gates 且缓存禁用。
+
+此仓库根目录提供 `action.yml` composite Action，仓库公开，任意仓库可直接按完整 SHA 引用：调用方 `uses: nightink/pi-spec-flow@<full-40-char-commit-SHA>`，使用真实已推送 SHA，不用 `main` 等可变引用。Action 用自己的 `package-lock.json` 安装运行时依赖，然后调用 `node "$SPECFLOW_CLI" verify`：显式 gates 优先；没有 gates 配置时保留 caller 的 npm `verify`（若存在）且只运行一次，否则用默认探测。无可执行门禁时 Action 失败。`verify` 先校验 Spec 合同/证据，失败即退出且不执行 caller gates；有效合同才运行各 gate，非零退出传播为失败。普通 `check --ci` 为兼容诊断仍执行全部配置 gates，即使文档校验失败；contracts-only 始终不执行 gates。`SPECFLOW_CLI` 指向该 Action 的 `packages/core/src/core.mjs`，项目 verify 内仍仅调用 contracts-only 避免递归；不需要跨仓 checkout 的 PAT。Caller 应使用 `permissions: contents: read`，先 checkout，准备 Node >=22.19.0（引擎要求）及自身 Python/uv/venv/npm 等测试环境；Action 不安装 caller 依赖。本地 CLI 使用已安装的 `@nightink/spec-flow-core`（`npx spec-flow`）或本仓库源码；Action 只提供 CI，不自动部署 Pi skill 或扩展，也不执行 npm publish。
 
 **交付顺序**：本地提交 → push 该 commit → 调用方仓库引用已推送的固定 SHA → push 调用方并查看真实 CI。没有真实推送和远端运行前只能证明本地 Action 等价路径，不能宣称远端已接通；本工具不会自动 push/publish 或改 GitHub 设置。调用方仓库的协作者可能通过 workflow 日志间接看到 Action 输出；不要在 Action 输出机密，也不要授权不可信仓库。
 
@@ -339,7 +368,7 @@ node core.mjs audit SPEC_ID
 结果缓存默认关闭：未设置 TTL 时每次都真实运行门禁。
 
 ```bash
-SPECFLOW_GATE_CACHE_TTL_MS=30000 node core.mjs impl S3.13
+SPECFLOW_GATE_CACHE_TTL_MS=30000 spec-flow impl S3.13
 ```
 
 显式启用后，缓存位于当前用户的私有系统临时目录（目录 `0700`、文件 `0600`），并以 Git HEAD/status/diff、未跟踪内容、门禁定义、Node 主版本和平台生成指纹。指纹不可用或为 null 时一定 miss，并报告诊断。环境变量不可能被完整观测，因此缓存只是可选性能优化，不是证据来源；`check --ci` 始终禁用它。
@@ -362,7 +391,7 @@ Pi 的 `tool_call` 拦截器识别 `git commit`、`git -C … commit` 和常见 
 - run: npm audit --omit=dev
 ```
 
-本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/lint/unit/九组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
+本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/lint/unit/11 组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
 
 Legacy 行为：
 
@@ -381,10 +410,14 @@ node tests/e2e/e2e-commit-gate.mjs
 node tests/e2e/e2e-trustworthy-closure.mjs
 node tests/e2e/e2e-spec-discovery.mjs
 node tests/e2e/e2e-project-governance-profile.mjs
+node tests/e2e/e2e-private-action.mjs    # Action copied CLI / verify-only / 失败传播
 node tests/e2e/e2e-worktrees-python.mjs  # 真实 Python + linked worktree + Action copied CLI
 node tests/e2e/e2e-review-and-spec-new.mjs # 创建竞争 / finite grant / frontend loss / cache
-node tests/e2e/e2e-review-repair.mjs # 预算耗尽/linked checkout/免费修复与绑定附加/篡改拒绝
+node tests/e2e/e2e-review-execution.mjs  # 默认 pi-cli + 自定义 executor / 序列化 invocation / sealed bytes
+node tests/e2e/e2e-review-repair.mjs     # 预算耗尽/linked checkout/免费修复与绑定附加/篡改拒绝
+node tests/e2e/e2e-monorepo-packages.mjs # workspace link / spec-flow bin / npm pack 内容
 npm run check                    # 权威本地门禁
 SPECFLOW_PI_BIN=/trusted/installed/pi SPECFLOW_PI_SDK=/trusted/installed/pi-package npm run smoke:pi
-# 私有临时 agent/project：真实 RPC /spec、typed native/partial-UI、三种 API 的 pre-network 工具声明；无 provider 请求
+# 私有临时 agent/project：真实 RPC /spec、typed native/partial-UI、三种 API 的 pre-network 工具声明、
+# root pi manifest 的 skill 发现；无 provider 请求
 ```

@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { findSpec, writeFrontmatter } from "../../core.mjs";
+import { findSpec, writeFrontmatter } from "../../packages/core/src/core.mjs";
 
 const sdkRoot = process.env.SPECFLOW_PI_SDK;
 if (!sdkRoot)
@@ -204,7 +204,9 @@ console.log('FIXTURE_GATE_PASSED');\n`,
     noThemes: true,
     noPromptTemplates: true,
     noContextFiles: true,
-    additionalExtensionPaths: [fileURLToPath(new URL("../../index.ts", import.meta.url))],
+    additionalExtensionPaths: [
+      fileURLToPath(new URL("../../packages/pi/index.ts", import.meta.url)),
+    ],
     extensionFactories: [factory],
   });
   await loader.reload({ resolveProjectTrust: async () => true });

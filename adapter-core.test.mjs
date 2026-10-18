@@ -15,10 +15,10 @@ import {
   formatAttestationPrompt,
   TOOL_TEXT_LIMIT,
   truncateToolText,
-} from "./adapter-core.mjs";
+} from "./packages/pi/adapter-core.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const adapterSource = readFileSync(join(here, "index.ts"), "utf8");
+const adapterSource = readFileSync(join(here, "packages/pi/index.ts"), "utf8");
 const NOTE = "已在 tests/e2e/e2e-commit-gate.mjs 用临时仓库复现，输出 PASS 行";
 
 // ─── attestationGate: allow / deny / no-UI ──────────────────────────────────
@@ -193,8 +193,13 @@ test("index.ts: fake Pi 可加载注册，且并发 begin 由真实 spec path �
   try {
     fs.writeFileSync(join(root, "package.json"), '{"type":"module"}\n');
     fs.writeFileSync(join(root, "index.ts"), adapterSource);
-    fs.symlinkSync(join(here, "core.mjs"), join(root, "core.mjs"));
-    fs.symlinkSync(join(here, "adapter-core.mjs"), join(root, "adapter-core.mjs"));
+    fs.mkdirSync(join(root, "node_modules/@nightink"), { recursive: true });
+    fs.symlinkSync(
+      join(here, "packages/core"),
+      join(root, "node_modules/@nightink/spec-flow-core"),
+      "dir",
+    );
+    fs.symlinkSync(join(here, "packages/pi/adapter-core.mjs"), join(root, "adapter-core.mjs"));
 
     const agentDir = join(root, "node_modules/@earendil-works/pi-coding-agent");
     fs.mkdirSync(agentDir, { recursive: true });

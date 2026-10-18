@@ -17,11 +17,16 @@ import {
   migrateAlloc,
   renderWorktrees,
   writeFrontmatter,
-} from "./core.mjs";
-import { loadProjectProfile } from "./project-profile.mjs";
-import { gitWorkspace, gitWorktrees, readReservations, withWorkspaceLock } from "./workspace.mjs";
+} from "./packages/core/src/core.mjs";
+import { loadProjectProfile } from "./packages/core/src/project-profile.mjs";
+import {
+  gitWorkspace,
+  gitWorktrees,
+  readReservations,
+  withWorkspaceLock,
+} from "./packages/core/src/workspace.mjs";
 
-const cli = fileURLToPath(new URL("./core.mjs", import.meta.url));
+const cli = fileURLToPath(new URL("./packages/core/src/core.mjs", import.meta.url));
 const gateProfile = {
   version: 1,
   gates: {

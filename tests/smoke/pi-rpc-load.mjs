@@ -36,7 +36,7 @@ const child = spawn(
     "--no-approve",
     "--no-extensions",
     "-e",
-    fileURLToPath(new URL("../../index.ts", import.meta.url)),
+    fileURLToPath(new URL("../../packages/pi/index.ts", import.meta.url)),
   ],
   {
     cwd,

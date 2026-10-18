@@ -8,9 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const source = fileURLToPath(new URL("../../", import.meta.url));
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-private-action-e2e-"));
-const action = path.join(root, "action");
 const project = path.join(root, "caller");
-fs.mkdirSync(action);
 fs.mkdirSync(path.join(project, "specs"), { recursive: true });
 function run(command, args, cwd, env = process.env) {
   return execFileSync(command, args, { cwd, env, encoding: "utf8", timeout: 120000 });
@@ -19,22 +17,16 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 try {
-  // The real Action installs its locked dependencies in its own checkout. Tests
-  // reuse this repository's *already installed* deps to stay offline; this still
-  // runs the copied CLI from outside both source and caller, never a Pi global path.
-  for (const name of [
-    "core.mjs",
-    "project-profile.mjs",
-    "workspace.mjs",
-    "review-execution.mjs",
-    "review-engine.mjs",
-    "review-storage.mjs",
-    "review-coverage.mjs",
-  ]) {
-    fs.copyFileSync(path.join(source, name), path.join(action, name));
-  }
-  fs.symlinkSync(path.join(source, "node_modules"), path.join(action, "node_modules"), "dir");
-  const cli = path.join(action, "core.mjs");
+  // The real Action installs its locked dependencies in its own checkout and
+  // then runs the exact manifest path. This offline test reuses the repository's
+  // *already installed* deps but executes that exact action.yml path, not a copy.
+  const actionManifest = fs.readFileSync(path.join(source, "action.yml"), "utf8");
+  const cliMatch = actionManifest.match(
+    /SPECFLOW_CLI:\s*\$\{\{\s*github\.action_path\s*\}\}\/(\S+)/,
+  );
+  assert(cliMatch, "action.yml must pin SPECFLOW_CLI to an action_path-relative file");
+  const cli = path.join(source, cliMatch[1]);
+  assert(fs.existsSync(cli), `action.yml CLI path does not exist: ${cli}`);
   fs.writeFileSync(
     path.join(project, "package.json"),
     JSON.stringify({
@@ -105,7 +97,7 @@ try {
     fs.readFileSync(path.join(project, "gate-marker"), "utf8") === "verify\n",
     "recursive verify detected",
   );
-  console.log("PASS private Action-equivalent subprocess chain invokes caller verify once");
+  console.log("PASS exact action.yml CLI path runs caller verify once offline");
   fs.unlinkSync(path.join(project, ".spec-flow.json"));
   fs.unlinkSync(path.join(project, "gate-marker"));
   assert(

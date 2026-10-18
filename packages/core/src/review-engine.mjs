@@ -34,7 +34,12 @@ import {
   coverageAssessment,
   reviewInputs,
 } from "./review-coverage.mjs";
-import { describeReviewExecution, resolveReviewExecution } from "./review-execution.mjs";
+import { describeReviewExecution } from "./review-execution.mjs";
+import {
+  buildReviewInvocation,
+  loadReviewExecutor,
+  resolveReviewExecution,
+} from "./review-executor.mjs";
 
 export { buildReviewIndex } from "./review-coverage.mjs";
 
@@ -1284,8 +1289,15 @@ export async function prepareWorkingAudit(cwd, { spec, content, profile, binding
     { prior_findings: material.prior.map((item) => item.id) },
   );
 }
-export async function runPreparedReview(cwd, id, { budgetId, signal, onProgress } = {}) {
+export async function runPreparedReview(cwd, id, { budgetId, signal, onProgress, executor } = {}) {
   const repo = gitWorkspace(cwd).root;
+  // Load an executor only for an unstarted job, before acquiring the lock; a
+  // cached/running job must stay reusable even if today's executor settings
+  // are invalid. Jobs never transition back to prepared.
+  const selected =
+    loadJob(repo, id).job.state === "prepared"
+      ? await loadReviewExecutor({ env: process.env, executor })
+      : null;
   let prepared, executionInfo;
   await withWorkspaceLock(repo, `review-job:${id}`, () => {
     const { dir, job } = loadJob(repo, id);
@@ -1301,8 +1313,11 @@ export async function runPreparedReview(cwd, id, { budgetId, signal, onProgress 
     if (scan.packet_sha256 !== job.packet_sha256 || scan.findings.length)
       throw new Error("Prepared review packet changed or is sensitive; no model call");
     assertReviewIndexBinding(packet, job, repo);
-    // Refresh settings only for an unstarted job; preflight never spends or runs a probe.
-    const execution = resolveReviewExecution(repo);
+    // Resolve the exact argv before spending budget. Settings refresh only for
+    // an unstarted job; preflight never runs a probe.
+    if (!selected) throw new Error("Review executor was not loaded for a prepared job");
+    const execution = resolveReviewExecution(selected, repo);
+    execution.invocation = buildReviewInvocation(selected, execution, path.join(dir, "packet.md"));
     job.budget = reserveReviewCall(repo, budgetId || process.env.SPECFLOW_REVIEW_BUDGET_ID, id);
     job.state = "running";
     job.model_invoked = false;

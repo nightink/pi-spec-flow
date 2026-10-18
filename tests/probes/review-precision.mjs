@@ -5,14 +5,14 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFrontmatter } from "../../core.mjs";
+import { writeFrontmatter } from "../../packages/core/src/core.mjs";
 import {
   decodeAuditorResponse,
   normalizeReviewResult,
   reviewOutputInfo,
   sealReview,
-} from "../../review-engine.mjs";
-import { digest } from "../../review-storage.mjs";
+} from "../../packages/core/src/review-engine.mjs";
+import { digest } from "../../packages/core/src/review-storage.mjs";
 
 const fixtures = fileURLToPath(new URL("../fixtures/review-precision/", import.meta.url));
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));

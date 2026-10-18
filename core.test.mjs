@@ -38,9 +38,9 @@ import {
   shouldBypass,
   updateStatusLine,
   writeFrontmatter,
-} from "./core.mjs";
+} from "./packages/core/src/core.mjs";
 
-import { authorizeReviewBudget } from "./review-engine.mjs";
+import { authorizeReviewBudget } from "./packages/core/src/review-engine.mjs";
 
 process.env.SPECFLOW_REVIEW_BUDGET_ID = "mechanical-tests";
 

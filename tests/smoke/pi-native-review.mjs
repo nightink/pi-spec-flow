@@ -6,9 +6,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { writeFrontmatter } from "../../core.mjs";
-import { normalizeReviewResult } from "../../review-engine.mjs";
-import { digest, loadJob, reviewStore, saveJob } from "../../review-storage.mjs";
+import { writeFrontmatter } from "../../packages/core/src/core.mjs";
+import { normalizeReviewResult } from "../../packages/core/src/review-engine.mjs";
+import { digest, loadJob, reviewStore, saveJob } from "../../packages/core/src/review-storage.mjs";
 import { mechanicalCoverage, seedLegacyReviewFixture } from "../helpers/review-fixture.mjs";
 
 const sdkRoot = process.env.SPECFLOW_PI_SDK;
@@ -267,7 +267,7 @@ const loader = new DefaultResourceLoader({
   noThemes: true,
   noPromptTemplates: true,
   noContextFiles: true,
-  additionalExtensionPaths: [fileURLToPath(new URL("../../index.ts", import.meta.url))],
+  additionalExtensionPaths: [fileURLToPath(new URL("../../packages/pi/index.ts", import.meta.url))],
   extensionFactories: [factory],
 });
 try {

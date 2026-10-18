@@ -22,7 +22,7 @@ import {
   runGates,
   specContractHash,
   writeFrontmatter,
-} from "./core.mjs";
+} from "./packages/core/src/core.mjs";
 
 function project(files = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-trust-"));
@@ -560,7 +560,7 @@ test("audit cache never bypasses base ancestor validation", async () => {
   );
   const oldBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor;
-  const { authorizeReviewBudget } = await import("./review-engine.mjs");
+  const { authorizeReviewBudget } = await import("./packages/core/src/review-engine.mjs");
   authorizeReviewBudget(root, {
     id: "mechanical-tests",
     calls: 2,

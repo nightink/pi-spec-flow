@@ -1,0 +1,46 @@
+{
+  "name": "@nightink/pi-spec-flow",
+  "version": "0.3.0",
+  "description": "Pi adapter: spec-flow lifecycle tools, notifications and the autonomous-delivery skill",
+  "type": "module",
+  "private": true,
+  "keywords": [
+    "pi-package"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "files": [
+    "index.ts",
+    "adapter-core.mjs",
+    "skills"
+  ],
+  "dependencies": {
+    "@nightink/spec-flow-core": "^0.3.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nightink/pi-spec-flow.git",
+    "directory": "packages/pi"
+  }
+}

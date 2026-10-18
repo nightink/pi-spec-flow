@@ -9,13 +9,6 @@
 import { resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
-import {
-  attestationGate,
-  notifySafely,
-  truncateToolText,
-  updateToolProgress,
-} from "./adapter-core.mjs";
 import {
   allocateSpecId,
   appendCommitLedger,
@@ -35,7 +28,30 @@ import {
   renderSpecDetail,
   renderWorktrees,
   reviewSpec,
-} from "./core.mjs";
+} from "@nightink/spec-flow-core";
+// The adapter, not the engine, owns the harness launch protocol. Other agent
+// adapters import their own executor module here; see docs/adapters.md.
+import {
+  buildArgs as buildPiReviewArgs,
+  envDeny as piReviewEnvDeny,
+  envSet as piReviewEnvSet,
+  resolve as resolvePiReviewExecution,
+} from "@nightink/spec-flow-core/executors/pi-cli";
+
+import { Type } from "typebox";
+import {
+  attestationGate,
+  notifySafely,
+  truncateToolText,
+  updateToolProgress,
+} from "./adapter-core.mjs";
+
+const reviewExecutor = {
+  resolve: resolvePiReviewExecution,
+  buildArgs: buildPiReviewArgs,
+  envDeny: piReviewEnvDeny,
+  envSet: piReviewEnvSet,
+};
 
 // Track latest session cwd — command completions have no ctx
 let lastCwd = process.cwd();
@@ -260,6 +276,7 @@ export default function (pi: ExtensionAPI) {
       return structuredResult(
         await reviewSpec(ctx.cwd, params, {
           signal,
+          executor: reviewExecutor,
           onProgress: (text: string) => updateToolProgress(onUpdate, text),
         }),
       );
@@ -339,6 +356,7 @@ export default function (pi: ExtensionAPI) {
         const output = await runSpecMutation(ctx.cwd, params.id, () =>
           audit(ctx.cwd, params.id, {
             signal,
+            executor: reviewExecutor,
             budgetId: params.budgetId,
             reviewJobId: params.reviewJobId,
             onProgress: (text) => updateToolProgress(onUpdate, text),
@@ -379,7 +397,7 @@ export default function (pi: ExtensionAPI) {
       if (gate.reason === "no-ui") {
         throw new Error(
           "spec_attest 需要交互式 UI 用户确认；当前模式无 UI，未写入。" +
-            "如需显式登记，请在 CLI 运行：node core.mjs attest <id> <item> <note>",
+            "如需显式登记，请在 CLI 运行：spec-flow attest <id> <item> <note>",
         );
       }
       if (!gate.allowed) {
@@ -447,7 +465,10 @@ export default function (pi: ExtensionAPI) {
           const result =
             arg.slice(0, split) === "new"
               ? await newSpec(ctx.cwd, input)
-              : await reviewSpec(ctx.cwd, input, { signal: ctx.signal });
+              : await reviewSpec(ctx.cwd, input, {
+                  signal: ctx.signal,
+                  executor: reviewExecutor,
+                });
           notifySafely(ctx, JSON.stringify(result, null, 2), "info");
           return;
         }

@@ -6,10 +6,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { findSpec, writeFrontmatter } from "../../core.mjs";
-import { digest, loadJob } from "../../review-storage.mjs";
+import { findSpec, writeFrontmatter } from "../../packages/core/src/core.mjs";
+import { digest, loadJob } from "../../packages/core/src/review-storage.mjs";
 
-const core = fileURLToPath(new URL("../../core.mjs", import.meta.url));
+const core = fileURLToPath(new URL("../../packages/core/src/core.mjs", import.meta.url));
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-execution-cli-"));
 const root = path.join(sandbox, "trusted checkout"),
   bin = path.join(sandbox, "PATH without pi");
@@ -97,13 +97,15 @@ try {
     `import fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("../helpers/review-fixture.mjs", import.meta.url).href)};const args=process.argv.slice(2);
 if(args.includes('--version'))throw new Error('no executable probe permitted');
 for(const flag of ['--no-tools','--no-extensions','--no-session','--no-skills','--no-context-files','--no-prompt-templates','--no-themes','--no-approve'])if(!args.includes(flag))process.exit(2);
+if(process.env.PI_MODEL||process.env.PI_PROVIDER||process.env.PI_SESSION_ID)process.exit(4);
+if(process.env.PI_SKIP_VERSION_CHECK!=='1')process.exit(5);
 fs.appendFileSync(${JSON.stringify(calls)},'call\\n');fs.copyFileSync(args.at(-1).slice(1),${JSON.stringify(captured)});
 console.log(JSON.stringify(mechanicalCoverage({verdict:'pass',criteria:[{criterion:'mechanical CLI',status:'pass',evidence:'disposable fake only'}],scope_deviations:[]},fs.readFileSync(args.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o600 },
   );
   json("review-budget", {
     id: "mechanical",
-    calls: 3,
+    calls: 4,
     note: "Synthetic disposable CLI executor tests only; never a real reviewer authorization.",
   });
   const prepared = json("review", { id: "S1", base, head });
@@ -112,7 +114,7 @@ console.log(JSON.stringify(mechanicalCoverage({verdict:'pass',criteria:[{criteri
     JSON.stringify({ action: "run", jobId: prepared.jobId, budgetId: "mechanical" }),
   ]);
   assert.notEqual(unavailable.status, 0);
-  assert.match(unavailable.stderr, /SPECFLOW_AUDIT_BIN.*SPECFLOW_PI_CLI/);
+  assert.match(unavailable.stderr, /not found or not executable/);
   assert.equal(json("review", { action: "status", jobId: prepared.jobId }).state, "prepared");
   assert.equal(budget().used, 0);
   assert.equal(fs.existsSync(calls), false);
@@ -126,6 +128,8 @@ console.log(JSON.stringify(mechanicalCoverage({verdict:'pass',criteria:[{criteri
   assert.deepEqual(complete.receipt.execution.prefixArgs, [cliFile]);
   assert.equal(complete.executionInfo.timeoutApplied, true);
   assert.equal(digest(fs.readFileSync(captured)), complete.receipt.packet_sha256);
+  assert.ok(complete.receipt.execution.invocation.envDeny.includes("PI_SESSION_ID"));
+  assert.equal(complete.receipt.execution.invocation.envSet.PI_SKIP_VERSION_CHECK, "1");
   const before = fs.readFileSync(path.join(loadJob(root, prepared.jobId).dir, "job.json"));
   const replay = json(
     "review",
@@ -191,6 +195,67 @@ console.log(JSON.stringify(mechanicalCoverage({verdict:'pass',criteria:[{criteri
   assert.equal(budget().used, 3);
   console.log(
     "PASS timed-out CLI job retains original timeout, nonpassing result and charged budget; replay never respawns",
+  );
+
+  // A future harness supplies its own executor module: no Pi flags, no engine
+  // change. The module is resolved by absolute path before the budget charge.
+  const customCli = path.join(sandbox, "custom harness CLI.mjs");
+  const customExecutor = path.join(sandbox, "custom-executor.mjs");
+  fs.writeFileSync(
+    customCli,
+    `import fs from 'node:fs';import {fileURLToPath} from 'node:url';import {mechanicalCoverage} from ${JSON.stringify(new URL("../helpers/review-fixture.mjs", import.meta.url).href)};
+const args = process.argv.slice(2);
+if (!args.includes("--fixture") || args.includes("-p") || args.includes("--no-tools")) process.exit(2);
+fs.appendFileSync(${JSON.stringify(calls)}, "custom\\n");
+fs.copyFileSync(args.at(-1).slice(1), ${JSON.stringify(captured)});
+console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"custom executor",status:"pass",evidence:"non-Pi argv fixture"}],scope_deviations:[]}, fs.readFileSync(args.at(-1).slice(1), "utf8"))));
+`,
+    { mode: 0o600 },
+  );
+  fs.writeFileSync(
+    customExecutor,
+    `import {fileURLToPath} from "node:url";
+const cli = fileURLToPath(new URL("./custom harness CLI.mjs", import.meta.url));
+export function resolve() {
+  return { bin: process.execPath, prefixArgs: [cli], launcher: "custom-fixture", model: "fixture/model", thinking: "off", timeout: 5000 };
+}
+export function buildArgs(execution, promptFile) {
+  return ["--fixture", execution.model, "@" + promptFile];
+}
+`,
+    { mode: 0o600 },
+  );
+  const customJob = json("review", { mode: "proposal", id: "S1" });
+  const invalid = cli(
+    "review",
+    ["--json", JSON.stringify({ action: "run", jobId: customJob.jobId, budgetId: "mechanical" })],
+    { SPECFLOW_REVIEW_EXECUTOR: path.join(sandbox, "missing-executor.mjs") },
+  );
+  assert.notEqual(invalid.status, 0);
+  assert.match(invalid.stderr, /SPECFLOW_REVIEW_EXECUTOR/);
+  assert.equal(json("review", { action: "status", jobId: customJob.jobId }).state, "prepared");
+  assert.equal(budget().used, 3);
+  const customRun = json(
+    "review",
+    { action: "run", jobId: customJob.jobId, budgetId: "mechanical" },
+    { SPECFLOW_REVIEW_EXECUTOR: customExecutor },
+  );
+  assert.equal(customRun.state, "completed");
+  assert.equal(customRun.receipt.execution.launcher, "custom-fixture");
+  assert.equal(customRun.receipt.execution.model, "fixture/model");
+  assert.deepEqual(customRun.receipt.execution.prefixArgs, [fs.realpathSync(customCli)]);
+  assert.ok(customRun.receipt.execution.invocation.args.includes("--fixture"));
+  const invocationArg = customRun.receipt.execution.invocation.args.at(-1);
+  assert.equal(
+    fs.realpathSync(invocationArg.slice(1)),
+    fs.realpathSync(path.join(loadJob(root, customJob.jobId).dir, "packet.md")),
+  );
+  assert.equal(customRun.receipt.child_input_sha256, customRun.receipt.packet_sha256);
+  assert.equal(digest(fs.readFileSync(captured)), customRun.receipt.packet_sha256);
+  assert.equal(budget().used, 4);
+  assert.equal(fs.readFileSync(calls, "utf8"), "call\ncall\ncustom\n");
+  console.log(
+    "PASS custom non-Pi executor module: free invalid preflight, serialized invocation, sealed packet bytes and charged run",
   );
 } finally {
   fs.rmSync(sandbox, { recursive: true, force: true });

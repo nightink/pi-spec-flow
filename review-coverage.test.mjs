@@ -16,9 +16,9 @@ import {
   impl,
   parseFrontmatter,
   writeFrontmatter,
-} from "./core.mjs";
-import * as engine from "./review-engine.mjs";
-import { digest, loadJob, reviewStore, saveJob } from "./review-storage.mjs";
+} from "./packages/core/src/core.mjs";
+import * as engine from "./packages/core/src/review-engine.mjs";
+import { digest, loadJob, reviewStore, saveJob } from "./packages/core/src/review-storage.mjs";
 
 const BODY = `# Observable refresh\n\n## Outcome\n\n- The user refresh control updates the visible value.\n\n## Design\n\n- Entry must call the refresh helper, not just implement it.\n- Duration is the sum of individual session spans, including parallel sessions.\n\n## Executable acceptance\n\n- [ ] [A1] A helper returns the new value.\n- [ ] [A2] Clicking the actual entry updates the visible value.\n\n## Review 与决策\n\n| ID | Severity | Finding | Disposition |\n|---|---|---|---|\n| F1 | major | Refresh entry is disconnected | Written into Design |\n\nA withdrawal would require an explicit recorded approval, not a new model opinion.\n`;
 function indexed(content = BODY) {
@@ -221,9 +221,13 @@ test("coverage: coverage-marked jobs cannot downgrade protocol before charging, 
   };
   delete running.result_protocol_version;
   saveJob(dir, running);
-  execFileSync(process.execPath, [path.resolve("review-worker.mjs"), f.root, job.id], {
-    cwd: process.cwd(),
-  });
+  execFileSync(
+    process.execPath,
+    [path.resolve("packages/core/src/review-worker.mjs"), f.root, job.id],
+    {
+      cwd: process.cwd(),
+    },
+  );
   const stopped = loadJob(f.root, job.id).job;
   assert.equal(stopped.state, "failed");
   assert.equal(stopped.model_invoked, false);

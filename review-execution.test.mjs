@@ -6,9 +6,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { audit, begin, findSpec, impl, writeFrontmatter } from "./core.mjs";
-import { authorizeReviewBudget, review, reviewStatus } from "./review-engine.mjs";
-import { digest, loadJob, readPrivate, reviewStore, saveJob } from "./review-storage.mjs";
+import { audit, begin, findSpec, impl, writeFrontmatter } from "./packages/core/src/core.mjs";
+import { authorizeReviewBudget, review, reviewStatus } from "./packages/core/src/review-engine.mjs";
+import {
+  digest,
+  loadJob,
+  readPrivate,
+  reviewStore,
+  saveJob,
+} from "./packages/core/src/review-storage.mjs";
 
 function environment(t, changes = {}) {
   const values = {
@@ -198,10 +204,7 @@ test("execution: no PATH pi and invalid explicit CLI are resumable preflight fai
   environment(t, { PATH: f.bin });
   f.grant();
   const prepared = await f.prepare();
-  await assert.rejects(
-    run(f, prepared),
-    /SPECFLOW_AUDIT_BIN.*SPECFLOW_PI_CLI|SPECFLOW_PI_CLI.*SPECFLOW_AUDIT_BIN/,
-  );
+  await assert.rejects(run(f, prepared), /not found or not executable/);
   for (const entry of ["relative.js", path.join(f.sandbox, "missing.js"), f.sandbox]) {
     process.env.SPECFLOW_PI_CLI = entry;
     await assert.rejects(run(f, prepared), /SPECFLOW_PI_CLI/);

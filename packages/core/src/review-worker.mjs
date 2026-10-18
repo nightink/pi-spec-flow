@@ -1,7 +1,9 @@
 // Detached single-shot executor: UI/daemon loss cannot silently lose a result.
+// Harness-neutral: it spawns the argv serialized by the parent (see
+// review-executor.mjs) and never constructs provider-specific flags itself.
 import fs from "node:fs";
 import path from "node:path";
-import { buildAuditorArgs, runSpawn } from "./core.mjs";
+import { runSpawn } from "./core.mjs";
 import {
   assertReviewIndexBinding,
   decodeAuditorResponse,
@@ -31,29 +33,31 @@ try {
   if (digest(packet) !== job.packet_sha256 || scanReviewPacket(packet).findings.length)
     throw new Error("Sealed packet changed before child execution");
   assertReviewIndexBinding(packet, job, cwd);
-  const { args, cleanup } = buildAuditorArgs(packet, job.execution.model, job.execution.thinking);
+  const invocation = job.execution?.invocation;
+  if (
+    !invocation ||
+    typeof invocation.bin !== "string" ||
+    !Array.isArray(invocation.prefixArgs) ||
+    !Array.isArray(invocation.args) ||
+    invocation.args.length === 0
+  )
+    throw new Error("Review job has no serialized executor invocation; recreate the run");
   let response;
   const outputFds = {
     stdout: fs.openSync(path.join(dir, "stdout.txt"), "wx", 0o600),
     stderr: fs.openSync(path.join(dir, "stderr.txt"), "wx", 0o600),
   };
   try {
-    const childInput = fs.readFileSync(args.at(-1).slice(1));
+    const childInput = fs.readFileSync(invocation.args.at(-1).slice(1));
     if (digest(childInput) !== job.packet_sha256)
       throw new Error("Child input differs from scanned packet");
     job.child_input_sha256 = digest(childInput);
     job.model_invoked = true;
     persist();
-    const env = { ...process.env, NO_COLOR: "1", PI_SKIP_VERSION_CHECK: "1" };
-    for (const name of [
-      "PI_SESSION_FILE",
-      "PI_SESSION_ID",
-      "PI_PROVIDER",
-      "PI_MODEL",
-      "PI_REASONING_LEVEL",
-    ])
-      delete env[name];
-    response = await runSpawn(job.execution.bin, [...(job.execution.prefixArgs || []), ...args], {
+    const env = { ...process.env, NO_COLOR: "1" };
+    for (const name of invocation.envDeny) delete env[name];
+    Object.assign(env, invocation.envSet);
+    response = await runSpawn(invocation.bin, [...invocation.prefixArgs, ...invocation.args], {
       cwd,
       env,
       signal: controller.signal,
@@ -62,7 +66,6 @@ try {
       onOutput: (stream, bytes) => fs.writeSync(outputFds[stream], bytes),
     });
   } finally {
-    cleanup();
     for (const fd of Object.values(outputFds)) fs.closeSync(fd);
   }
   job.raw_sha256 = digest(fs.readFileSync(path.join(dir, "stdout.txt")));

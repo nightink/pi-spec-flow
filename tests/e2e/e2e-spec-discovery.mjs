@@ -5,10 +5,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadSpecs, writeFrontmatter } from "../../core.mjs";
+import { loadSpecs, writeFrontmatter } from "../../packages/core/src/core.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const core = path.resolve(here, "../../core.mjs");
+const core = path.resolve(here, "../../packages/core/src/core.mjs");
 let failures = 0;
 
 function check(condition, label) {

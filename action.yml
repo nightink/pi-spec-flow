@@ -13,5 +13,5 @@ runs:
     - name: Check caller contracts and run its authoritative verify
       shell: bash
       env:
-        SPECFLOW_CLI: ${{ github.action_path }}/core.mjs
+        SPECFLOW_CLI: ${{ github.action_path }}/packages/core/src/core.mjs
       run: node "$SPECFLOW_CLI" verify

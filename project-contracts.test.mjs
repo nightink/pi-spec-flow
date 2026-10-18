@@ -5,10 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { checkCI } from "./core.mjs";
-import { loadProjectProfile } from "./project-profile.mjs";
+import { checkCI } from "./packages/core/src/core.mjs";
+import { loadProjectProfile } from "./packages/core/src/project-profile.mjs";
 
-const CLI = fileURLToPath(new URL("./core.mjs", import.meta.url));
+const CLI = fileURLToPath(new URL("./packages/core/src/core.mjs", import.meta.url));
 const RULES = {
   requiredFields: ["id", "title", "kind", "status", "created", "updated", "author", "depends_on"],
   kindField: "kind",

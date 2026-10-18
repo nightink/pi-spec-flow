@@ -1,0 +1,318 @@
+{
+  "version": 1,
+  "contract": "docs/specs/S2.1-monorepo-core-and-pi-adapter.md",
+  "base": "5d1411d28be3bd1712f7193413c301035131b1c7",
+  "boundary": "Changed product sources and tests; governing Spec and review-only archives excluded. Paths are post-refactor locations.",
+  "files": [
+    {
+      "file": "README.md",
+      "sha256": "d83cbee3b3ff96c0678e08743590c3403f139fdb7ffa59ff48a45a3e404688d2",
+      "executable": false
+    },
+    {
+      "file": "action.test.mjs",
+      "sha256": "4a54214775514b7fa35b36de04955cc0429a1cb2d0b833058be7059f4838d239",
+      "executable": false
+    },
+    {
+      "file": "action.yml",
+      "sha256": "afbfc0b0bfd14b5a8f7a9e03877ec6fafa5683bb35914ed1c485291abd2d8f1c",
+      "executable": false
+    },
+    {
+      "file": "adapter-core.test.mjs",
+      "sha256": "b838da5f26a2faf7bb3c4db2a7ca315f2803a9968f14e466f7f4f547a79ac567",
+      "executable": false
+    },
+    {
+      "file": "adapter-notifications.test.mjs",
+      "sha256": "eeb199fa9a148f6ca7e81d60644e576a9d177ef1babaf6a2983d92a947c9c69e",
+      "executable": false
+    },
+    {
+      "file": "core.test.mjs",
+      "sha256": "62d25838863f4958907beddce4016ce67509e77846bc9f2ab264c81b92c175d2",
+      "executable": false
+    },
+    {
+      "file": "docs/adapters.md",
+      "sha256": "58dac801bf08a5f31f815c73b9a0e39eab91b896f71b734f9c5e1dc8bdd7cff3",
+      "executable": false
+    },
+    {
+      "file": "package-layout.test.mjs",
+      "sha256": "2e6f0cca2a36d1164d19027056cb43be702b01b517ab970b704fb3ef4ae8ec0d",
+      "executable": false
+    },
+    {
+      "file": "package-lock.json",
+      "sha256": "b796acde9486a353d6fb365d882dc70a50fc7f4d57620f844feb7f1cdf998e93",
+      "executable": false
+    },
+    {
+      "file": "package.json",
+      "sha256": "9dcbf216a7d37977c5b5c0d9827c8dc964f1aa292a67faa8d1f1329df1722761",
+      "executable": false
+    },
+    {
+      "file": "packages/core/README.md",
+      "sha256": "d9ff3cb5db8447a45050d9de16d04972bb8a78b0f513aa75b0e6947e6cd31a94",
+      "executable": false
+    },
+    {
+      "file": "packages/core/package.json",
+      "sha256": "09672b1b7c777761a2606789d04397a68defa298c4325ba8436e5e7e915728ad",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/core.mjs",
+      "sha256": "951b6d7e2c3f3f0205dfac1b545cd8525c450943956f0e0c0c0ee3bbbe107f6f",
+      "executable": true
+    },
+    {
+      "file": "packages/core/src/executors/pi-cli.mjs",
+      "sha256": "ce94d26613e3b2ab1dcbac1489183be764a69304b1f821409be9a738e2e2e7c3",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/project-profile.mjs",
+      "sha256": "5cf2df233695bdb39c617f674d4ff3b4f32ce6b43effaacf4db0b1cbe406bde2",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/review-coverage.mjs",
+      "sha256": "b69faf5c7806ce45d778e9a2c8b08c714de9ac60a62056030041c888c7dad39f",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/review-engine.mjs",
+      "sha256": "129528ac73c3116539a1e8411e67b712d8590d11b50bccb10083a0883a4da97e",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/review-execution.mjs",
+      "sha256": "c3a39f84df44c4e9d1d821db95692fef8c5853113b6b7748714b48c5c4f72daf",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/review-executor.mjs",
+      "sha256": "a90f665a127b177e6a6dcc31130e7191d0a72df3f5b4d744e32fbed83173eeab",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/review-storage.mjs",
+      "sha256": "3f95a68251780804cc3975665473dce08c089a10fd50ea5fd32b5a2c2edd0a39",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/review-worker.mjs",
+      "sha256": "2cfc379ff00115676b955668ec114d67925f64c3695c506709fdfd591b20503c",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/spec-creation.mjs",
+      "sha256": "55c185b2d670eddc77e735fa0d2be8cca3386340a932a59df793da90f6cdab61",
+      "executable": false
+    },
+    {
+      "file": "packages/core/src/workspace.mjs",
+      "sha256": "a76122c857236dd2ce0c3a4f5e4b207d2bb10fd963555a0d841376c9525ee65e",
+      "executable": false
+    },
+    {
+      "file": "packages/core/templates/spec-v1.md",
+      "sha256": "1eb25876978ed28e5d913aabba2e05767ce2e6918966211babf7c026cc568687",
+      "executable": false
+    },
+    {
+      "file": "packages/core/templates/spec-v2.md",
+      "sha256": "358de590b6ba9668445b5880a12561216ed9e9d215c4a07d6b3ddfc1ab92accf",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/adapter-core.mjs",
+      "sha256": "406899914d21dfabfba588879a4edab43e39eb1e5476986eea2a57e2c52625dc",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/index.ts",
+      "sha256": "9eea03b3cb0f8ea7a699dc5d55f59596154bb7bfa15a5b377975fc74823a11a8",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/package.json",
+      "sha256": "275f6e5ee140daaa2266001e71dc533da70de5fc63932e5d9c880797af8934a7",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/skills/autonomous-delivery/CHANGELOG.md",
+      "sha256": "fc9cb35a7f0b58e8141a3aef83a5d2e8f033f2af222bfe1e022f3cbfec8ab68f",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/skills/autonomous-delivery/MANIFEST.sha256",
+      "sha256": "72587d279dcd8973bec243de9fc7844cf165ee3a836bdd14c84a23caaaaac429",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/skills/autonomous-delivery/SKILL.md",
+      "sha256": "1eb2b4ba87e1803833684de48acf595102a4427a250592004ff73deb76961e80",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/skills/autonomous-delivery/VERSION",
+      "sha256": "1e5b51cde515396a9fa762909cf8ca6584ccc564b325d2eebeea76175fe95c4d",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/skills/autonomous-delivery/assets/delivery-contract-template.md",
+      "sha256": "f03f0f7effa778ff90210b6a7a25f5f2c591de8c47d1c853c41fcca8de3f9841",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/skills/autonomous-delivery/references/delivery-gates.md",
+      "sha256": "ec1303487af466512ab090e23975b3790593238e1097c9595011d477f4aea829",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/skills/autonomous-delivery/references/project-discovery.md",
+      "sha256": "f2bdef45d27865ecbf96fdf135df9b73827e58232c7276cc7d0a7999d2020224",
+      "executable": false
+    },
+    {
+      "file": "packages/pi/skills/autonomous-delivery/references/review-convergence.md",
+      "sha256": "d76c8ac3373b7e3abbdb304b10ff7f3396a0dec7cc55cac88e3f17a2ac00b36a",
+      "executable": false
+    },
+    {
+      "file": "project-contracts.test.mjs",
+      "sha256": "550c2d3a011b286fa89f160afd2261ac6130bccfb83233458ca77503d65e9234",
+      "executable": false
+    },
+    {
+      "file": "project-profile.test.mjs",
+      "sha256": "67667d9c0a3492c56d743aeefd69dc9a972e30ebc145e7bee8731b7bf2ed64ee",
+      "executable": false
+    },
+    {
+      "file": "review-coverage.test.mjs",
+      "sha256": "06cfe52a7edb58022cb0ee3d6ada7168de847fec2f7969cdb9f482ca5d44422b",
+      "executable": false
+    },
+    {
+      "file": "review-creation.test.mjs",
+      "sha256": "b4222a3357de71c7f4462121a1d7b7abaa95516a233b534d79dc16c76b5ee390",
+      "executable": false
+    },
+    {
+      "file": "review-execution.test.mjs",
+      "sha256": "8b48d67519178aaab6a918d0457a998aae62e10fead8f656c7928057c9d055db",
+      "executable": false
+    },
+    {
+      "file": "review-precision-oracle.test.mjs",
+      "sha256": "e1519ef406f46d8510995f7949202aa88a05bf9f0e0233eaa171a869071bf890",
+      "executable": false
+    },
+    {
+      "file": "review-repair.test.mjs",
+      "sha256": "79c060b8040206a9d983c440c2b2e46aa06627e8b2d1c40924f4327e1a2757bb",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-commit-gate.mjs",
+      "sha256": "8aeaf2f5e45eed1941a4b8940a68cc7faf0c8688c53e9328de42358b54d6fd87",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-monorepo-packages.mjs",
+      "sha256": "e464c6ce4d0994f51a338c3a8d69e99cc3f1ff9923092cb2a7e6dc70ccb6a580",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-private-action.mjs",
+      "sha256": "fe741c5a6ba89d8f3a51e5c897f8085230b0b251ddd70610156718ab3d63a519",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-project-governance-profile.mjs",
+      "sha256": "b53fb69bf224a979ae7c7eeebb50c4ead2f6cfa7742ed3fd91cc66cdb4cacc8f",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-review-and-spec-new.mjs",
+      "sha256": "8c0c8604f140c10382f7e2d2b5084ec33e8e3407f788121209ef442f90f5468d",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-review-coverage.mjs",
+      "sha256": "79dd09da4174cf25ce09ab8de788bec633c608875de2df2113bf7cff43140551",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-review-execution.mjs",
+      "sha256": "c08670aa5416f0a7e5f58b274896cb3b197b8847c6d4a1b866f5cc4ed785eddb",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-review-repair.mjs",
+      "sha256": "96e81a1f2b8562d32f64574f39faedc4c0850c6a96a3211b17c626eeb874d729",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-spec-discovery.mjs",
+      "sha256": "7ae12438f643ff7e2c64303ee73e26f4057f06d97029238bd3e45ed7b2fe45a8",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-trustworthy-closure.mjs",
+      "sha256": "4b84b199cf5d117ef4062debd5f90c2830742d6fc48b3714c2f6ba1c8a57a49d",
+      "executable": false
+    },
+    {
+      "file": "tests/e2e/e2e-worktrees-python.mjs",
+      "sha256": "7750324269bd73be274026a5ad987f3ce96b5b0d3c45ccc1aa9d39d92bf29ef3",
+      "executable": false
+    },
+    {
+      "file": "tests/probes/review-precision.mjs",
+      "sha256": "510ac9111d0df718e7032b357b9822ab5e44a207c56b191ac5340b4917f52cce",
+      "executable": false
+    },
+    {
+      "file": "tests/smoke/pi-daemon-ui.mjs",
+      "sha256": "6af6e45d143a71e9668d76a3bc98fdd3301ae6a8a38e01b71384335abc7bb8f9",
+      "executable": false
+    },
+    {
+      "file": "tests/smoke/pi-native-review.mjs",
+      "sha256": "28901acbf410ca0daa1f8f0196b5af3adce0e6805580eafeb211776ddaddcc4f",
+      "executable": false
+    },
+    {
+      "file": "tests/smoke/pi-rpc-load.mjs",
+      "sha256": "cd17afafd268e3bed8243444d6479aeca3897a6dcb1cbd29993270cc21c8a52f",
+      "executable": false
+    },
+    {
+      "file": "tests/smoke/pi-skill-discovery.mjs",
+      "sha256": "92744fcde05cc9052b4eaa93994d54d90279500f949ea3f191ce043856a75700",
+      "executable": false
+    },
+    {
+      "file": "tests/smoke/pi-tool-schemas.mjs",
+      "sha256": "e3b8235d63cf088ea263250b3ddc81093fe75332a1264af113b77c02dae2f19b",
+      "executable": false
+    },
+    {
+      "file": "trustworthy.test.mjs",
+      "sha256": "5d34a89a641bb7e2799785f490030c06ed19aa33f10e6363734124206421ced4",
+      "executable": false
+    },
+    {
+      "file": "workspace-project.test.mjs",
+      "sha256": "fb0c587fce3a70ca706c0cd0daa44e52e13319f3a168e3289965ceea00fba4d4",
+      "executable": false
+    }
+  ]
+}

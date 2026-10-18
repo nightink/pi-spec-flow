@@ -6,9 +6,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFrontmatter } from "../../core.mjs";
+import { writeFrontmatter } from "../../packages/core/src/core.mjs";
 
-const core = fileURLToPath(new URL("../../core.mjs", import.meta.url));
+const core = fileURLToPath(new URL("../../packages/core/src/core.mjs", import.meta.url));
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-review-cli-"));
 const root = path.join(sandbox, "main checkout"),
   trees = [root],

@@ -18,7 +18,7 @@ import {
   recordConsistencyGaps,
   specContractHash,
   writeFrontmatter,
-} from "./core.mjs";
+} from "./packages/core/src/core.mjs";
 import {
   authorizeReviewBudget,
   normalizeReviewResult,
@@ -26,8 +26,8 @@ import {
   review,
   reviewStatus,
   runPreparedReview,
-} from "./review-engine.mjs";
-import { digest, loadJob, reviewStore, saveJob } from "./review-storage.mjs";
+} from "./packages/core/src/review-engine.mjs";
+import { digest, loadJob, reviewStore, saveJob } from "./packages/core/src/review-storage.mjs";
 import { seedLegacyReviewFixture } from "./tests/helpers/review-fixture.mjs";
 
 const rawPass = {

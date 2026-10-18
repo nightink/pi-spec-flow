@@ -22,23 +22,16 @@ function check(value, message) {
   if (!value) throw new Error(message);
 }
 try {
-  const action = path.join(base, "action");
   const project = path.join(base, "main");
   const peer = path.join(base, "agent with spaces");
-  fs.mkdirSync(action);
   fs.mkdirSync(path.join(project, "specs"), { recursive: true });
-  for (const name of [
-    "core.mjs",
-    "project-profile.mjs",
-    "workspace.mjs",
-    "review-execution.mjs",
-    "review-engine.mjs",
-    "review-storage.mjs",
-    "review-coverage.mjs",
-  ])
-    fs.copyFileSync(path.join(source, name), path.join(action, name));
-  fs.symlinkSync(path.join(source, "node_modules"), path.join(action, "node_modules"), "dir");
-  const cli = path.join(action, "core.mjs");
+  const actionManifest = fs.readFileSync(path.join(source, "action.yml"), "utf8");
+  const cliMatch = actionManifest.match(
+    /SPECFLOW_CLI:\s*\$\{\{\s*github\.action_path\s*\}\}\/(\S+)/,
+  );
+  check(cliMatch, "action.yml must pin SPECFLOW_CLI to an action_path-relative file");
+  const cli = path.join(source, cliMatch[1]);
+  check(fs.existsSync(cli), `action.yml CLI path does not exist: ${cli}`);
   const env = { ...process.env, SPECFLOW_CLI: cli, PYTHONDONTWRITEBYTECODE: "1" };
   fs.mkdirSync(path.join(project, "tests"));
   fs.mkdirSync(path.join(project, "acceptance"));
@@ -94,7 +87,7 @@ try {
     "caller verify did not run exactly once",
   );
   console.log(
-    "PASS copied Action CLI invokes package.json-free Python verify exactly once without recursion",
+    "PASS exact action.yml CLI path invokes package.json-free Python verify exactly once without recursion",
   );
   run("git", ["worktree", "add", "-qb", "agent", peer], project);
   check(

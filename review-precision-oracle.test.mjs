@@ -7,8 +7,8 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { buildReviewIndex } from "./review-coverage.mjs";
-import { digest } from "./review-storage.mjs";
+import { buildReviewIndex } from "./packages/core/src/review-coverage.mjs";
+import { digest } from "./packages/core/src/review-storage.mjs";
 
 const root = new URL("./tests/fixtures/review-precision/", import.meta.url);
 const scenarios = JSON.parse(fs.readFileSync(new URL("scenarios.json", root), "utf8"));

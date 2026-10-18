@@ -45,7 +45,9 @@ try {
     noThemes: true,
     noPromptTemplates: true,
     noContextFiles: true,
-    additionalExtensionPaths: [fileURLToPath(new URL("../../index.ts", import.meta.url))],
+    additionalExtensionPaths: [
+      fileURLToPath(new URL("../../packages/pi/index.ts", import.meta.url)),
+    ],
   });
   await loader.reload({ resolveProjectTrust: async () => true });
   assert.deepEqual(loader.getExtensions().errors, []);

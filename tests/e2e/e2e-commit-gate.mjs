@@ -7,7 +7,7 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { appendCommitLedger, commitGateDecision } from "../../core.mjs";
+import { appendCommitLedger, commitGateDecision } from "../../packages/core/src/core.mjs";
 
 function mkProject(files = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sf-e2e-"));
