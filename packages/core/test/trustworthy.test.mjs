@@ -22,7 +22,7 @@ import {
   runGates,
   specContractHash,
   writeFrontmatter,
-} from "./packages/core/src/core.mjs";
+} from "../src/core.mjs";
 
 function project(files = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-trust-"));
@@ -555,12 +555,12 @@ test("audit cache never bypasses base ancestor validation", async () => {
   const auditor = path.join(auditorDir, "auditor");
   fs.writeFileSync(
     auditor,
-    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"c",status:"pass",evidence:"implementation.txt diff"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
+    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("../../../tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"c",status:"pass",evidence:"implementation.txt diff"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o755 },
   );
   const oldBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor;
-  const { authorizeReviewBudget } = await import("./packages/core/src/review-engine.mjs");
+  const { authorizeReviewBudget } = await import("../src/review-engine.mjs");
   authorizeReviewBudget(root, {
     id: "mechanical-tests",
     calls: 2,

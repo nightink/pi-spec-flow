@@ -7,10 +7,10 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { buildReviewIndex } from "./packages/core/src/review-coverage.mjs";
-import { digest } from "./packages/core/src/review-storage.mjs";
+import { buildReviewIndex } from "../src/review-coverage.mjs";
+import { digest } from "../src/review-storage.mjs";
 
-const root = new URL("./tests/fixtures/review-precision/", import.meta.url);
+const root = new URL("../../../tests/fixtures/review-precision/", import.meta.url);
 const scenarios = JSON.parse(fs.readFileSync(new URL("scenarios.json", root), "utf8"));
 const oracle = JSON.parse(fs.readFileSync(new URL("oracle.json", root), "utf8"));
 const manifest = JSON.parse(fs.readFileSync(new URL("manifest.json", root), "utf8"));
@@ -48,7 +48,7 @@ test("precision probe: nineteen frozen contrasts prepare production prompts with
   execFileSync(
     process.execPath,
     [
-      fileURLToPath(new URL("./tests/probes/review-precision.mjs", import.meta.url)),
+      fileURLToPath(new URL("../../../tests/probes/review-precision.mjs", import.meta.url)),
       "prepare",
       tmp,
     ],

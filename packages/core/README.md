@@ -42,6 +42,12 @@ spec-flow review-budget --json '<grant>'
 Review/audit execution needs an external model CLI. CI-only commands
 (`verify`, `check`, `board`, `impl`) never call a provider.
 
+## Test
+
+```bash
+npm test        # package-local unit tests (also run from the repository root)
+```
+
 ## Library API
 
 ```js

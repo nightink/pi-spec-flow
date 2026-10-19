@@ -19,6 +19,8 @@ Pi 的证据绑定 spec 工作流扩展。它把 `begin → impl → audit → a
 | `packages/pi` | `@nightink/pi-spec-flow` | Pi 扩展入口、通知/队列 glue 与 `autonomous-delivery` skill |
 | 根 `package.json` | 私有 `pi-spec-flow` | workspace 根，同时保留 `pi` manifest 供 git 安装 |
 
+单元测试随包放置（`packages/core/test`、`packages/pi/test`），根目录只保留 `action.test.mjs`、`package-layout.test.mjs` 等仓库级测试；E2E、smoke 与共享 fixtures 仍在 `tests/`。根 `npm test` 会运行全部三处。
+
 根 `package.json#pi` 声明 `packages/pi/index.ts` 扩展入口与 `packages/pi/skills/` 目录；仓库公开并通过 Pi 的 git 包机制安装（扩展与 skill 随包一起加载）。包内扩展按包名 `@nightink/spec-flow-core` 导入引擎，npm workspaces 在安装时完成链接；目标项目不需要再定位本仓库文件：
 
 ```bash

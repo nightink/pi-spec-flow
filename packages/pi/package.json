@@ -44,5 +44,8 @@
     "type": "git",
     "url": "git+https://github.com/nightink/pi-spec-flow.git",
     "directory": "packages/pi"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
   }
 }

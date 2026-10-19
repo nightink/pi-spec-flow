@@ -17,13 +17,13 @@ import {
   parseFrontmatter,
   specContractHash,
   writeFrontmatter,
-} from "./packages/core/src/core.mjs";
+} from "../src/core.mjs";
 import {
   approvalProblems,
   dependencyIds,
   loadProjectProfile,
   statusRole,
-} from "./packages/core/src/project-profile.mjs";
+} from "../src/project-profile.mjs";
 
 function project(files = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-profile-"));
@@ -120,7 +120,7 @@ function fakeAuditor() {
   const file = path.join(dir, "fake-auditor.mjs");
   fs.writeFileSync(
     file,
-    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"profile lifecycle",status:"pass",evidence:"configured diff"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
+    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("../../../tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage({verdict:"pass",criteria:[{criterion:"profile lifecycle",status:"pass",evidence:"configured diff"}],scope_deviations:[]},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o755 },
   );
   return { file, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
@@ -313,7 +313,7 @@ test("project profile: example-app-shaped numeric lifecycle preserves local meta
   const auditor = fakeAuditor();
   const previousBin = process.env.SPECFLOW_AUDIT_BIN;
   process.env.SPECFLOW_AUDIT_BIN = auditor.file;
-  const { authorizeReviewBudget } = await import("./packages/core/src/review-engine.mjs");
+  const { authorizeReviewBudget } = await import("../src/review-engine.mjs");
   authorizeReviewBudget(root, {
     id: "mechanical-tests",
     calls: 1,
@@ -367,7 +367,7 @@ test("project profile: config content is snapshot-bound after impl", async () =>
 });
 
 test("project profile: changed contract can re-impl when verify runs contracts-only", async () => {
-  const cli = fileURLToPath(new URL("./packages/core/src/core.mjs", import.meta.url));
+  const cli = fileURLToPath(new URL("../src/core.mjs", import.meta.url));
   const root = project({
     "package.json": JSON.stringify({ scripts: { verify: "node verify.mjs" } }),
     ".spec-flow.json": JSON.stringify(profile(), null, 2),

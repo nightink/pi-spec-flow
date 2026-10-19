@@ -36,7 +36,8 @@
   ],
   "scripts": {
     "board": "node src/core.mjs board",
-    "check:contracts": "node src/core.mjs check --ci --contracts-only"
+    "check:contracts": "node src/core.mjs check --ci --contracts-only",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "js-yaml": "^4.3.2"

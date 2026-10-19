@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { mechanicalCoverage } from "../../../tests/helpers/review-fixture.mjs";
 import {
   audit,
   begin,
@@ -15,8 +16,8 @@ import {
   newSpec,
   repositorySnapshotHash,
   writeFrontmatter,
-} from "./packages/core/src/core.mjs";
-import { buildReviewIndex } from "./packages/core/src/review-coverage.mjs";
+} from "../src/core.mjs";
+import { buildReviewIndex } from "../src/review-coverage.mjs";
 import {
   authorizeReviewBudget,
   normalizeReviewResult,
@@ -25,16 +26,9 @@ import {
   review,
   reviewStatus,
   runPreparedReview,
-} from "./packages/core/src/review-engine.mjs";
-import {
-  digest,
-  loadJob,
-  readPrivate,
-  reviewStore,
-  saveJob,
-} from "./packages/core/src/review-storage.mjs";
-import { readReservations } from "./packages/core/src/workspace.mjs";
-import { mechanicalCoverage } from "./tests/helpers/review-fixture.mjs";
+} from "../src/review-engine.mjs";
+import { digest, loadJob, readPrivate, reviewStore, saveJob } from "../src/review-storage.mjs";
+import { readReservations } from "../src/workspace.mjs";
 
 const SPEC = writeFrontmatter("# Product\n\n- [ ] a changed implementation\n", {
   id: "S1",
@@ -96,7 +90,7 @@ function fake(
     calls = path.join(dir, "calls");
   fs.writeFileSync(
     file,
-    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};fs.appendFileSync(${JSON.stringify(calls)},'call\\n');await new Promise(r=>setTimeout(r,${delay}));console.log(JSON.stringify(mechanicalCoverage(${JSON.stringify(result)},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
+    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("../../../tests/helpers/review-fixture.mjs", import.meta.url).href)};fs.appendFileSync(${JSON.stringify(calls)},'call\\n');await new Promise(r=>setTimeout(r,${delay}));console.log(JSON.stringify(mechanicalCoverage(${JSON.stringify(result)},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o755 },
   );
   const old = process.env.SPECFLOW_AUDIT_BIN;

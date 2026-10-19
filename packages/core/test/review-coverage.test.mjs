@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   attest,
   audit,
@@ -16,9 +17,9 @@ import {
   impl,
   parseFrontmatter,
   writeFrontmatter,
-} from "./packages/core/src/core.mjs";
-import * as engine from "./packages/core/src/review-engine.mjs";
-import { digest, loadJob, reviewStore, saveJob } from "./packages/core/src/review-storage.mjs";
+} from "../src/core.mjs";
+import * as engine from "../src/review-engine.mjs";
+import { digest, loadJob, reviewStore, saveJob } from "../src/review-storage.mjs";
 
 const BODY = `# Observable refresh\n\n## Outcome\n\n- The user refresh control updates the visible value.\n\n## Design\n\n- Entry must call the refresh helper, not just implement it.\n- Duration is the sum of individual session spans, including parallel sessions.\n\n## Executable acceptance\n\n- [ ] [A1] A helper returns the new value.\n- [ ] [A2] Clicking the actual entry updates the visible value.\n\n## Review 与决策\n\n| ID | Severity | Finding | Disposition |\n|---|---|---|---|\n| F1 | major | Refresh entry is disconnected | Written into Design |\n\nA withdrawal would require an explicit recorded approval, not a new model opinion.\n`;
 function indexed(content = BODY) {
@@ -223,10 +224,8 @@ test("coverage: coverage-marked jobs cannot downgrade protocol before charging, 
   saveJob(dir, running);
   execFileSync(
     process.execPath,
-    [path.resolve("packages/core/src/review-worker.mjs"), f.root, job.id],
-    {
-      cwd: process.cwd(),
-    },
+    [fileURLToPath(new URL("../src/review-worker.mjs", import.meta.url)), f.root, job.id],
+    { cwd: fileURLToPath(new URL("../../../", import.meta.url)) },
   );
   const stopped = loadJob(f.root, job.id).job;
   assert.equal(stopped.state, "failed");
@@ -620,7 +619,7 @@ function fakeExecutor(t, f, raw, calls = 1) {
     count = path.join(f.root, ".git", "synthetic-calls");
   fs.writeFileSync(
     bin,
-    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};fs.appendFileSync(${JSON.stringify(count)},'call\\n');console.log(JSON.stringify(mechanicalCoverage(${JSON.stringify(raw)},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
+    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("../../../tests/helpers/review-fixture.mjs", import.meta.url).href)};fs.appendFileSync(${JSON.stringify(count)},'call\\n');console.log(JSON.stringify(mechanicalCoverage(${JSON.stringify(raw)},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o700 },
   );
   const old = process.env.SPECFLOW_AUDIT_BIN;

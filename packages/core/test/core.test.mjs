@@ -38,9 +38,9 @@ import {
   shouldBypass,
   updateStatusLine,
   writeFrontmatter,
-} from "./packages/core/src/core.mjs";
+} from "../src/core.mjs";
 
-import { authorizeReviewBudget } from "./packages/core/src/review-engine.mjs";
+import { authorizeReviewBudget } from "../src/review-engine.mjs";
 
 process.env.SPECFLOW_REVIEW_BUDGET_ID = "mechanical-tests";
 
@@ -94,7 +94,7 @@ function fakeAuditor(verdict = "pass", criteria, extra = {}) {
   };
   fs.writeFileSync(
     bin,
-    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage(${JSON.stringify(result)},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
+    `#!/usr/bin/env node\nimport fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("../../../tests/helpers/review-fixture.mjs", import.meta.url).href)};console.log(JSON.stringify(mechanicalCoverage(${JSON.stringify(result)},fs.readFileSync(process.argv.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o755 },
   );
   return { bin, cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };

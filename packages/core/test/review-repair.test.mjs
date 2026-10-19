@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import { seedLegacyReviewFixture } from "../../../tests/helpers/review-fixture.mjs";
 import {
   attest,
   audit,
@@ -18,7 +19,7 @@ import {
   recordConsistencyGaps,
   specContractHash,
   writeFrontmatter,
-} from "./packages/core/src/core.mjs";
+} from "../src/core.mjs";
 import {
   authorizeReviewBudget,
   normalizeReviewResult,
@@ -26,9 +27,8 @@ import {
   review,
   reviewStatus,
   runPreparedReview,
-} from "./packages/core/src/review-engine.mjs";
-import { digest, loadJob, reviewStore, saveJob } from "./packages/core/src/review-storage.mjs";
-import { seedLegacyReviewFixture } from "./tests/helpers/review-fixture.mjs";
+} from "../src/review-engine.mjs";
+import { digest, loadJob, reviewStore, saveJob } from "../src/review-storage.mjs";
 
 const rawPass = {
   verdict: "pass",

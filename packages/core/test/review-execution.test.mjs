@@ -6,15 +6,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { audit, begin, findSpec, impl, writeFrontmatter } from "./packages/core/src/core.mjs";
-import { authorizeReviewBudget, review, reviewStatus } from "./packages/core/src/review-engine.mjs";
-import {
-  digest,
-  loadJob,
-  readPrivate,
-  reviewStore,
-  saveJob,
-} from "./packages/core/src/review-storage.mjs";
+import { audit, begin, findSpec, impl, writeFrontmatter } from "../src/core.mjs";
+import { authorizeReviewBudget, review, reviewStatus } from "../src/review-engine.mjs";
+import { digest, loadJob, readPrivate, reviewStore, saveJob } from "../src/review-storage.mjs";
 
 function environment(t, changes = {}) {
   const values = {
@@ -92,16 +86,20 @@ function fixture(t) {
   const prepare = () => review(root, { id: "S1", base, head });
   return { sandbox, root, bin, budget, grant, prepare };
 }
-function fakeCli(f, delay = 0) {
+function fakeCli(f, delay = 0, gateFile = "") {
   const file = path.join(f.sandbox, "fake installed Pi CLI.js"),
     calls = path.join(f.sandbox, "calls"),
     captured = path.join(f.sandbox, "captured packet");
+  const gate = gateFile
+    ? `while(!fs.existsSync(${JSON.stringify(gateFile)}))await new Promise(r=>setTimeout(r,10));`
+    : "";
   fs.writeFileSync(
     file,
-    `import fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("./tests/helpers/review-fixture.mjs", import.meta.url).href)};const args=process.argv.slice(2);
+    `import fs from 'node:fs';import {mechanicalCoverage} from ${JSON.stringify(new URL("../../../tests/helpers/review-fixture.mjs", import.meta.url).href)};const args=process.argv.slice(2);
 if(args.includes('--version'))throw new Error('must not probe/execute launcher during preflight');
 for(const flag of ['--no-tools','--no-extensions','--no-session','--no-skills','--no-context-files','--no-prompt-templates','--no-themes','--no-approve'])if(!args.includes(flag))process.exit(2);
 fs.appendFileSync(${JSON.stringify(calls)},'call\\n');fs.copyFileSync(args.at(-1).slice(1),${JSON.stringify(captured)});
+${gate}
 await new Promise(r=>setTimeout(r,${delay}));console.log(JSON.stringify(mechanicalCoverage({verdict:'pass',criteria:[{criterion:'mechanical exact bytes',status:'pass',evidence:'fake fixture only'}],scope_deviations:[]},fs.readFileSync(args.at(-1).slice(1),'utf8'))));\n`,
     { mode: 0o600 },
   );
@@ -144,8 +142,9 @@ test("execution: prepared job refreshes stale unstarted settings from current ti
 
 test("execution: running/cache reuse exposes ignored timeout without changing provenance or spending", async (t) => {
   const f = fixture(t),
-    cli = fakeCli(f, 700);
-  environment(t, { SPECFLOW_AUDIT_BIN: shim(f, cli), SPECFLOW_AUDIT_TIMEOUT: "3000" });
+    release = path.join(f.sandbox, "release fake executor"),
+    cli = fakeCli(f, 0, release);
+  environment(t, { SPECFLOW_AUDIT_BIN: shim(f, cli), SPECFLOW_AUDIT_TIMEOUT: "10000" });
   f.grant();
   const prepared = await f.prepare(),
     notices = [],
@@ -155,12 +154,20 @@ test("execution: running/cache reuse exposes ignored timeout without changing pr
   const original = reviewStatus(f.root, prepared.jobId).receipt.execution;
   process.env.SPECFLOW_AUDIT_TIMEOUT = "6000";
   process.env.SPECFLOW_AUDIT_BIN = path.join(f.sandbox, "missing override");
-  const repeated = await run(f, prepared, { onProgress: (text) => notices.push(text) }),
+  const repeatedRun = run(f, prepared, { onProgress: (text) => notices.push(text) });
+  for (let i = 0; i < 400 && !notices.some((text) => /waiting for existing job/.test(text)); i++)
+    await sleep(5);
+  assert.ok(
+    notices.some((text) => /waiting for existing job/.test(text)),
+    "second run did not enter the running-job wait path",
+  );
+  fs.writeFileSync(release, "release\n");
+  const repeated = await repeatedRun,
     complete = await first;
   assert.equal(repeated.executionInfo.action, "wait-existing");
   assert.equal(repeated.executionInfo.timeoutIgnored, true);
   assert.equal(repeated.executionInfo.requestedTimeoutMs, 6000);
-  assert.equal(repeated.executionInfo.effectiveTimeoutMs, 3000);
+  assert.equal(repeated.executionInfo.effectiveTimeoutMs, 10000);
   assert.deepEqual(complete.receipt.execution, original);
   const cached = await run(f, prepared);
   assert.equal(cached.executionInfo.action, "reuse-result");
@@ -168,7 +175,7 @@ test("execution: running/cache reuse exposes ignored timeout without changing pr
   assert.deepEqual(cached.receipt.execution, original);
   assert.equal(f.budget().used, 1);
   assert.equal(fs.readFileSync(cli.calls, "utf8"), "call\n");
-  assert.ok(notices.some((text) => /timeout.*3000/i.test(text)));
+  assert.ok(notices.some((text) => /timeout.*10000/i.test(text)));
   process.env.SPECFLOW_AUDIT_TIMEOUT = "invalid";
   const invalidRequest = await run(f, prepared);
   assert.equal(invalidRequest.executionInfo.requestValid, false);
