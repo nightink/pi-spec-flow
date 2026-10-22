@@ -88,7 +88,8 @@ const factory = (pi) => {
       );
       fs.writeFileSync(path.join(cwd, "fail-gate"), "fail\n");
       const failed = await call("spec_impl", { id: "S1" });
-      assert.equal(failed.isError, false, JSON.stringify(failed)); // Existing core semantics return a FAIL summary.
+      assert.equal(failed.isError, true, JSON.stringify(failed)); // A7: FAIL is a machine-visible error, not a success summary.
+      assert.equal(failed.result.structuredContent?.category, "impl-fail");
       assert.equal(findSpec(cwd, "S1").frontmatter.impl.pass, false);
       assert.ok(failed.result.content.some((block) => block.text?.includes("FAIL")));
       console.log(

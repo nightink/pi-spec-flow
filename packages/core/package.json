@@ -21,6 +21,8 @@
     ".": "./src/core.mjs",
     "./review": "./src/review-engine.mjs",
     "./coverage": "./src/review-coverage.mjs",
+    "./review-limits": "./src/review-limits.mjs",
+    "./diagnostics": "./src/workflow-diagnostics.mjs",
     "./executor": "./src/review-executor.mjs",
     "./executors/pi-cli": "./src/executors/pi-cli.mjs",
     "./profile": "./src/project-profile.mjs",

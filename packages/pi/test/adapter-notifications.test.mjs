@@ -273,8 +273,16 @@ test("commit interception: unavailable/throwing notify still executes gates and 
 
 test("native audit: missing notify reaches core validation, not a UI TypeError or paid spawn", async (t) => {
   const f = await fixture(t);
-  // impl is not yet passing. No review budget is created or looked up.
-  await assert.rejects(f.call("spec_audit", { id: "S1" }), /impl is not explicitly passing/);
+  // impl is not yet passing. No review budget is created or looked up. The
+  // machine outcome is an error result, not a thrown UI TypeError or spawn.
+  const result = await f.call("spec_audit", { id: "S1" });
+  assert.equal(result.isError, true);
+  assert.equal(result.structuredContent.operation, "audit");
+  assert.equal(result.structuredContent.pass, false);
+  assert.equal(result.structuredContent.category, "precondition-error");
+  assert.match(result.content[0].text, /impl is not explicitly passing/);
+  assert.ok(result.structuredContent.diagnostic.code);
+  assert.ok(!fs.existsSync(path.join(f.cwd, ".git/spec-flow/review-v1/budgets")));
 });
 
 test("native commands/startup: all notifications tolerate partial and throwing UI", async (t) => {

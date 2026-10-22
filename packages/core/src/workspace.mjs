@@ -40,10 +40,48 @@ export function gitWorktrees(cwd) {
     );
     if (!fields.worktree || fields.bare)
       throw new Error("Unsupported/malformed Git worktree inventory");
-    const workspace = gitWorkspace(fields.worktree);
-    if (workspace.commonDir !== commonDir)
-      throw new Error("Worktree has a different Git common directory");
-    return { ...workspace, branch: fields.branch || "(detached)", head: fields.HEAD };
+    try {
+      const workspace = gitWorkspace(fields.worktree);
+      if (workspace.commonDir !== commonDir)
+        throw new Error("Worktree has a different Git common directory");
+      return { ...workspace, branch: fields.branch || "(detached)", head: fields.HEAD };
+    } catch (cause) {
+      const prunable = Object.hasOwn(fields, "prunable");
+      const error = new Error(
+        `Cannot verify registered worktree member ${JSON.stringify(fields.worktree)} (prunable=${prunable}); the current checkout was verified. Inspect the family before allocating IDs; no member was skipped or removed.`,
+        { cause },
+      );
+      error.code = "SPECFLOW_WORKTREE_UNAVAILABLE";
+      error.diagnostic = {
+        code: error.code,
+        category: "configuration-error",
+        stage: "worktree-inventory",
+        member: {
+          path: fields.worktree,
+          prunable,
+          reason: typeof fields.prunable === "string" ? fields.prunable : null,
+        },
+        message: error.message,
+        nextActions: [
+          {
+            tool: "bash",
+            args: { command: "git worktree list --porcelain" },
+            reason: "Read the registered family and locate the unavailable member.",
+            requiresAuthorization: false,
+            requiresHuman: false,
+          },
+          {
+            tool: "bash",
+            args: { command: "git worktree prune --dry-run --verbose" },
+            reason:
+              "Preview stale registrations only; actual cleanup requires owner authorization.",
+            requiresAuthorization: false,
+            requiresHuman: false,
+          },
+        ],
+      };
+      throw error;
+    }
   });
 }
 

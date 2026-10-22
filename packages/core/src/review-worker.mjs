@@ -8,9 +8,10 @@ import {
   assertReviewIndexBinding,
   decodeAuditorResponse,
   normalizeReviewResult,
+  readRetainedPacket,
   scanReviewPacket,
 } from "./review-engine.mjs";
-import { digest, loadJob, readPrivate, saveJob } from "./review-storage.mjs";
+import { digest, loadJob, saveJob } from "./review-storage.mjs";
 
 const [cwd, id] = process.argv.slice(2);
 const { dir } = loadJob(cwd, id);
@@ -29,7 +30,7 @@ function persist() {
 try {
   if (job.state !== "running") throw new Error("Worker has no claimed review job");
   job.worker_pid = process.pid;
-  const packet = readPrivate(path.join(dir, "packet.md"), 512 * 1024);
+  const packet = readRetainedPacket(dir, job).toString("utf8");
   if (digest(packet) !== job.packet_sha256 || scanReviewPacket(packet).findings.length)
     throw new Error("Sealed packet changed before child execution");
   assertReviewIndexBinding(packet, job, cwd);

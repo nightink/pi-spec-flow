@@ -92,8 +92,8 @@ try {
   );
   const failedImpl = cli(evidenceRepo, "impl", "S1");
   check(
-    failedImpl.status === 0 && /❌ FAIL/.test(failedImpl.stdout),
-    "CLI impl reports non-passing evidence instead of an empty success",
+    failedImpl.status !== 0 && /❌ FAIL/.test(failedImpl.stdout),
+    "CLI impl reports non-passing evidence through non-zero exit instead of an empty success",
   );
   const failedRecord = loadSpecs(evidenceRepo).find(
     (item) => item.frontmatter.id === "S1",

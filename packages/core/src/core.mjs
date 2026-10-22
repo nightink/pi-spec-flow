@@ -25,13 +25,32 @@ import {
 } from "./project-profile.mjs";
 import { reviewStatus as retainedReviewStatus } from "./review-engine.mjs";
 import { describeReviewExecution } from "./review-execution.mjs";
+import {
+  DEFAULT_REVIEW_MAX_BYTES,
+  resolveReviewLimit,
+  retainedReviewLimit,
+} from "./review-limits.mjs";
+import {
+  assertReviewLimitShape,
+  auditStatusLabel,
+  boardEntry,
+  boundedActions,
+  diagnosticLines,
+  MAX_AUDIT_MAX_BYTES,
+  normalizeActions,
+  parseAuditMaxBytesText,
+  withDiagnostic,
+  workflowAction,
+  workflowDiagnostic,
+  workflowError,
+  workflowOutcome,
+} from "./workflow-diagnostics.mjs";
 import { gitWorkspace, gitWorktrees, readReservations, withWorkspaceLock } from "./workspace.mjs";
 
 const execFileP = promisify(execFile);
 const WORKFLOW_VERSION = 2;
 const GATE_CACHE_VERSION = 2;
 const AUDIT_PROMPT_VERSION = 9;
-const DEFAULT_AUDIT_MAX_BYTES = 512 * 1024;
 const DEFAULT_SNAPSHOT_MAX_BYTES = 512 * 1024 * 1024;
 
 function abortIfNeeded(signal) {
@@ -885,12 +904,126 @@ function normalizeScope(scope) {
   return values;
 }
 
-function auditMaxBytes() {
-  const parsed = Number.parseInt(
-    process.env.SPECFLOW_AUDIT_MAX_BYTES || String(DEFAULT_AUDIT_MAX_BYTES),
-    10,
+// ─── Review limits ───────────────────────────────────────────────────────────
+// review-limits.mjs is the single source of truth for the packet byte limit.
+// There is deliberately no second local parser: duplicated resolution rules
+// would let the CLI and the engine disagree about the sealed policy.
+
+function normalizeLimitIssueCategory(category) {
+  if (category === "review-limit" || category === "limit-exceeded") return "limit-exceeded";
+  if (category === "review-config" || category === "invalid-limit") return "invalid-limit";
+  if (category === "review-integrity") return "execution-error";
+  return category;
+}
+
+function lifecycleLimitDiagnostic(diagnostic, id) {
+  if (!diagnostic || normalizeLimitIssueCategory(diagnostic.category) !== "limit-exceeded")
+    return diagnostic;
+  const statusActions = (diagnostic.nextActions ?? []).filter(
+    (action) => action?.args?.action !== "prepare",
   );
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_AUDIT_MAX_BYTES;
+  return {
+    ...diagnostic,
+    nextActions: normalizeActions([...auditLimitActions(id, diagnostic), ...statusActions]),
+  };
+}
+
+function auditIssueCategoryFromDiagnostic(diagnostic) {
+  return diagnostic ? normalizeLimitIssueCategory(diagnostic.category) : "execution-error";
+}
+
+function limitConfigurationError(error) {
+  return withDiagnostic(
+    error,
+    workflowDiagnostic({
+      code: "AUDIT_MAX_BYTES_INVALID",
+      category: "invalid-limit",
+      stage: "resolve-limit",
+      message: error?.message || String(error),
+      nextActions: [],
+    }),
+  );
+}
+
+function lifecycleError(message, { code, stage = "lifecycle", nextActions = [] } = {}) {
+  return workflowError(
+    message,
+    workflowDiagnostic({
+      code,
+      category: "precondition-error",
+      stage,
+      message,
+      nextActions,
+    }),
+  );
+}
+
+function approvalError(error) {
+  return withDiagnostic(
+    error,
+    workflowDiagnostic({
+      code: "WF_APPROVAL_MISSING",
+      category: "precondition-error",
+      stage: "approval",
+      message: error?.message || String(error),
+      nextActions: [],
+    }),
+  );
+}
+
+function requireApproved(profile, frontmatter, id) {
+  try {
+    requireProposalApproval(profile, frontmatter, id);
+  } catch (error) {
+    throw approvalError(error);
+  }
+}
+
+function beginAction(id, reason) {
+  return workflowAction("spec_begin", { id: String(id) }, reason);
+}
+
+function implAction(id, reason) {
+  return workflowAction("spec_impl", { id: String(id) }, reason);
+}
+
+function auditPrepareAction(id, reason) {
+  return workflowAction("spec_audit", { action: "prepare", id: String(id) }, reason);
+}
+
+/** Resolve the effective review packet limit (argument > environment > default). */
+export function resolveAuditLimit(maxBytes, env = process.env) {
+  try {
+    return assertReviewLimitShape(resolveReviewLimit(maxBytes, env));
+  } catch (error) {
+    throw limitConfigurationError(error);
+  }
+}
+
+// A retained job keeps the limit it was sealed with. Legacy jobs without
+// metadata stay readable at the 512 KiB default; current env changes never
+// reinterpret a sealed packet.
+function sealedAuditLimit(receipt) {
+  let resolved;
+  try {
+    resolved = retainedReviewLimit(receipt);
+  } catch (error) {
+    throw withDiagnostic(
+      error,
+      workflowDiagnostic({
+        code: "AUDIT_LIMIT_METADATA_INVALID",
+        category: "precondition-error",
+        stage: "sealed-limit",
+        message: error?.message || String(error),
+        nextActions: [],
+      }),
+    );
+  }
+  try {
+    return assertReviewLimitShape(resolved, { allowSealedSource: true });
+  } catch (error) {
+    throw limitConfigurationError(error);
+  }
 }
 
 async function assertAuditBaseAncestor(repo, baseSha, signal) {
@@ -907,14 +1040,60 @@ async function assertAuditBaseAncestor(repo, baseSha, signal) {
   }
 }
 
+function auditLimitActions(specId, diagnostic) {
+  if (!specId) return [];
+  // A known complete packet needs exactly its measured size; a Git lower bound
+  // only proves "at least", so double it while staying inside the hard cap.
+  const measured = diagnostic.actualBytes;
+  const suggested =
+    measured != null
+      ? Math.min(MAX_AUDIT_MAX_BYTES, Math.max(measured, (diagnostic.limitBytes ?? 0) + 1))
+      : Math.min(
+          MAX_AUDIT_MAX_BYTES,
+          Math.max(
+            (diagnostic.lowerBoundBytes ?? 0) + 1,
+            (diagnostic.limitBytes ?? DEFAULT_REVIEW_MAX_BYTES) * 2,
+          ),
+        );
+  return [
+    workflowAction(
+      "spec_audit",
+      { action: "prepare", id: String(specId), maxBytes: suggested },
+      "确认确需完整审查该范围后，显式提高本次封存限额并免费重建 packet（不截断、不自动缩 scope）；提高限额是用户决定，不改已有 job",
+      { requiresHuman: true },
+    ),
+  ];
+}
+
+function auditLimitError({ message, code, stage, limit, actualBytes, lowerBoundBytes, specId }) {
+  const diagnostic = workflowDiagnostic({
+    code,
+    category: "limit-exceeded",
+    stage,
+    message,
+    limitBytes: limit.maxBytes,
+    limitSource: limit.source,
+    actualBytes: actualBytes ?? null,
+    lowerBoundBytes: lowerBoundBytes ?? null,
+    totalBytesKnown: actualBytes != null,
+    nextActions: [],
+  });
+  diagnostic.nextActions = normalizeActions(auditLimitActions(specId, diagnostic));
+  return workflowError(message, diagnostic);
+}
+
 /** Build a complete base→working-tree patch, including untracked files. */
 export async function buildAuditDiff(
   repo,
   baseSha,
   scope,
-  { signal, maxBytes = auditMaxBytes(), excludePaths = [] } = {},
+  { signal, maxBytes, resolvedLimit, excludePaths = [], specId } = {},
 ) {
   await assertAuditBaseAncestor(repo, baseSha, signal);
+  const limit = resolvedLimit
+    ? assertReviewLimitShape(resolvedLimit, { allowSealedSource: true })
+    : await resolveAuditLimit(maxBytes);
+  const captureBytes = limit.maxBytes + 1024 * 1024;
   const pathspecs = [...normalizeScope(scope), ":(top,exclude,literal).spec-flow-ledger.jsonl"];
   const root = fs.realpathSync(repo);
   for (const candidate of excludePaths) {
@@ -928,18 +1107,34 @@ export async function buildAuditDiff(
   const tracked = await runArgv(
     "git",
     ["diff", "--binary", "--no-ext-diff", "--no-textconv", baseSha, "--", ...pathspecs],
-    { cwd: repo, timeout: 30000, maxBuffer: maxBytes + 1024 * 1024, signal },
+    { cwd: repo, timeout: 30000, maxBuffer: captureBytes, signal },
   );
   if (tracked.tooBig) {
-    throw new Error(`Audit diff exceeds ${maxBytes} bytes; narrow spec.scope`);
+    const message = `Audit diff exceeds ${limit.maxBytes} bytes while Git was still producing it (known lower bound ≥ ${captureBytes + 1} bytes; total unknown); narrow spec.scope`;
+    throw auditLimitError({
+      message,
+      code: "AUDIT_DIFF_GIT_BUFFER",
+      stage: "git-diff-buffer",
+      limit,
+      lowerBoundBytes: captureBytes + 1,
+      specId,
+    });
   }
   if (tracked.code !== 0) {
     throw new Error(`git diff failed: ${(tracked.stderr || tracked.stdout).trim()}`);
   }
   let output = tracked.stdout;
   let bytes = Buffer.byteLength(output);
-  if (bytes > maxBytes) {
-    throw new Error(`Audit diff exceeds ${maxBytes} bytes; narrow spec.scope`);
+  if (bytes > limit.maxBytes) {
+    const message = `Audit diff exceeds ${limit.maxBytes} bytes; narrow spec.scope`;
+    throw auditLimitError({
+      message,
+      code: "AUDIT_DIFF_LIMIT",
+      stage: "audit-diff",
+      limit,
+      lowerBoundBytes: bytes,
+      specId,
+    });
   }
 
   const untracked = await runArgv(
@@ -976,18 +1171,34 @@ export async function buildAuditDiff(
           emptyFile,
           relativePath,
         ],
-        { cwd: repo, timeout: 30000, maxBuffer: maxBytes + 1024 * 1024, signal },
+        { cwd: repo, timeout: 30000, maxBuffer: captureBytes, signal },
       );
       if (patch.tooBig) {
-        throw new Error(`Audit diff exceeds ${maxBytes} bytes; narrow spec.scope`);
+        const message = `Audit diff exceeds ${limit.maxBytes} bytes while reading untracked ${relativePath} (known lower bound ≥ ${captureBytes + 1} bytes; total unknown); narrow spec.scope`;
+        throw auditLimitError({
+          message,
+          code: "AUDIT_UNTRACKED_GIT_BUFFER",
+          stage: "untracked-diff-buffer",
+          limit,
+          lowerBoundBytes: captureBytes + 1,
+          specId,
+        });
       }
       if (patch.code !== 0 && patch.code !== 1) {
         throw new Error(`git diff --no-index failed for ${relativePath}: ${patch.stderr.trim()}`);
       }
       const section = `\n# untracked: ${relativePath}\n${patch.stdout}`;
       bytes += Buffer.byteLength(section);
-      if (bytes > maxBytes) {
-        throw new Error(`Audit diff exceeds ${maxBytes} bytes; narrow spec.scope`);
+      if (bytes > limit.maxBytes) {
+        const message = `Audit diff exceeds ${limit.maxBytes} bytes; narrow spec.scope`;
+        throw auditLimitError({
+          message,
+          code: "AUDIT_UNTRACKED_LIMIT",
+          stage: "untracked-diff",
+          limit,
+          lowerBoundBytes: bytes,
+          specId,
+        });
       }
       output += section;
     }
@@ -1195,14 +1406,21 @@ export async function runGates(cwd, gates, { signal, onGate, onDiagnostic, cache
           signal,
         });
     const { stdout, stderr, code } = execution;
-    if (code === 0) {
-      const lines = stdout.split("\n").filter(Boolean);
-      results[gate.name] = { pass: true, tail: lines.slice(-3).join("\n") };
-    } else {
-      const output = `${stdout}\n${stderr}`;
-      const tail = output.split("\n").filter(Boolean).slice(-10).join("\n");
-      results[gate.name] = { pass: false, tail };
-    }
+    // Record what actually ran, not only its last lines: a passing gate whose
+    // tail happens to be a sub-script summary must still prove the full gate
+    // command executed. Bounded head/tail + byte count + digest are static
+    // `impl` evidence; they are not a substitute for the real run.
+    const output = code === 0 ? stdout : `${stdout}\n${stderr}`;
+    const lines = output.split("\n").filter(Boolean);
+    const definition = gate.file ? { file: gate.file, args: gate.args || [] } : { cmd: gate.cmd };
+    results[gate.name] = {
+      pass: code === 0,
+      command: definition,
+      bytes: Buffer.byteLength(output),
+      output_sha256: sha256(output),
+      head: lines.slice(0, 5).join("\n"),
+      tail: (code === 0 ? lines.slice(-5) : lines.slice(-10)).join("\n"),
+    };
   }
 
   if (ttl > 0 && cachePath && fingerprint.hash) {
@@ -1507,7 +1725,389 @@ export function board(cwd) {
   return lines.join("\n");
 }
 
-// ─── begin ───────────────────────────────────────────────────────────────────
+// ─── inspectBoard ────────────────────────────────────────────────────────────
+// Read-only machine board. Default is explicitly record-only: it verifies the
+// recorded bindings (cheap, no git snapshot) but never claims checkout
+// freshness. `live` computes the current repository snapshot and routes stale
+// implementation/contract evidence to spec_impl instead of a false done.
+const BOARD_ACTIVE_STAGES = new Set([
+  "impl",
+  "impl-fail",
+  "audit",
+  "audit-protocol",
+  "audit-execution",
+  "audit-coverage",
+  "attest",
+  "evidence",
+  "done-ready",
+  "approval",
+  "migrate",
+]);
+
+function boardContractHash(spec, profile) {
+  try {
+    return specContractHash(spec.content, profile);
+  } catch {
+    return null;
+  }
+}
+
+function implBlockerList(fm) {
+  const blockers = [];
+  for (const [name, result] of Object.entries(fm.impl?.gates || {})) {
+    if (result?.pass !== true) blockers.push(`门禁未通过: ${name}`);
+  }
+  for (const [name, result] of Object.entries(fm.impl?.e2e || {})) {
+    if (result?.pass !== true) blockers.push(`E2E 未通过: ${name}`);
+  }
+  if (fm.impl?.migrations && fm.impl.migrations.pass !== true) blockers.push("迁移证据未通过");
+  for (const message of fm.impl?.diagnostics || []) {
+    if (typeof message === "string" && message.trim()) blockers.push(message.slice(0, 300));
+  }
+  return blockers;
+}
+
+export async function inspectBoard(cwd, { id, live = false, signal } = {}) {
+  if (typeof live !== "boolean")
+    throw lifecycleError("inspectBoard live must be a boolean", {
+      code: "WF_PARAMETER",
+      stage: "board",
+    });
+  const specs = loadSpecs(cwd);
+  const profile = specs[0]?.profile || loadProjectProfile(cwd);
+  let selected = specs;
+  if (id !== undefined) {
+    const found = findSpec(cwd, id);
+    if (!found)
+      throw lifecycleError(`Spec ${id} not found`, {
+        code: "BOARD_SPEC_NOT_FOUND",
+        stage: "board",
+      });
+    selected = [found];
+  }
+
+  const entries = [];
+  for (const spec of selected) {
+    if (!spec.hasFrontmatter) {
+      entries.push(
+        boardEntry({
+          id: spec.relativePath || spec.file,
+          file: spec.file,
+          status: "unmanaged",
+          statusLabel: "未纳管",
+          stage: "unmanaged",
+          blockers: ["未纳管（无 frontmatter）"],
+        }),
+      );
+      continue;
+    }
+    const fm = spec.frontmatter;
+    const specProfile = spec.profile || profile;
+    const specId = fm.id ?? spec.file;
+    const status = fm.status ?? null;
+    const role = statusRole(specProfile, status);
+    const statusLabel = STATUS_MAP[status] || status || "(no status)";
+    const contractHash = boardContractHash(spec, specProfile);
+    let stage = "unknown";
+    let blockers = [];
+    let nextActions = [];
+
+    if (role === "ignored") {
+      stage = "ignored";
+    } else if (role === "done") {
+      stage = "done";
+    } else if (role === "unknown") {
+      blockers = [`未知 status=${status || "(empty)"}`];
+    } else if (role === "preReview") {
+      stage = "proposal";
+      const problems = approvalProblems(specProfile, fm);
+      if (problems.length === 0) {
+        blockers = [
+          "review 记录已通过但 status 尚未进入可开始状态；需更新生命周期状态（board 不写）",
+        ];
+      } else {
+        blockers = problems.map((problem) => `proposal approval 未通过: ${problem}`);
+        nextActions = [
+          workflowAction(
+            "spec_review",
+            { mode: "proposal", id: String(specId) },
+            "免费准备独立提案审查 packet；执行需用户授权预算，批准仍由人工决定",
+          ),
+        ];
+      }
+    } else if (role === "startable") {
+      const problems = approvalProblems(specProfile, fm);
+      if (problems.length > 0) {
+        stage = "approval";
+        blockers = problems.map((problem) => `proposal approval 非法: ${problem}`);
+      } else {
+        stage = "startable";
+        nextActions = [beginAction(specId, "提案已批准；开始实施并记录 impl.base_sha")];
+      }
+    } else if (role === "active") {
+      const problems = approvalProblems(specProfile, fm);
+      if (fm.workflow_version !== WORKFLOW_VERSION) {
+        stage = "migrate";
+        nextActions = [
+          beginAction(specId, "legacy in-progress Spec 需重跑 spec_begin 迁移到 workflow v2"),
+        ];
+      } else if (problems.length > 0) {
+        stage = "approval";
+        blockers = problems.map((problem) => `proposal approval 已失效: ${problem}`);
+      } else if (!fm.impl?.at) {
+        stage = "impl";
+        nextActions = [implAction(specId, "运行项目门禁/E2E 并记录 impl 证据")];
+      } else if (fm.impl.pass !== true) {
+        stage = "impl-fail";
+        blockers = implBlockerList(fm);
+        nextActions = [implAction(specId, "修复失败的门禁/E2E/迁移/稳定性问题后重跑 impl")];
+      } else if (contractHash === null) {
+        stage = "evidence";
+        blockers = ["无法计算当前合同 hash；检查 Spec frontmatter"];
+      } else if (fm.impl.contract_hash !== contractHash) {
+        stage = "impl";
+        blockers = ["合同已变化：impl.contract_hash 与当前合同不一致（记录级绑定检查）"];
+        nextActions = [
+          implAction(specId, "合同变化使 impl/audit 绑定过期；重跑 impl 后重新准备审计"),
+        ];
+      } else if (!fm.audit) {
+        stage = "audit";
+        nextActions = [
+          auditPrepareAction(specId, "免费准备完整当前审计 packet；扫描后经用户授权执行同一 job"),
+        ];
+      } else {
+        const info = fm.audit.output_info;
+        const normalized = normalizeAuditResult(fm.audit);
+        const jobId = fm.audit.review?.job_id;
+        const reviewState = fm.audit.review?.state;
+        if (reviewState === "prepared" || reviewState === "running") {
+          stage = "audit";
+          blockers = [
+            reviewState === "prepared"
+              ? "已封存审计 job 尚未执行；执行需用户授权，board 不自动重试"
+              : "审计 job 正在运行或所有权未知；先读取状态，不自动重启",
+          ];
+          nextActions = jobId
+            ? [
+                workflowAction(
+                  "spec_review",
+                  { action: "status", jobId },
+                  "免费读取封存状态与保留证据；不改判定",
+                ),
+                ...(reviewState === "prepared"
+                  ? [
+                      workflowAction(
+                        "spec_audit",
+                        { id: String(specId), reviewJobId: jobId },
+                        "扫描 packet 后，用用户已授权的预算执行/附加这个已封存 job；不重新准备",
+                        { requiresAuthorization: true },
+                      ),
+                    ]
+                  : []),
+              ]
+            : [];
+        } else if (
+          ["failed", "cancelled"].includes(reviewState) &&
+          info?.category !== "protocol-error"
+        ) {
+          stage = "audit-execution";
+          blockers = [
+            info?.message ||
+              `审计 job 终态 ${reviewState}；保留证据，不自动付费重试（新执行需新 job 与用户授权）`,
+          ];
+          nextActions = jobId
+            ? [
+                workflowAction(
+                  "spec_review",
+                  { action: "status", jobId },
+                  "免费读取终态与保留输出；无自动重试",
+                ),
+              ]
+            : [];
+        } else if (info?.category === "protocol-error") {
+          stage = "audit-protocol";
+          blockers = [info.message || "审计工具输出协议错误（非产品 FAIL）"];
+          nextActions = auditIssueActions({
+            id: specId,
+            outputInfo: info,
+            jobId,
+          });
+        } else if (
+          ["execution-error", "limit-exceeded", "invalid-limit"].includes(info?.category)
+        ) {
+          stage = "audit-execution";
+          blockers = [info.message || "审计执行/材料错误（非产品 FAIL）"];
+          nextActions = auditIssueActions({
+            id: specId,
+            outputInfo: info,
+            jobId,
+            diagnostic: info.diagnostic,
+          });
+        } else if (info?.category === "coverage-gap") {
+          stage = "audit-coverage";
+          blockers = [info.message || "覆盖/证据缺口（非已确认产品 FAIL）"];
+          nextActions = auditIssueActions({
+            id: specId,
+            outputInfo: info,
+            jobId,
+          });
+        } else if (normalized.verdict !== "pass") {
+          stage = "audit";
+          blockers = ["audit verdict/criteria 未全绿（产品判定未通过）"];
+          nextActions = [
+            auditPrepareAction(
+              specId,
+              "修复 findings 后免费重建完整审计 packet；不为旧记录伪造 PASS",
+            ),
+          ];
+        } else if (fm.audit.impl_hash !== fm.impl.snapshot_hash) {
+          stage = "audit";
+          blockers = ["audit.impl_hash 与 impl.snapshot_hash 不一致"];
+          nextActions = [
+            auditPrepareAction(specId, "审计证据与 impl 绑定不一致；重新准备完整当前审计"),
+          ];
+        } else if (fm.audit.contract_hash !== contractHash) {
+          stage = "audit";
+          blockers = ["审计证据绑定已过期（合同变化）"];
+          nextActions = [auditPrepareAction(specId, "合同变化后重新准备完整当前审计")];
+        } else {
+          const human = Array.isArray(fm.evidence?.human) ? fm.evidence.human : [];
+          const pending = human.filter((item) => !fm.attestations?.[item]);
+          if (pending.length > 0) {
+            stage = "attest";
+            blockers = pending.map((item) => `人工核验未完成: ${item}（需真实样本，不伪造授权）`);
+            nextActions = pending
+              .slice(0, 8)
+              .map((item) =>
+                workflowAction(
+                  "spec_attest",
+                  { id: String(specId), item },
+                  "人工核验完成后登记；note 需描述验证路径与样本，由人工提供",
+                  { requiresHuman: true },
+                ),
+              );
+          } else {
+            const gaps = recordConsistencyGaps(spec, specProfile);
+            if (gaps.length > 0) {
+              stage = "evidence";
+              blockers = gaps;
+              if (gaps.some((gap) => /^(impl|门禁|e2e|迁移|required gate)/.test(gap)))
+                nextActions = [implAction(specId, "修复 impl 证据缺口后重跑 impl")];
+              else if (gaps.some((gap) => gap.startsWith("audit")))
+                nextActions = [auditPrepareAction(specId, "修复审计证据后重新准备完整当前审计")];
+            } else {
+              stage = "done-ready";
+              nextActions = [
+                workflowAction(
+                  "spec_done",
+                  { id: String(specId) },
+                  "机器/人工证据均已绑定；spec_done 会再次做完整一致性校验",
+                ),
+              ];
+            }
+          }
+        }
+      }
+    }
+
+    let fresh = null;
+    if (live && role === "active" && fm.workflow_version === WORKFLOW_VERSION) {
+      if (fm.impl?.snapshot_hash) {
+        try {
+          const repo = implementationRepo(cwd, fm);
+          const snapshot = await repositorySnapshotHash(repo, {
+            excludePaths: [spec.path],
+            signal,
+          });
+          fresh =
+            snapshot.hash === fm.impl.snapshot_hash &&
+            contractHash !== null &&
+            fm.impl.contract_hash === contractHash;
+        } catch (error) {
+          fresh = false;
+          blockers = [...blockers, `live 新鲜度不可验证: ${error?.message || error}`];
+        }
+        if (fresh === false && stage !== "approval" && stage !== "migrate") {
+          stage = "impl";
+          if (!blockers.some((blocker) => blocker.includes("live"))) {
+            blockers = [...blockers, "live 实现/合同已变化：impl 证据已过期"];
+          }
+          nextActions = [
+            implAction(
+              specId,
+              "live 快照与 impl 记录不一致；在当前 checkout 重跑 impl 后再准备审计（不自动 done）",
+            ),
+          ];
+        }
+      }
+    }
+
+    const entry = boardEntry({
+      id: specId,
+      file: spec.file,
+      status,
+      statusLabel,
+      stage,
+      fresh,
+      blockers,
+      nextActions,
+    });
+    entries.push(entry);
+  }
+
+  const computedFresh = entries.filter((entry) => entry.fresh !== null);
+  return {
+    version: 1,
+    freshness: live ? "live" : "record-only",
+    note: live
+      ? "live：已按当前 checkout 计算实现/合同新鲜度；不调用模型、不改生命周期"
+      : "record-only：未检查 checkout 实现快照；live 新鲜度未知（使用 --live 计算）",
+    specs: entries,
+    summary: {
+      total: entries.length,
+      managed: entries.filter((entry) => entry.stage !== "unmanaged").length,
+      unmanaged: entries.filter((entry) => entry.stage === "unmanaged").length,
+      active: entries.filter((entry) => BOARD_ACTIVE_STAGES.has(entry.stage)).length,
+      fresh: computedFresh.filter((entry) => entry.fresh === true).length,
+      stale: computedFresh.filter((entry) => entry.fresh === false).length,
+      actionable: entries.filter((entry) => entry.nextActions.length > 0).length,
+      blocked: entries.filter(
+        (entry) => entry.blockers.length > 0 && entry.nextActions.length === 0,
+      ).length,
+    },
+  };
+}
+
+function renderInspectBoard(result) {
+  if (result.specs.length === 0)
+    return `(no specs found in ${specDirectoryHint()})\n${result.note}`;
+  const lines = [
+    result.freshness === "live"
+      ? "📋 spec-flow board — live（已计算 checkout 新鲜度；只读）"
+      : "📋 spec-flow board — record-only（未检查 live 新鲜度；加 --live 计算）",
+  ];
+  for (const entry of result.specs) {
+    const freshMark =
+      entry.fresh === true ? " | live fresh" : entry.fresh === false ? " | live STALE" : "";
+    lines.push(`${entry.id} [${entry.file}]: ${entry.statusLabel} | ${entry.stage}${freshMark}`);
+    for (const blocker of entry.blockers) lines.push(`  ! ${blocker}`);
+    for (const action of entry.nextActions) {
+      const flags = [
+        action.requiresAuthorization ? "需用户授权预算" : null,
+        action.requiresHuman ? "需人工" : null,
+      ].filter(Boolean);
+      lines.push(
+        `  → ${action.tool} ${JSON.stringify(action.args)} — ${action.reason}${flags.length ? `（${flags.join("、")}）` : ""}`,
+      );
+    }
+  }
+  lines.push(
+    `合计: ${result.summary.total} specs | actionable ${result.summary.actionable} | blocked ${result.summary.blocked}${result.summary.stale ? ` | stale ${result.summary.stale}` : ""}`,
+  );
+  return lines.join("\n");
+}
+
+// ─── begin ────────────────────────────────────────────────────────────────
 async function beginUnlocked(cwd, id, { signal } = {}) {
   const spec = findSpec(cwd, id);
   if (!spec) throw new Error(`Spec ${id} not found`);
@@ -1677,22 +2277,34 @@ function safeE2eFile(repo, e2eDir, fileName) {
 }
 
 // ─── impl ────────────────────────────────────────────────────────────────────
-async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
+async function implRun(cwd, id, { signal, onGate, onDiagnostic } = {}) {
   const spec = findSpec(cwd, id);
-  if (!spec) throw new Error(`Spec ${id} not found`);
-  if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
+  if (!spec) throw lifecycleError(`Spec ${id} not found`, { code: "WF_SPEC_NOT_FOUND" });
+  if (!spec.hasFrontmatter)
+    throw lifecycleError(`Spec ${id} has no frontmatter`, { code: "WF_SPEC_UNMANAGED" });
 
   const fm = spec.frontmatter;
   const profile = spec.profile || loadProjectProfile(cwd);
   if (statusRole(profile, fm.status) !== "active") {
-    throw new Error(`Spec ${id} not in-progress (status=${fm.status})`);
+    throw lifecycleError(`Spec ${id} not in-progress (status=${fm.status})`, {
+      code: "WF_SPEC_NOT_ACTIVE",
+    });
   }
   if (fm.workflow_version !== WORKFLOW_VERSION) {
-    throw new Error(`Spec ${id} is legacy in-progress; rerun spec_begin to migrate to workflow v2`);
+    throw lifecycleError(
+      `Spec ${id} is legacy in-progress; rerun spec_begin to migrate to workflow v2`,
+      {
+        code: "WF_LEGACY_WORKFLOW",
+        nextActions: [beginAction(id, "把 legacy in-progress Spec 迁移到 workflow v2（不改合同）")],
+      },
+    );
   }
-  requireProposalApproval(profile, fm, id);
+  requireApproved(profile, fm, id);
   if (!fm.impl?.base_sha) {
-    throw new Error(`Spec ${id} has no impl.base_sha; rerun spec_begin`);
+    throw lifecycleError(`Spec ${id} has no impl.base_sha; rerun spec_begin`, {
+      code: "WF_BASE_SHA_MISSING",
+      nextActions: [beginAction(id, "重新记录 impl.base_sha 后重跑 impl")],
+    });
   }
   assertEvidenceShape(fm, id);
 
@@ -1886,7 +2498,53 @@ async function implUnlocked(cwd, id, { signal, onGate, onDiagnostic } = {}) {
       );
     }
   }
-  return summary.join("\n");
+  const text = summary.join("\n");
+  const failingGates = Object.entries(gateResults)
+    .filter(([, result]) => result.pass !== true)
+    .map(([name]) => name);
+  const failingE2e = Object.entries(e2eResults)
+    .filter(([, result]) => result.pass !== true)
+    .map(([name]) => name);
+  const failing = [
+    ...failingGates.map((name) => `门禁 ${name}`),
+    ...failingE2e.map((name) => `E2E ${name}`),
+    ...(migrations.pass ? [] : ["迁移证据"]),
+    ...(stable ? [] : ["实现内容在门禁期间变化"]),
+    ...(config.gates.length === 0 ? ["未发现项目门禁"] : []),
+  ];
+  const category = !stable ? "impl-unstable" : implPass ? "pass" : "impl-fail";
+  const outcome = workflowOutcome({
+    operation: "impl",
+    specId: id,
+    pass: implPass,
+    category,
+    summary: text,
+    nextActions: implPass
+      ? [
+          auditPrepareAction(
+            id,
+            "impl 已通过；免费准备完整当前审计 packet，扫描后再由用户授权执行同一 job",
+          ),
+        ]
+      : [implAction(id, "修复导致未通过的门禁/E2E/迁移/稳定性问题后重跑 impl")],
+    ...(implPass
+      ? {}
+      : {
+          diagnostic: workflowDiagnostic({
+            code: stable ? "IMPL_EVIDENCE_FAILED" : "IMPL_UNSTABLE",
+            category: "precondition-error",
+            stage: "impl",
+            message: failing.join("; ") || "impl evidence did not pass",
+            nextActions: [implAction(id, "修复失败证据后重跑 impl；不要伪造 PASS 记录")],
+            failing,
+          }),
+        }),
+  });
+  return { text, outcome };
+}
+
+async function implUnlocked(cwd, id, options) {
+  return (await implRun(cwd, id, options)).text;
 }
 
 // ─── buildAuditorArgs ────────────────────────────────────────────────────────
@@ -2195,30 +2853,43 @@ async function auditOutputRecoveryHint(cwd, fm) {
       : null;
   } // A diagnostic is never cache approval or a Spec write.
 }
-async function auditUnlocked(
-  cwd,
-  id,
-  { signal, onProgress, budgetId, reviewJobId, executor } = {},
-) {
+async function auditPreconditions(cwd, id, { signal, onProgress } = {}) {
   const spec = findSpec(cwd, id);
-  if (!spec) throw new Error(`Spec ${id} not found`);
-  if (!spec.hasFrontmatter) throw new Error(`Spec ${id} has no frontmatter`);
+  if (!spec) throw lifecycleError(`Spec ${id} not found`, { code: "WF_SPEC_NOT_FOUND" });
+  if (!spec.hasFrontmatter)
+    throw lifecycleError(`Spec ${id} has no frontmatter`, { code: "WF_SPEC_UNMANAGED" });
 
   const fm = spec.frontmatter;
   const profile = spec.profile || loadProjectProfile(cwd);
   if (statusRole(profile, fm.status) !== "active") {
-    throw new Error(`Spec ${id} not in-progress (status=${fm.status})`);
+    throw lifecycleError(`Spec ${id} not in-progress (status=${fm.status})`, {
+      code: "WF_SPEC_NOT_ACTIVE",
+    });
   }
   if (fm.workflow_version !== WORKFLOW_VERSION) {
-    throw new Error(`Spec ${id} is legacy in-progress; rerun spec_begin to migrate to workflow v2`);
+    throw lifecycleError(
+      `Spec ${id} is legacy in-progress; rerun spec_begin to migrate to workflow v2`,
+      {
+        code: "WF_LEGACY_WORKFLOW",
+        nextActions: [beginAction(id, "把 legacy in-progress Spec 迁移到 workflow v2（不改合同）")],
+      },
+    );
   }
-  requireProposalApproval(profile, fm, id);
+  requireApproved(profile, fm, id);
   if (fm.impl?.pass !== true || !fm.impl?.snapshot_hash) {
-    throw new Error(`Spec ${id} impl is not explicitly passing; run spec_impl first`);
+    throw lifecycleError(`Spec ${id} impl is not explicitly passing; run spec_impl first`, {
+      code: "WF_IMPL_NOT_PASSED",
+      stage: "impl",
+      nextActions: [implAction(id, "先让 impl 证据显式通过，再免费准备/执行审计")],
+    });
   }
 
   const baseSha = fm.impl.base_sha;
-  if (!baseSha) throw new Error(`Spec ${id} has no impl.base_sha; rerun spec_begin`);
+  if (!baseSha)
+    throw lifecycleError(`Spec ${id} has no impl.base_sha; rerun spec_begin`, {
+      code: "WF_BASE_SHA_MISSING",
+      nextActions: [beginAction(id, "重新记录 impl.base_sha 后重跑 impl")],
+    });
   const repo = implementationRepo(cwd, fm);
   assertProfileRepoBoundary(profile, repo);
   const scope = fm.scope || null;
@@ -2229,22 +2900,231 @@ async function auditUnlocked(
     signal,
   });
   if (snapshot.hash !== fm.impl.snapshot_hash) {
-    throw new Error(
+    throw lifecycleError(
       `Spec ${id} implementation changed after spec_impl (${fm.impl.snapshot_hash.slice(0, 12)} → ${snapshot.hash.slice(0, 12)}); rerun spec_impl`,
+      {
+        code: "AUDIT_IMPLEMENTATION_STALE",
+        stage: "impl",
+        nextActions: [implAction(id, "当前 checkout 与 impl 快照不一致；重跑 impl 后再审计")],
+      },
     );
   }
   const contractHash = specContractHash(spec.content, profile);
   if (fm.impl.contract_hash !== contractHash) {
-    throw new Error(`Spec ${id} contract changed or is unbound after spec_impl; rerun spec_impl`);
+    throw lifecycleError(
+      `Spec ${id} contract changed or is unbound after spec_impl; rerun spec_impl`,
+      {
+        code: "AUDIT_CONTRACT_STALE",
+        stage: "impl",
+        nextActions: [implAction(id, "合同变化使 impl 证据过期；重跑 impl 重新绑定")],
+      },
+    );
   }
 
   onProgress?.("读取 HEAD…");
   const currentSha = await getHeadSha(repo, signal);
-  if (currentSha === "unknown") throw new Error("Cannot audit without a valid Git HEAD");
+  if (currentSha === "unknown")
+    throw lifecycleError("Cannot audit without a valid Git HEAD", { code: "WF_HEAD_UNKNOWN" });
+  return { spec, fm, profile, baseSha, repo, scope, snapshot, contractHash, currentSha };
+}
+
+// A lifecycle audit must be a full current working-tree packet for exactly this
+// Spec/contract. Ordinary/delta receipts never attach, even as a fallback.
+function auditBindingProblems(receipt, { id, canonicalRepo, specPath, contractHash, bindings }) {
+  const problems = [];
+  if (receipt.mode !== "working-tree-audit") problems.push("mode");
+  if (receipt.repository !== canonicalRepo) problems.push("repository");
+  if (receipt.bindings?.coverage !== "full-current-audit") problems.push("coverage");
+  if (receipt.bindings?.spec_id !== String(id)) problems.push("spec_id");
+  if (receipt.bindings?.spec_path !== specPath) problems.push("spec_path");
+  if (receipt.bindings?.contract_hash !== contractHash) problems.push("contract_hash");
+  for (const [key, value] of Object.entries(bindings)) {
+    if (key !== "head" && receipt.bindings?.[key] !== value) problems.push(key);
+  }
+  return [...new Set(problems)];
+}
+
+function auditCompletionActions(id, spec, fm, profile) {
+  const human = Array.isArray(fm.evidence?.human) ? fm.evidence.human : [];
+  const pending = human.filter((item) => !fm.attestations?.[item]);
+  if (pending.length > 0) {
+    return pending
+      .slice(0, 8)
+      .map((item) =>
+        workflowAction(
+          "spec_attest",
+          { id: String(id), item },
+          "机器证据已通过；该项人工核验需真实样本，note 由人工提供，不伪造授权",
+          { requiresHuman: true },
+        ),
+      );
+  }
+  if (recordConsistencyGaps(spec, profile).length > 0) return [];
+  return [
+    workflowAction(
+      "spec_done",
+      { id: String(id) },
+      "机器与人工证据均已绑定；spec_done 会再次运行生命周期一致性校验",
+    ),
+  ];
+}
+
+function auditIssueActions({ id, outputInfo, jobId, diagnostic }) {
+  if (diagnostic?.nextActions?.length) return boundedActions(diagnostic.nextActions);
+  if (outputInfo?.category === "protocol-error") {
+    const actions = [];
+    if (jobId) {
+      actions.push(
+        workflowAction(
+          "spec_review",
+          { action: "status", jobId },
+          "免费读取保留的协议错误与无损修复提示；不改判定、不消耗预算",
+        ),
+      );
+      if (outputInfo.repairable) {
+        actions.push(
+          workflowAction(
+            "spec_review",
+            { action: "repair", jobId },
+            "对受支持的 scope 协议错误做零模型无损修复；不改变产品判定，不消耗预算",
+          ),
+        );
+      }
+    }
+    return actions;
+  }
+  if (outputInfo?.category === "coverage-gap") {
+    // A gap means a normative promise or its caller context is missing from the
+    // contract/packet. Fixing it changes the contract, so impl must re-bind
+    // before another audit packet can be prepared. Never auto-fill a gap.
+    return [
+      ...(jobId
+        ? [
+            workflowAction(
+              "spec_review",
+              { action: "status", jobId },
+              "免费读取完整缺口清单（不是已确认产品缺陷）；不改判定、不消耗预算",
+            ),
+          ]
+        : []),
+      implAction(
+        id,
+        "补齐验收/上下文声明会让合同 hash 变化；重跑 impl 重新绑定后再免费准备审计（缺口不等于产品 FAIL）",
+      ),
+    ];
+  }
+  if (["execution-error", "precondition-error"].includes(outputInfo?.category)) {
+    return jobId
+      ? [
+          workflowAction(
+            "spec_review",
+            { action: "status", jobId },
+            "先免费读取保留结果与终态；失败不会被自动付费重试",
+          ),
+        ]
+      : [];
+  }
+  return [
+    auditPrepareAction(
+      id,
+      "修复 findings 后免费重建完整当前审计 packet；再次执行只能由用户授权同一 job",
+    ),
+  ];
+}
+
+function buildAuditOutcome({
+  id,
+  spec,
+  fm,
+  profile,
+  auditResult,
+  outputIssue,
+  jobId,
+  packetPath,
+  text,
+}) {
+  const issueCategory = outputIssue?.category;
+  const category =
+    issueCategory === "pass" || issueCategory == null
+      ? auditResult.verdict === "pass"
+        ? "pass"
+        : "product-fail"
+      : [
+            "product-fail",
+            "coverage-gap",
+            "protocol-error",
+            "execution-error",
+            "limit-exceeded",
+          ].includes(issueCategory)
+        ? issueCategory
+        : issueCategory === "invalid-limit"
+          ? "precondition-error"
+          : "execution-error";
+  const nextActions =
+    category === "pass"
+      ? auditCompletionActions(id, spec, fm, profile)
+      : auditIssueActions({
+          id,
+          outputInfo: outputIssue,
+          jobId,
+          diagnostic: outputIssue?.diagnostic,
+        });
+  const diagnostic =
+    category === "pass"
+      ? undefined
+      : (outputIssue?.diagnostic ??
+        workflowDiagnostic({
+          code: outputIssue?.code || "AUDIT_NOT_PASSED",
+          category: category === "product-fail" ? "product-fail" : category,
+          stage: "audit",
+          message: outputIssue?.message || auditResult.criteria[0]?.evidence || text.slice(0, 4000),
+          nextActions,
+        }));
+  return {
+    outcome: workflowOutcome({
+      operation: "audit",
+      specId: id,
+      pass: category === "pass",
+      category,
+      summary: text,
+      nextActions,
+      jobId,
+      packetPath,
+      diagnostic,
+    }),
+    jobId,
+    packetPath,
+  };
+}
+
+async function auditRun(
+  cwd,
+  id,
+  { signal, onProgress, budgetId, reviewJobId, executor, maxBytes } = {},
+) {
+  if (maxBytes !== undefined) {
+    throw lifecycleError(
+      "audit run/attach does not accept maxBytes; only prepareAudit/--prepare may set a new limit",
+      { code: "WF_PARAMETER", stage: "parameters" },
+    );
+  }
+  if (reviewJobId !== undefined && !/^[a-f0-9]{32}$/.test(String(reviewJobId))) {
+    throw lifecycleError(
+      "Invalid reviewJobId (require 32 lowercase hex characters); no packet/model/budget spent",
+      { code: "WF_PARAMETER", stage: "parameters" },
+    );
+  }
+  const { spec, fm, profile, baseSha, repo, scope, snapshot, contractHash, currentSha } =
+    await auditPreconditions(cwd, id, { signal, onProgress });
+  const canonicalRepo = fs.realpathSync(repo);
+  const specPath = path.relative(canonicalRepo, fs.realpathSync(spec.path));
 
   let auditResult;
   let engineReview = null;
   let toolIssue = null;
+  let reuseStatus = null;
+  let lastJobId = null;
+  let lastPacketPath = null;
   try {
     onProgress?.("校验 base_sha 祖先关系…");
     await assertAuditBaseAncestor(repo, baseSha, signal);
@@ -2279,11 +3159,39 @@ async function auditUnlocked(
         prev.review.result_sha256 === sha256(stableJson(normalizedPrev))))
   ) {
     let executionInfo;
+    // The catch path returns; every read below is after a successful assignment.
+    let retained;
     try {
-      const retained = await assertRetainedAuditEvidence(repo, prev);
+      retained = await assertRetainedAuditEvidence(repo, prev);
       executionInfo = describeReviewExecution(retained?.receipt || { state: "completed" });
     } catch (error) {
-      return `❌ ${id} — ${error.message}`;
+      const text = `❌ ${id} — ${error.message}`;
+      const diagnostic = workflowDiagnostic({
+        code: "AUDIT_RETAINED_EVIDENCE",
+        category: "execution-error",
+        stage: "cache",
+        message: error.message,
+        nextActions: [
+          implAction(
+            id,
+            "旧审计证据不可验证；不会复用旧 PASS，按当前实现重跑 impl 后重新准备审计（不自动覆盖历史）",
+          ),
+        ],
+      });
+      return {
+        text,
+        jobId: null,
+        packetPath: null,
+        outcome: workflowOutcome({
+          operation: "audit",
+          specId: id,
+          pass: false,
+          category: "execution-error",
+          summary: text,
+          nextActions: diagnostic.nextActions,
+          diagnostic,
+        }),
+      };
     }
     onProgress?.(executionInfo.message);
     const summary = [
@@ -2301,17 +3209,61 @@ async function auditUnlocked(
       ...coverageSummaryLines(prev),
       ...deferredScopeLines(deferredScopeNotes(prev.out_of_scope)),
     );
-    return summary.join("\n");
+    const text = summary.join("\n");
+    const nextActions = auditCompletionActions(id, spec, fm, profile);
+    const artifact = {
+      jobId: retained?.jobId ?? prev.review?.job_id ?? null,
+      packetPath: retained?.packetPath ?? null,
+    };
+    return {
+      text,
+      ...artifact,
+      outcome: workflowOutcome({
+        operation: "audit",
+        specId: id,
+        pass: true,
+        category: "pass",
+        summary: text,
+        nextActions,
+        ...artifact,
+      }),
+    };
   }
 
   let diff = "";
+  const reusableId = reviewJobId || prev?.review?.job_id;
   if (!auditResult) {
     try {
       onProgress?.("获取完整实施 diff（含未跟踪文件）…");
-      diff = await buildAuditDiff(repo, baseSha, scope, { signal, excludePaths: [spec.path] });
+      if (reusableId) {
+        // Execute/attach the exact sealed job this caller named. Its sealed
+        // limit, not today's environment, decides how the diff is rebuilt.
+        reuseStatus = (await import("./review-engine.mjs")).reviewStatus(repo, reusableId);
+        lastJobId = reuseStatus.jobId;
+        lastPacketPath = reuseStatus.packetPath ?? null;
+      }
+      const limit = reuseStatus
+        ? await sealedAuditLimit(reuseStatus.receipt)
+        : await resolveAuditLimit(undefined);
+      diff = await buildAuditDiff(repo, baseSha, scope, {
+        signal,
+        resolvedLimit: limit,
+        excludePaths: [spec.path],
+        specId: id,
+      });
       if (!diff.trim()) throw new Error("Implementation diff is empty; nothing can be audited");
     } catch (error) {
       if (error?.name === "AbortError") throw error;
+      if (error?.diagnostic) {
+        const diagnostic = lifecycleLimitDiagnostic(error.diagnostic, id);
+        toolIssue = {
+          category: auditIssueCategoryFromDiagnostic(diagnostic),
+          code: diagnostic.code,
+          repairable: false,
+          message: error.message,
+          diagnostic,
+        };
+      }
       auditResult = normalizeAuditResult({
         verdict: "fail",
         criteria: [
@@ -2343,34 +3295,35 @@ async function auditUnlocked(
       diff_sha256: sha256(diff),
       impl_sha256: sha256(JSON.stringify(fm.impl)),
     };
-    const reusableId = reviewJobId || prev?.review?.job_id;
-    const canonicalRepo = fs.realpathSync(repo);
     try {
-      engineReview = reusableId
-        ? engine.reviewStatus(repo, reusableId)
-        : await engine.prepareWorkingAudit(repo, {
-            spec,
-            content: spec.content,
-            profile,
-            bindings,
-            diff,
-            impl: fm.impl,
-          });
-      const actual = engineReview.receipt;
-      if (
-        engineReview.mode !== "working-tree-audit" ||
-        actual.repository !== canonicalRepo ||
-        actual.bindings?.coverage !== "full-current-audit" ||
-        actual.bindings?.spec_id !== String(id) ||
-        actual.bindings?.spec_path !== path.relative(canonicalRepo, fs.realpathSync(spec.path)) ||
-        actual.bindings?.contract_hash !== contractHash ||
-        Object.entries(bindings).some(
-          ([key, value]) => key !== "head" && actual.bindings?.[key] !== value,
-        )
-      ) {
-        const mismatch = Object.entries(bindings)
-          .filter(([key, value]) => key !== "head" && actual.bindings?.[key] !== value)
-          .map(([key]) => key);
+      if (reusableId) {
+        engineReview =
+          reuseStatus?.jobId === reusableId ? reuseStatus : engine.reviewStatus(repo, reusableId);
+        lastJobId = engineReview.jobId;
+        lastPacketPath = engineReview.packetPath ?? lastPacketPath;
+      } else {
+        // Let the engine resolve the environment/default limit itself so the
+        // sealed receipt records the real source; the diff above used the same
+        // resolved policy (an env change here fails closed at seal time).
+        engineReview = await engine.prepareWorkingAudit(repo, {
+          spec,
+          content: spec.content,
+          profile,
+          bindings,
+          diff,
+          impl: fm.impl,
+        });
+        lastJobId = engineReview.jobId;
+        lastPacketPath = engineReview.packetPath ?? null;
+      }
+      const mismatch = auditBindingProblems(engineReview.receipt, {
+        id,
+        canonicalRepo,
+        specPath,
+        contractHash,
+        bindings,
+      });
+      if (mismatch.length) {
         engineReview = null;
         throw new Error(
           `Review is not a full current working-tree audit for this Spec; ordinary/delta results cannot attach (binding mismatch: ${mismatch.join(", ") || "identity/coverage"})`,
@@ -2379,6 +3332,12 @@ async function auditUnlocked(
       const beforeSpend = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
       if (beforeSpend.hash !== snapshot.hash)
         throw new Error("Implementation changed during packet preparation; no model call");
+      // The snapshot excludes the Spec, so prove its contract/impl bytes are
+      // still exactly what was sealed before any metered child starts.
+      assertSpecFileStable(spec, id, sha256(spec.content), {
+        stage: "pre-spend",
+        code: "AUDIT_CONTRACT_UNSTABLE",
+      });
       // Persist a nonpassing job pointer before any potentially metered child.
       fm.audit = {
         verdict: "fail",
@@ -2413,11 +3372,15 @@ async function auditUnlocked(
         );
     } catch (error) {
       if (error?.name === "AbortError") throw error;
+      const diagnostic = lifecycleLimitDiagnostic(error?.diagnostic ?? null, id);
       toolIssue = {
-        category: "execution-error",
-        code: "REVIEW_EXECUTION_OR_BINDING",
+        category: diagnostic ? auditIssueCategoryFromDiagnostic(diagnostic) : "execution-error",
+        code: diagnostic?.code ?? "REVIEW_EXECUTION_OR_BINDING",
         repairable: false,
-        message: `工具执行/证据绑定错误（非产品 FAIL）：${error?.message || error}。先修复调用参数、宿主或证据绑定；保留原结果，不自动付费重审。`,
+        message: diagnostic
+          ? error.message
+          : `工具执行/证据绑定错误（非产品 FAIL）：${error?.message || error}。先修复调用参数、宿主或证据绑定；保留原结果，不自动付费重审。`,
+        ...(diagnostic ? { diagnostic } : {}),
       };
       auditResult = normalizeAuditResult({
         verdict: "fail",
@@ -2505,10 +3468,16 @@ async function auditUnlocked(
   });
 
   const outputIssue = toolIssue || engineReview?.outputInfo;
-  const isToolError = ["protocol-error", "execution-error"].includes(outputIssue?.category);
+  const labelCategory =
+    outputIssue?.category && outputIssue.category !== "pass"
+      ? outputIssue.category
+      : auditResult.verdict === "pass"
+        ? "pass"
+        : "product-fail";
   const summary = [
-    `Spec ${id} 审计结果: ${isToolError ? "⚠️ 工具/协议错误（非产品 FAIL）" : outputIssue?.category === "coverage-gap" ? "⚠️ 覆盖/证据缺口（非已确认产品 FAIL）" : auditResult.verdict === "pass" ? "✅ PASS" : "❌ FAIL"}`,
-    ...(isToolError || outputIssue?.category === "coverage-gap" ? [outputIssue.message] : []),
+    `Spec ${id} 审计结果: ${auditStatusLabel(labelCategory, auditResult.verdict)}`,
+    ...(labelCategory !== "pass" && outputIssue?.message ? [outputIssue.message] : []),
+    ...diagnosticLines(outputIssue?.diagnostic),
     `  sha: ${currentSha}`,
     `  impl_hash: ${snapshot.hash.slice(0, 12)}`,
     `  criteria:`,
@@ -2526,7 +3495,213 @@ async function auditUnlocked(
   }
   summary.push(...coverageSummaryLines(fm.audit), ...deferredScopeLines(deferredNotes));
 
-  return summary.join("\n");
+  const text = summary.join("\n");
+  const jobId = engineReview?.jobId ?? lastJobId ?? fm.audit?.review?.job_id ?? null;
+  const packetPath = engineReview?.packetPath ?? lastPacketPath ?? null;
+  const result = buildAuditOutcome({
+    id,
+    spec,
+    fm,
+    profile,
+    auditResult,
+    outputIssue,
+    jobId,
+    packetPath,
+    text,
+  });
+  return { text, ...result };
+}
+
+async function auditUnlocked(cwd, id, options) {
+  return (await auditRun(cwd, id, options)).text;
+}
+
+// ─── free audit prepare ──────────────────────────────────────────────────────
+const PREPARE_AUDIT_OPTIONS = new Set(["signal", "maxBytes", "onProgress"]);
+
+function assertPrepareAuditOptions(options) {
+  if (options === undefined) return;
+  if (!options || typeof options !== "object" || Array.isArray(options))
+    throw lifecycleError("prepareAudit options must be an object", {
+      code: "WF_PARAMETER",
+      stage: "parameters",
+    });
+  for (const key of Object.keys(options)) {
+    if (!PREPARE_AUDIT_OPTIONS.has(key))
+      throw lifecycleError(
+        `prepareAudit does not accept ${key}; prepare is free and never executes/attaches a job or spends a budget`,
+        { code: "WF_PARAMETER", stage: "parameters" },
+      );
+  }
+}
+
+// The implementation snapshot deliberately excludes the Spec file, so it cannot
+// prove the contract/receipt is still the one that was sealed. Re-read those
+// exact bytes before reporting "prepared" or before spending a model call.
+export function assertSpecFileStable(spec, id, expectedDigest, { stage, code }) {
+  let bytes;
+  try {
+    bytes = fs.readFileSync(spec.path);
+  } catch (error) {
+    throw lifecycleError(`Cannot re-read Spec ${id} after packet construction: ${error.message}`, {
+      code,
+      stage,
+      nextActions: [implAction(id, "恢复可读的 Spec 文件后重新准备，不沿用旧 packet")],
+    });
+  }
+  if (sha256(bytes) !== expectedDigest)
+    throw lifecycleError(
+      `Spec ${id} changed during ${stage}; the sealed packet would bind stale contract/impl bytes (no model call)`,
+      {
+        code,
+        stage,
+        nextActions: [
+          implAction(id, "在稳定 checkout 重跑 impl 后再准备审计；不自动重试或改写已有 job"),
+        ],
+      },
+    );
+}
+
+async function prepareAuditUnlocked(cwd, id, { signal, maxBytes, onProgress } = {}) {
+  const { spec, fm, profile, baseSha, repo, scope, snapshot, contractHash } =
+    await auditPreconditions(cwd, id, { signal, onProgress });
+  const limit = await resolveAuditLimit(maxBytes);
+  const canonicalRepo = fs.realpathSync(repo);
+  const specPath = path.relative(canonicalRepo, fs.realpathSync(spec.path));
+
+  try {
+    onProgress?.("校验 base_sha 祖先关系…");
+    await assertAuditBaseAncestor(repo, baseSha, signal);
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw lifecycleError(
+      `Spec ${id} base_sha is not an ancestor of HEAD; no packet prepared (${error?.message || error})`,
+      {
+        code: "AUDIT_BASE_NOT_ANCESTOR",
+        stage: "lifecycle",
+        nextActions: [implAction(id, "当前 base_sha 不可达；重新 begin/impl 后再准备审计")],
+      },
+    );
+  }
+
+  onProgress?.("获取完整实施 diff（含未跟踪文件）…");
+  const diff = await buildAuditDiff(repo, baseSha, scope, {
+    signal,
+    resolvedLimit: limit,
+    excludePaths: [spec.path],
+    specId: id,
+  });
+  if (!diff.trim())
+    throw lifecycleError("Implementation diff is empty; nothing can be audited", {
+      code: "AUDIT_DIFF_EMPTY",
+      stage: "audit-diff",
+      nextActions: [implAction(id, "当前没有可审计的实现变更；先实施并重跑 impl")],
+    });
+
+  const bindings = {
+    base_sha: baseSha,
+    head: await getHeadSha(repo, signal),
+    snapshot_hash: snapshot.hash,
+    scope_sha256: crypto.createHash("sha256").update(JSON.stringify(scope)).digest("hex"),
+    diff_sha256: sha256(diff),
+    impl_sha256: sha256(JSON.stringify(fm.impl)),
+  };
+  const engine = await import("./review-engine.mjs");
+  let status;
+  try {
+    status = await engine.prepareWorkingAudit(repo, {
+      spec,
+      content: spec.content,
+      profile,
+      bindings,
+      diff,
+      impl: fm.impl,
+      // Pass the resolved policy so the sealed source stays argument/environment/
+      // default instead of being re-derived (and possibly flattened) by the engine.
+      limit,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    const diagnostic = lifecycleLimitDiagnostic(error?.diagnostic ?? null, id);
+    if (diagnostic) error.diagnostic = diagnostic;
+    throw withDiagnostic(
+      error,
+      diagnostic ??
+        workflowDiagnostic({
+          code: "AUDIT_PREPARE_FAILED",
+          category: "execution-error",
+          stage: "packet",
+          message: error?.message || String(error),
+          nextActions: [],
+        }),
+    );
+  }
+  const mismatch = auditBindingProblems(status.receipt, {
+    id,
+    canonicalRepo,
+    specPath,
+    contractHash,
+    bindings,
+  });
+  if (mismatch.length)
+    throw workflowError(
+      `Prepared review is not a full current working-tree audit for this Spec (binding mismatch: ${mismatch.join(", ") || "identity/coverage"})`,
+      workflowDiagnostic({
+        code: "AUDIT_PREPARE_BINDING",
+        category: "execution-error",
+        stage: "packet",
+        message: `Prepared review binding mismatch: ${mismatch.join(", ")}`,
+        nextActions: [],
+      }),
+    );
+  assertSpecFileStable(spec, id, sha256(spec.content), {
+    stage: "packet-preparation",
+    code: "AUDIT_CONTRACT_UNSTABLE",
+  });
+  const after = await repositorySnapshotHash(repo, { excludePaths: [spec.path], signal });
+  if (after.hash !== snapshot.hash)
+    throw lifecycleError(
+      "Implementation changed during packet preparation; no Spec write or model call",
+      {
+        code: "AUDIT_IMPLEMENTATION_UNSTABLE",
+        stage: "packet",
+        nextActions: [implAction(id, "准备期间实现内容变化；在稳定 checkout 重跑 impl/审计")],
+      },
+    );
+
+  return {
+    ...status,
+    operation: "audit",
+    specId: String(id),
+    prepared: true,
+    modelInvoked: false,
+    bytes: status.receipt.packet_bytes,
+    maxBytes: status.receipt.review_limit?.maxBytes ?? limit.maxBytes,
+    limits: status.receipt.review_limit ?? limit,
+    nextActions: [
+      workflowAction(
+        "spec_review",
+        { action: "status", jobId: status.jobId },
+        "免费核对封存状态与 packet 摘要；不改判定、不消耗预算",
+      ),
+      workflowAction(
+        "spec_audit",
+        { id: String(id), reviewJobId: status.jobId },
+        "扫描 packetPath 后，用用户已授权的 review 预算执行或附加同一 job；无授权时先请求用户授权，不自动重试",
+        { requiresAuthorization: true },
+      ),
+    ],
+  };
+}
+
+/**
+ * Free full-current audit preparation used by the CLI/native entries.
+ * Creates a private prepared job (packet + receipt) but never calls a model,
+ * consumes a budget, or writes the Spec/ledger.
+ */
+export async function prepareAudit(cwd, id, options = {}) {
+  assertPrepareAuditOptions(options);
+  return mutateSpec(cwd, id, () => prepareAuditUnlocked(cwd, id, options));
 }
 
 // ─── attest ──────────────────────────────────────────────────────────────────
@@ -3274,6 +4449,55 @@ export async function impl(cwd, id, options) {
 export async function audit(cwd, id, options) {
   return mutateSpec(cwd, id, () => auditUnlocked(cwd, id, options));
 }
+
+function preconditionOutcome(operation, id, error) {
+  if (error?.name === "AbortError") throw error;
+  const diagnostic =
+    error?.diagnostic ??
+    workflowDiagnostic({
+      code: operation === "impl" ? "IMPL_PRECONDITION" : "AUDIT_PRECONDITION",
+      category: "precondition-error",
+      stage: "lifecycle",
+      message: error?.message || String(error),
+      nextActions: [],
+    });
+  const category = [
+    "limit-exceeded",
+    "product-fail",
+    "coverage-gap",
+    "protocol-error",
+    "execution-error",
+  ].includes(diagnostic.category)
+    ? diagnostic.category
+    : "precondition-error";
+  return workflowOutcome({
+    operation,
+    specId: id,
+    pass: false,
+    category,
+    summary: error?.message || String(error),
+    nextActions: diagnostic.nextActions ?? [],
+    diagnostic,
+  });
+}
+
+/** Structured impl result for the CLI/native adapters (never parsed from text). */
+export async function implOutcome(cwd, id, options = {}) {
+  try {
+    return await mutateSpec(cwd, id, async () => (await implRun(cwd, id, options)).outcome);
+  } catch (error) {
+    return preconditionOutcome("impl", id, error);
+  }
+}
+
+/** Structured audit result for the CLI/native adapters (never parsed from text). */
+export async function auditOutcome(cwd, id, options = {}) {
+  try {
+    return await mutateSpec(cwd, id, async () => (await auditRun(cwd, id, options)).outcome);
+  } catch (error) {
+    return preconditionOutcome("audit", id, error);
+  }
+}
 export function attest(cwd, id, item, note) {
   return mutateSpec(cwd, id, () => attestUnlocked(cwd, id, item, note));
 }
@@ -3367,22 +4591,158 @@ export async function renderWorktrees(cwd) {
 }
 
 // ─── CLI entry ───────────────────────────────────────────────────────────────
+function parseBoardArgs(args) {
+  let id = null;
+  let live = false;
+  let json = false;
+  for (const arg of args) {
+    if (arg === "--live") {
+      if (live) throw new Error("board received duplicate --live");
+      live = true;
+    } else if (arg === "--json") {
+      if (json) throw new Error("board received duplicate --json");
+      json = true;
+    } else if (arg.startsWith("-")) {
+      throw new Error(`board does not accept ${JSON.stringify(arg)}`);
+    } else if (id !== null) {
+      throw new Error("board accepts at most one Spec ID");
+    } else {
+      id = arg;
+    }
+  }
+  return { id, live, json };
+}
+
+function parseAuditArgs(args) {
+  const [id, ...rest] = args;
+  if (!id || id.startsWith("-")) throw new Error("audit requires <id>");
+  let prepare = false;
+  let reviewJobId;
+  let maxBytes;
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
+    if (arg === "--prepare") {
+      if (prepare) throw new Error("audit received duplicate --prepare");
+      prepare = true;
+    } else if (arg === "--review-job") {
+      if (reviewJobId !== undefined) throw new Error("audit received duplicate --review-job");
+      const value = rest[++i];
+      if (!/^[a-f0-9]{32}$/.test(value || ""))
+        throw new Error(
+          "--review-job requires 32 lowercase hex characters; nothing prepared or spent",
+        );
+      reviewJobId = value;
+    } else if (arg === "--max-bytes") {
+      if (maxBytes !== undefined) throw new Error("audit received duplicate --max-bytes");
+      const value = rest[++i];
+      if (value === undefined)
+        throw new Error("--max-bytes requires a positive decimal integer value");
+      maxBytes = parseAuditMaxBytesText(value, { name: "--max-bytes" });
+    } else {
+      throw new Error(
+        `audit does not accept ${JSON.stringify(arg)}; invalid parameters never spend`,
+      );
+    }
+  }
+  if (prepare && reviewJobId !== undefined)
+    throw new Error(
+      "audit --prepare cannot attach --review-job; prepare creates a new free packet (nothing spent)",
+    );
+  if (maxBytes !== undefined && !prepare)
+    throw new Error("--max-bytes is valid only with audit --prepare; nothing spent");
+  return { id, prepare, reviewJobId, maxBytes };
+}
+
+function cliPrepareView(result) {
+  const receipt = result.receipt || {};
+  return {
+    version: result.version,
+    operation: result.operation,
+    specId: result.specId,
+    jobId: result.jobId,
+    mode: result.mode,
+    state: result.state,
+    prepared: result.prepared === true,
+    modelInvoked: result.modelInvoked === true,
+    packetPath: result.packetPath,
+    bytes: result.bytes,
+    maxBytes: result.maxBytes,
+    limits: result.limits,
+    receipt: {
+      state: receipt.state ?? null,
+      mode: receipt.mode ?? null,
+      packet_sha256: receipt.packet_sha256 ?? null,
+      packet_bytes: receipt.packet_bytes ?? null,
+      prompt_version: receipt.prompt_version ?? null,
+      bindings: receipt.bindings
+        ? {
+            spec_id: receipt.bindings.spec_id ?? null,
+            spec_path: receipt.bindings.spec_path ?? null,
+            coverage: receipt.bindings.coverage ?? null,
+            base_sha: receipt.bindings.base_sha ?? null,
+            snapshot_hash: receipt.bindings.snapshot_hash ?? null,
+            contract_hash: receipt.bindings.contract_hash ?? null,
+          }
+        : null,
+      ...(receipt.review_limit ? { review_limit: receipt.review_limit } : {}),
+    },
+    nextActions: result.nextActions,
+  };
+}
+
+// The CLI prints one machine line before the human summary so an agent never
+// has to reverse-engineer the category from emoji, and keeps the legacy text.
+function outcomeHeadline(outcome) {
+  const parts = [
+    `operation=${outcome.operation}`,
+    `spec=${outcome.specId}`,
+    `pass=${outcome.pass}`,
+    `category=${outcome.category}`,
+  ];
+  if (outcome.jobId) parts.push(`job=${outcome.jobId}`);
+  if (outcome.packetPath) parts.push(`packetPath=${outcome.packetPath}`);
+  return `结果: ${parts.join(" ")}`;
+}
+function printOutcome(outcome) {
+  const actions = Array.isArray(outcome.nextActions) ? outcome.nextActions.slice(0, 6) : [];
+  const actionLines = actions.map(
+    (action) =>
+      `  → ${action.tool} ${JSON.stringify(action.args)}${action.requiresAuthorization ? "（需用户授权预算）" : ""}${action.requiresHuman ? "（需人工）" : ""}`,
+  );
+  if (outcome.category === "precondition-error") {
+    console.error(outcomeHeadline(outcome));
+    console.error(outcome.summary);
+    if (actionLines.length) console.error(["  下一步:", ...actionLines].join("\n"));
+    if (outcome.diagnostic) console.error(`Diagnostic: ${JSON.stringify(outcome.diagnostic)}`);
+    return;
+  }
+  console.log(outcomeHeadline(outcome));
+  console.log(outcome.summary);
+  if (actionLines.length) console.log(["  下一步:", ...actionLines].join("\n"));
+}
+
 async function main() {
   const cwd = process.cwd();
   const [cmd, ...args] = process.argv.slice(2);
 
   if (!cmd) {
     console.log(
-      "Usage: spec-flow board|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id> [--review-job JOB_ID]|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]",
+      "Usage: spec-flow board [ID] [--live] [--json]|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id> [--prepare [--max-bytes N] | --review-job JOB_ID]|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]",
     );
     process.exit(1);
   }
 
   try {
     switch (cmd) {
-      case "board":
-        console.log(board(cwd));
+      case "board": {
+        const parsed = parseBoardArgs(args);
+        const result = await inspectBoard(cwd, {
+          id: parsed.id ?? undefined,
+          live: parsed.live,
+        });
+        console.log(parsed.json ? JSON.stringify(result, null, 2) : renderInspectBoard(result));
         break;
+      }
       case "worktrees":
         if (args.length) throw new Error("worktrees accepts no arguments");
         console.log(await renderWorktrees(cwd));
@@ -3418,22 +4778,29 @@ async function main() {
         if (!args[0]) throw new Error("begin requires <id>");
         console.log(await begin(cwd, args[0]));
         break;
-      case "impl":
-        if (!args[0]) throw new Error("impl requires <id>");
-        console.log(await impl(cwd, args[0]));
+      case "impl": {
+        if (args.length !== 1) throw new Error("impl requires exactly <id>");
+        const outcome = await implOutcome(cwd, args[0]);
+        printOutcome(outcome);
+        process.exitCode = outcome.pass ? 0 : 1;
         break;
+      }
       case "audit": {
-        const reviewJobId = args.length === 3 && args[1] === "--review-job" ? args[2] : undefined;
-        if (!args[0] || !(args.length === 1 || /^[a-f0-9]{32}$/.test(reviewJobId || "")))
-          throw new Error(
-            "audit requires <id> and optional --review-job <32-hex JOB_ID>; invalid parameters never prepare/spend",
-          );
-        console.log(
-          await audit(cwd, args[0], {
-            ...(reviewJobId ? { reviewJobId } : {}),
+        const parsed = parseAuditArgs(args);
+        if (parsed.prepare) {
+          const prepared = await prepareAudit(cwd, parsed.id, {
+            ...(parsed.maxBytes === undefined ? {} : { maxBytes: parsed.maxBytes }),
             onProgress: (t) => console.error(`⏳ ${t}`),
-          }),
-        );
+          });
+          console.log(JSON.stringify(cliPrepareView(prepared), null, 2));
+          break;
+        }
+        const outcome = await auditOutcome(cwd, parsed.id, {
+          ...(parsed.reviewJobId ? { reviewJobId: parsed.reviewJobId } : {}),
+          onProgress: (t) => console.error(`⏳ ${t}`),
+        });
+        printOutcome(outcome);
+        process.exitCode = outcome.pass ? 0 : 1;
         break;
       }
       case "attest":
@@ -3470,7 +4837,8 @@ async function main() {
     }
   } catch (e) {
     console.error(`Error: ${e.message}`);
-    process.exit(1);
+    if (e?.diagnostic) console.error(`Diagnostic: ${JSON.stringify(e.diagnostic)}`);
+    process.exitCode = 1;
   }
 }
 

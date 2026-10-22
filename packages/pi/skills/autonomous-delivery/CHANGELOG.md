@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0 — agent entry points, byte limits and recovery
+
+- Document one shared spec-flow path: free proposal/audit prepare → scan sealed packet → authorized run/attach → attest.
+- Record-only vs live board freshness, prepare-only byte limits (not token capacity), and category-based recovery.
+- Keep explicit finite authorization, sealed evidence, no auto-retry/refund and human-attestation rules unchanged.
+- Clarify daemon/worker environment differs from an interactive shell; no automatic reload or production restart.
+
 ## 1.2.0 — coverage and evidence precision
 
 - Reconcile body promises, numbered acceptance, source-bound major dispositions and actual entry evidence.

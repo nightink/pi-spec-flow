@@ -6,7 +6,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { writeFrontmatter } from "../../packages/core/src/core.mjs";
+import {
+  findSpec,
+  repositorySnapshotHash,
+  specContractHash,
+  writeFrontmatter,
+} from "../../packages/core/src/core.mjs";
+import { loadProjectProfile } from "../../packages/core/src/project-profile.mjs";
 import { normalizeReviewResult } from "../../packages/core/src/review-engine.mjs";
 import { digest, loadJob, reviewStore, saveJob } from "../../packages/core/src/review-storage.mjs";
 import { mechanicalCoverage, seedLegacyReviewFixture } from "../helpers/review-fixture.mjs";
@@ -230,6 +236,235 @@ const factory = (pi) => {
       );
       assert.equal(coverageStatus.result.structuredContent.result.verdict, "fail");
       assert.equal(coverageStatus.result.structuredContent.modelInvoked, false);
+      // ─── S2.2 native board / free audit prepare / failure / long receipt ───
+      const specPath = path.join(cwd, "docs/specs/S1.md");
+      const boardRecord = await ctx.executeTool("spec_board", {}, { signal });
+      assert.equal(boardRecord.isError, false, JSON.stringify(boardRecord));
+      assert.equal(boardRecord.result.structuredContent.freshness, "record-only");
+      assert.equal(boardRecord.result.structuredContent.specs[0].id, "S1");
+      assert.ok(Array.isArray(boardRecord.result.structuredContent.specs[0].nextActions));
+      assert.match(boardRecord.result.content[0].text, /record-only/);
+
+      // Synthesize a v2 in-progress Spec with a passing impl binding in this
+      // disposable repo, then add an uncommitted change for a non-empty diff.
+      const liveBody =
+        "# Offline contract\n\n- 状态：进行中\n\n## Outcome\n\n- [A1] native audit prepare\n";
+      const liveFm = {
+        id: "S1",
+        title: "Offline contract",
+        kind: "spec",
+        author: "agent",
+        status: "in-progress",
+        created: "2026-10-22",
+        review: { decision: "approved" },
+        evidence: { e2e: [], migrations: [], human: [] },
+        template: {
+          version: 2,
+          sha256: "358de590b6ba9668445b5880a12561216ed9e9d215c4a07d6b3ddfc1ab92accf",
+        },
+        workflow_version: 2,
+      };
+      fs.writeFileSync(specPath, writeFrontmatter(liveBody, liveFm));
+      fs.writeFileSync(path.join(cwd, "impl-change.txt"), "uncommitted native fixture\n");
+      const liveProfile = loadProjectProfile(cwd);
+      const contractHash = specContractHash(fs.readFileSync(specPath, "utf8"), liveProfile);
+      const liveSnapshot = await repositorySnapshotHash(cwd, { excludePaths: [specPath] });
+      fs.writeFileSync(
+        specPath,
+        writeFrontmatter(liveBody, {
+          ...liveFm,
+          impl: {
+            base_sha: sha,
+            at: new Date().toISOString(),
+            pass: true,
+            required_gates: [],
+            gates: {},
+            e2e: {},
+            migrations: { pass: true, checked: [], problems: [] },
+            diagnostics: [],
+            snapshot_hash: liveSnapshot.hash,
+            contract_hash: contractHash,
+          },
+        }),
+      );
+      assert.equal(specContractHash(fs.readFileSync(specPath, "utf8"), liveProfile), contractHash);
+      assert.equal(findSpec(cwd, "S1").frontmatter.impl.pass, true);
+
+      const boardLive = await ctx.executeTool("spec_board", { live: true }, { signal });
+      assert.equal(boardLive.isError, false, JSON.stringify(boardLive));
+      assert.equal(boardLive.result.structuredContent.freshness, "live");
+      assert.equal(boardLive.result.structuredContent.specs[0].fresh, true);
+      assert.equal(boardLive.result.structuredContent.specs[0].stage, "audit");
+
+      // A12: a registered but unverifiable sibling worktree must surface a
+      // structured member diagnostic through the native tools, not a raw Git
+      // error, and must not allocate an ID or mutate the current Spec.
+      const member = path.join(sandbox, "prunable member");
+      execFileSync("git", ["worktree", "add", "--detach", member], { cwd });
+      fs.rmSync(path.join(member, ".git"));
+      const specBeforeFamily = fs.readFileSync(specPath);
+      try {
+        for (const [name, args] of [
+          ["spec_alloc", { prefix: "S" }],
+          ["spec_new", { title: "Blocked by family" }],
+        ]) {
+          const blocked = await ctx.executeTool(name, args, { signal });
+          assert.equal(blocked.isError, true, JSON.stringify(blocked));
+          const diagnostic = blocked.result.structuredContent.diagnostic;
+          assert.equal(diagnostic.code, "SPECFLOW_WORKTREE_UNAVAILABLE");
+          assert.equal(diagnostic.stage, "worktree-inventory");
+          assert.equal(diagnostic.member.prunable, true);
+          assert.ok(
+            diagnostic.nextActions.some((action) => /prune --dry-run/.test(action.args.command)),
+          );
+          assert.match(blocked.result.content[0].text, /SPECFLOW_WORKTREE_UNAVAILABLE/);
+          assert.match(blocked.result.content[0].text, /prunable/);
+          assert.doesNotMatch(blocked.result.content[0].text, /^fatal: not a git repository/m);
+        }
+        const preview = await ctx.executeTool(
+          "spec_new",
+          { title: "Read-only preview", dryRun: true },
+          { signal },
+        );
+        assert.equal(preview.isError, false, JSON.stringify(preview));
+        assert.equal(preview.result.structuredContent.dryRun, true);
+        assert.deepEqual(fs.readFileSync(specPath), specBeforeFamily);
+      } finally {
+        execFileSync("git", ["worktree", "prune"], { cwd });
+      }
+
+      const beforePrepareSpec = fs.readFileSync(specPath);
+      const ledgerPath = path.join(cwd, ".spec-flow-ledger.jsonl");
+      const ledgerBefore = fs.existsSync(ledgerPath) ? fs.readFileSync(ledgerPath) : null;
+      const auditPrepared = await ctx.executeTool(
+        "spec_audit",
+        { action: "prepare", id: "S1" },
+        { signal },
+      );
+      assert.equal(auditPrepared.isError, false, JSON.stringify(auditPrepared));
+      const preparedAudit = auditPrepared.result.structuredContent;
+      assert.equal(preparedAudit.prepared, true);
+      assert.equal(preparedAudit.modelInvoked, false);
+      assert.equal(preparedAudit.state, "prepared");
+      assert.equal(preparedAudit.action, "prepare");
+      assert.match(preparedAudit.jobId, /^[a-f0-9]{32}$/);
+      assert.ok(preparedAudit.packetPath.endsWith("/packet.md"));
+      assert.ok(preparedAudit.bytes > 0);
+      assert.equal(preparedAudit.receipt.packet_bytes, preparedAudit.bytes);
+      // A3/A5: no explicit/env limit must seal source=default. The engine must
+      // consume the already-resolved limit passed by core, not re-resolve the
+      // internal numeric maxBytes as an "argument".
+      assert.equal(preparedAudit.receipt.review_limit.source, "default");
+      assert.ok(
+        preparedAudit.nextActions.some(
+          (action) => action.tool === "spec_audit" && action.requiresAuthorization === true,
+        ),
+      );
+      assert.deepEqual(fs.readFileSync(specPath), beforePrepareSpec);
+      assert.deepEqual(
+        fs.existsSync(ledgerPath) ? fs.readFileSync(ledgerPath) : null,
+        ledgerBefore,
+      );
+      assert.equal(fs.existsSync(path.join(store, "budgets")), false);
+
+      process.env.SPECFLOW_AUDIT_MAX_BYTES = "1";
+      try {
+        const envLimited = await ctx.executeTool(
+          "spec_audit",
+          { action: "prepare", id: "S1" },
+          { signal },
+        );
+        assert.equal(envLimited.isError, true);
+        assert.equal(envLimited.result.structuredContent.diagnostic.limitSource, "environment");
+        assert.equal(envLimited.result.structuredContent.diagnostic.limitBytes, 1);
+        const explicitLimit = await ctx.executeTool(
+          "spec_audit",
+          { action: "prepare", id: "S1", maxBytes: 524288 },
+          { signal },
+        );
+        assert.equal(explicitLimit.isError, false, JSON.stringify(explicitLimit));
+        assert.equal(
+          explicitLimit.result.structuredContent.receipt.review_limit.source,
+          "argument",
+        );
+        assert.equal(explicitLimit.result.structuredContent.receipt.review_limit.maxBytes, 524288);
+      } finally {
+        delete process.env.SPECFLOW_AUDIT_MAX_BYTES;
+      }
+
+      fs.writeFileSync(
+        path.join(cwd, "package.json"),
+        JSON.stringify({ type: "module", scripts: { test: 'node -e "process.exit(1)"' } }),
+      );
+      const implFailed = await ctx.executeTool("spec_impl", { id: "S1" }, { signal });
+      assert.equal(implFailed.isError, true, JSON.stringify(implFailed));
+      assert.equal(implFailed.result.structuredContent.operation, "impl");
+      assert.equal(implFailed.result.structuredContent.pass, false);
+      assert.equal(implFailed.result.structuredContent.category, "impl-fail");
+      assert.ok(implFailed.result.structuredContent.nextActions.length > 0);
+      assert.match(implFailed.result.content[0].text, /impl: FAIL/);
+      assert.match(fs.readFileSync(specPath, "utf8"), /pass: false/);
+      assert.match(fs.readFileSync(ledgerPath, "utf8"), /"type":\s*"impl"/);
+
+      // A real retained receipt >12000 chars through the model-visible channel.
+      const longPrepared = await ctx.executeTool(
+        "spec_review",
+        { mode: "proposal", id: "S1" },
+        { signal },
+      );
+      assert.equal(longPrepared.isError, false, JSON.stringify(longPrepared));
+      const longJob = loadJob(ctx.cwd, longPrepared.result.structuredContent.jobId);
+      seedLegacyReviewFixture(longJob.dir, longJob.job);
+      const longRaw = {
+        verdict: "pass",
+        criteria: Array.from({ length: 30 }, (_, index) => ({
+          id: `C${index + 1}`,
+          criterion: `Synthetic long receipt criterion ${index + 1}`,
+          status: "pass",
+          evidence: `Synthetic receipt padding for the native text channel only ${index + 1}: ${"x".repeat(480)}`,
+        })),
+        // Exact legacy file/note object: compatible but still a protocol issue,
+        // so the text summary must expose the free repair action.
+        scope_deviations: [{ file: "outside.txt", note: "Synthetic compatibility observation" }],
+      };
+      const longBytes = JSON.stringify(longRaw);
+      Object.assign(longJob.job, {
+        state: "completed",
+        model_invoked: false,
+        raw_verdict: "pass",
+        raw_sha256: digest(longBytes),
+        child_input_sha256: longJob.job.packet_sha256,
+      });
+      longJob.job.result = normalizeReviewResult(longRaw, longJob.job);
+      fs.writeFileSync(path.join(longJob.dir, "stdout.txt"), longBytes, { mode: 0o600 });
+      saveJob(longJob.dir, longJob.job);
+      assert.ok(JSON.stringify(longJob.job).length > 12000);
+      const longStatus = await ctx.executeTool(
+        "spec_review",
+        { action: "status", jobId: longJob.job.id },
+        { signal },
+      );
+      assert.equal(longStatus.isError, false, JSON.stringify(longStatus));
+      const longValue = longStatus.result.structuredContent;
+      assert.ok(longValue.result.criteria.length >= 30);
+      assert.equal(longValue.outputInfo.category, "protocol-error");
+      assert.equal(longValue.outputInfo.repairable, true);
+      assert.ok(JSON.stringify(longValue.receipt).length > 12000);
+
+      const longText = longStatus.result.content.map((part) => part.text).join("\n");
+      assert.ok(longText.length <= 12100, `model text ${longText.length}`);
+      assert.match(longText, /下一步:/);
+      assert.match(longText, /"action":"repair"/);
+      for (const expected of [
+        longValue.jobId,
+        "state=completed",
+        longValue.packetPath,
+        "下一步:",
+        "摘要边界",
+      ]) {
+        assert.ok(longText.includes(expected), `long receipt text missing ${expected}`);
+      }
+
       return {
         content: [{ type: "text", text: "offline native acceptance" }],
         details: {
@@ -242,6 +477,11 @@ const factory = (pi) => {
           repaired,
           coverageStatus,
           rejectedInputs: invalid.length,
+          boardRecord,
+          boardLive,
+          preparedAudit,
+          implFailed,
+          longStatus,
         },
       };
     },
@@ -284,7 +524,15 @@ try {
     settingsManager: settings,
     sessionManager: SessionManager.inMemory(cwd),
     modelRuntime: runtime,
-    tools: ["spec_new", "spec_review", "fixture_probe"],
+    tools: [
+      "spec_new",
+      "spec_review",
+      "spec_board",
+      "spec_audit",
+      "spec_impl",
+      "spec_alloc",
+      "fixture_probe",
+    ],
     model: {
       id: "offline",
       name: "offline fixture",
@@ -301,7 +549,15 @@ try {
   currentSession = result.session;
   currentSession.subscribe((event) => seen.push(event));
   await currentSession.bindExtensions({});
-  currentSession.setActiveToolsByName(["spec_new", "spec_review", "fixture_probe"]);
+  currentSession.setActiveToolsByName([
+    "spec_new",
+    "spec_review",
+    "spec_board",
+    "spec_audit",
+    "spec_impl",
+    "spec_alloc",
+    "fixture_probe",
+  ]);
   for (const name of ["spec_new", "spec_review"]) {
     assert.ok(
       currentSession.getCallableToolNames().includes(name),

@@ -165,11 +165,18 @@ test("index.ts: begin/impl/audit/attest/done 都在 mutation queue 包裹内", (
   const wrapped = adapterSource.match(/runSpecMutation\(ctx\.cwd, params\.id/g) ?? [];
   assert.equal(wrapped.length, 5, "五个生命周期工具都必须走 runSpecMutation");
 
-  for (const fn of ["begin", "impl", "audit", "attest", "done"]) {
+  const calls = {
+    begin: "begin",
+    impl: "implOutcome",
+    audit: "auditOutcome",
+    attest: "attest",
+    done: "done",
+  };
+  for (const [name, fn] of Object.entries(calls)) {
     const pattern = new RegExp(
       `runSpecMutation\\(ctx\\.cwd, params\\.id, \\(\\) =>\\s*${fn}\\(ctx\\.cwd, params\\.id`,
     );
-    assert.match(adapterSource, pattern, `${fn} 必须经 withFileMutationQueue 包裹`);
+    assert.match(adapterSource, pattern, `${name} 必须经 withFileMutationQueue 包裹`);
   }
 
   assert.match(
@@ -177,11 +184,26 @@ test("index.ts: begin/impl/audit/attest/done 都在 mutation queue 包裹内", (
     /withFileMutationQueue\(resolve\(spec\.path\)/,
     "队列 key 必须是解析后的真实 spec.path",
   );
+  // prepareAudit is free/read-only for the Spec: it relies on the core workspace
+  // lock, not the adapter's read-modify-write queue.
+  assert.doesNotMatch(
+    adapterSource,
+    /runSpecMutation\(ctx\.cwd, params\.id, \(\) =>\s*prepareAudit/,
+  );
 });
 
-test("index.ts: 工具错误直接 throw，不返回伪造的 isError 字段", () => {
-  assert.doesNotMatch(adapterSource, /isError\s*:/);
+test("index.ts: 输入错误仍 throw；机器结果用 isError + structuredContent", () => {
   assert.match(adapterSource, /throw new Error\(`Spec \$\{id\} not found`\)/);
+  assert.match(adapterSource, /isError: true/, "失败 outcome/诊断必须显式标记 isError");
+  assert.match(adapterSource, /structuredContent: value/, "完整结果必须保留在 structuredContent");
+  assert.match(adapterSource, /hasDiagnostic\(error\)/);
+  assert.match(adapterSource, /return failureResult\(error, "impl"/);
+  assert.match(adapterSource, /return failureResult\(error, "audit"/);
+  // spec_review invalid input keeps its existing thrown/isError query semantics.
+  assert.match(
+    adapterSource,
+    /if \(hasDiagnostic\(error\)\) return failureResult\(error, "review"/,
+  );
 });
 
 test("index.ts: 已移除无用 imports（migrateAlloc/checkCI/parseFrontmatter）", () => {

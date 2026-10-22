@@ -31,6 +31,17 @@ function command(...args) {
   assert.equal(out.status, 0, out.stderr);
   return out.stdout;
 }
+// Non-passing impl/audit now exits non-zero; keep the same text channel assertion.
+function failing(...args) {
+  const out = spawnSync(process.execPath, [core, ...args], {
+    cwd: root,
+    env,
+    encoding: "utf8",
+    timeout: 30000,
+  });
+  assert.notEqual(out.status, 0, `expected non-zero exit for ${args.join(" ")}`);
+  return out.stdout;
+}
 const json = (commandName, input) =>
   JSON.parse(command(commandName, "--json", JSON.stringify(input)));
 const git = (...args) =>
@@ -99,7 +110,7 @@ console.log(JSON.stringify(raw));\n`,
   );
   assert.match(command("impl", "S1"), /PASS/);
   fs.writeFileSync(phase, "gap");
-  const gap = command("audit", "S1");
+  const gap = failing("audit", "S1");
   assert.match(gap, /覆盖\/证据缺口/);
   assert.match(gap, /非已确认产品 FAIL/);
   const gapRecord = findSpec(root, "S1").frontmatter.audit,
@@ -114,7 +125,7 @@ console.log(JSON.stringify(raw));\n`,
     encoding: "utf8",
   });
   assert.notEqual(denied.status, 0);
-  command("audit", "S1");
+  failing("audit", "S1");
   assert.equal(budget(), 2);
   console.log(
     "PASS actual CLI carries original proposal provenance and unchanged caller context; prescribed coverage gap blocks closure without false product claim or automatic respawn",

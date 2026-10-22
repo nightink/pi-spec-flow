@@ -6,7 +6,7 @@ compatibility: "Git is recommended for exact diff review; adapts to the current 
 
 # Autonomous Delivery
 
-`AUTONOMOUS_DELIVERY_WORKFLOW_V1` — installed bundle 1.2.0
+`AUTONOMOUS_DELIVERY_WORKFLOW_V1` — installed bundle 1.3.0
 
 Take one non-trivial software change from intake to honest closure without asking the user to manually trigger each phase.
 Arguments appended to `/skill:autonomous-delivery` are the task. Adapt to the current project; never impose the conventions
@@ -58,6 +58,54 @@ Use [the lightweight delivery contract](assets/delivery-contract-template.md) on
    credentials, databases, sessions, or user data; never push, publish, deploy, migrate/delete production data, or restart
    production services without explicit approval.
 7. **Resume rather than restart.** Infer the next unsatisfied gate from governing artifacts, VCS state, reviews, and logs.
+
+## spec-flow entry points: happy path, limits, recovery
+
+When the project uses spec-flow (native tools, `/spec`, or the trusted `spec-flow` CLI), follow one shared path and consume
+machine outcomes instead of parsing emoji or prose:
+
+1. `spec_new` creates an unapproved draft; complete the contract and follow project approval/status rules.
+2. `spec_review` `{action:"prepare", mode:"proposal", id}` seals a proposal packet for free; inspect `packetPath`, then run
+   with an existing authorized grant. Prepare never grants or resets budget.
+3. `spec_begin` → `spec_impl`. A PASS is exit 0 / `isError:false`; a fail is non-zero / `isError:true` with
+   `pass/category/nextActions`. Never write a passing impl record by hand.
+4. `spec_audit` `{action:"prepare", id}` is free: no model, no charge, no Spec/ledger write. Scan the sealed packet, then
+   execute or attach the same job with existing authorization (`budgetId` or a matching `reviewJobId`). A prepared job is
+   neither PASS nor an error.
+5. `spec_attest` only after real human verification → `spec_done`.
+
+`spec_board` defaults to `freshness:"record-only"` and does not read the current checkout; use `live:true` (`board --live`)
+when current implementation/contract freshness matters. Record-only is not proof that evidence is still fresh.
+
+Packet limits resolve as explicit `maxBytes` > `SPECFLOW_AUDIT_MAX_BYTES` > 524288, in the range 1..16777216 bytes.
+`maxBytes` is accepted only by prepare (review or audit); run/status/read reuse the sealed job policy, and legacy jobs keep
+the 512 KiB compatibility limit. This is a UTF-8 **byte** limit, not a model token capacity, and not a zero-finding
+guarantee. Invalid/oversize limits fail before any charge; packets are never silently truncated or narrowed.
+
+| Category | Meaning | Next action |
+|---|---|---|
+| `precondition-error` | status/approval/base_sha/evidence shape is unsatisfied | fix the named precondition; do not bypass |
+| `impl-fail` / `impl-unstable` | gates failed or content changed during gates | fix and rerun impl; no fabricated PASS |
+| `product-fail` | static product verdict failed | act on findings, re-impl/re-prepare; old jobs do not auto-rerun |
+| `coverage-gap` | coverage/evidence gap, not a confirmed product bug | add acceptance/caller evidence or state the gap honestly |
+| `protocol-error` | tool output protocol error | if `repairable`, free `spec_review {action:"repair"}`; this is not a product PASS |
+| `execution-error` | launcher/execution/binding failure | inspect `status` and private evidence; fix config/bindings; no auto-retry |
+| `limit-exceeded` | complete material exceeds the sealed byte limit | re-prepare with a larger explicit limit; no truncation/scope narrowing |
+| `fresh:false` | live checkout drifted from impl evidence | rerun impl in this checkout before preparing audit |
+| `configuration-error` | a registered worktree member is unverifiable/prunable | inspect read-only (`git worktree list --porcelain`, `prune --dry-run`); never auto-prune or skip a member |
+| `tool-error` | unclassified workspace/adapter failure | read `diagnostic.message/code`, fix the environment; do not guess a product FAIL |
+
+Long receipts are summarized in model text by `state/category/jobId/packetPath/nextActions` plus the private `job.json`
+path; the complete receipt stays in `structuredContent` and the private file. Never treat a head-truncated JSON dump as the
+full receipt.
+
+Tool/executor environment variables belong to the actual daemon/worker process. Exporting them in an interactive shell does
+not change an already-running daemon, and spec-flow never auto-reloads or restarts production. The host owner must
+reload/rebind if needed; a source or config edit is not evidence that the live process uses it.
+
+These entries do not relax the rules below: authorization is explicit and finite, discovery/prepare/status/valid cache are
+free, failures are not refunded or automatically retried, ordinary/delta PASS never becomes a full current audit, and human
+attestation still requires real evidence and confirmation.
 
 ## Ten-stage adaptive lifecycle
 

@@ -39,9 +39,10 @@ function json(command, input, extra = {}) {
   assert.equal(result.status, 0, result.stderr);
   return JSON.parse(result.stdout);
 }
-function lifecycle(command, extra = {}) {
+function lifecycle(command, extra = {}, { passing = true } = {}) {
   const result = cli(command, ["S1"], extra);
-  assert.equal(result.status, 0, result.stderr);
+  if (passing) assert.equal(result.status, 0, result.stderr);
+  else assert.notEqual(result.status, 0, `expected non-zero exit, got ${result.status}`);
   return result.stdout;
 }
 function budget() {
@@ -150,7 +151,10 @@ console.log(JSON.stringify(mechanicalCoverage({verdict:'pass',criteria:[{criteri
   lifecycle("begin");
   fs.writeFileSync(path.join(root, "code.txt"), "lifecycle implementation\n");
   lifecycle("impl");
-  assert.match(lifecycle("audit", { SPECFLOW_REVIEW_BUDGET_ID: "mechanical" }), /FAIL/);
+  assert.match(
+    lifecycle("audit", { SPECFLOW_REVIEW_BUDGET_ID: "mechanical" }, { passing: false }),
+    /FAIL/,
+  );
   assert.equal(budget().used, 1);
   const auditPrepared = findSpec(root, "S1").frontmatter.audit.review.job_id;
   assert.equal(loadJob(root, auditPrepared).job.state, "prepared");

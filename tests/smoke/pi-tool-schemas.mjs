@@ -94,8 +94,57 @@ try {
   const tools = names.map((name) => {
     const def = session.getToolDefinition(name);
     assert.ok(def, name);
-    return { name, description: def.description, parameters: def.parameters };
+    return {
+      name,
+      description: def.description,
+      parameters: def.parameters,
+      outputSchema: def.outputSchema,
+    };
   });
+  const byName = Object.fromEntries(tools.map((tool) => [tool.name, tool]));
+  for (const name of [
+    "spec_board",
+    "spec_impl",
+    "spec_audit",
+    "spec_review",
+    "spec_new",
+    "spec_alloc",
+  ]) {
+    assert.ok(byName[name].outputSchema, `${name}: typed output schema missing`);
+  }
+  // S2.2 entry declarations: prepare-only limit, free audit prepare, board live.
+  const maxBytes = byName.spec_review.parameters.properties.maxBytes;
+  assert.equal(maxBytes.type, "integer");
+  assert.equal(maxBytes.minimum, 1);
+  assert.equal(maxBytes.maximum, 16777216);
+  assert.equal(
+    JSON.stringify(byName.spec_audit.parameters.properties.action.anyOf.map((item) => item.const)),
+    JSON.stringify(["prepare", "run"]),
+  );
+  assert.equal(byName.spec_audit.parameters.properties.maxBytes.maximum, 16777216);
+  assert.equal(byName.spec_board.parameters.properties.live.type, "boolean");
+  assert.ok(byName.spec_board.parameters.properties.id);
+  // Failure envelopes replace success payloads, so board success fields are
+  // optional while the value shape stays declared.
+  assert.ok(byName.spec_board.outputSchema.properties.specs);
+  assert.ok(!(byName.spec_board.outputSchema.required || []).includes("freshness"));
+  assert.ok(byName.spec_new.outputSchema.properties.version);
+  for (const name of ["spec_impl", "spec_audit", "spec_review", "spec_board"]) {
+    const properties = byName[name].outputSchema.properties || {};
+    if (name === "spec_impl" || name === "spec_audit") {
+      assert.ok(properties.nextActions, `${name}: recovery actions missing`);
+      assert.ok(properties.diagnostic, `${name}: machine diagnostic missing`);
+    }
+    if (name === "spec_review") {
+      assert.ok(properties.receipt, "spec_review: full receipt output missing");
+      // F4 regression: retainedStatus returns reviewLimit, so the declared
+      // output schema (additionalProperties:false) must name it.
+      assert.ok(properties.reviewLimit, "spec_review: reviewLimit declaration missing");
+    }
+    if (name === "spec_audit") {
+      assert.ok(properties.reviewLimit, "spec_audit: reviewLimit declaration missing");
+    }
+  }
   const invalid = [];
   for (const tool of tools) {
     if (
@@ -179,7 +228,7 @@ try {
   );
   assert.equal(requests, 0);
   console.log(
-    "PASS all nine native tool object roots and exact property declarations through actual OpenAI Completions/Responses + Anthropic serializers, zero HTTP requests",
+    "PASS all nine native tool object roots/typed outputs (review maxBytes, free audit prepare/run, board id/live) through actual OpenAI Completions/Responses + Anthropic serializers, zero HTTP requests",
   );
 } finally {
   session?.dispose();

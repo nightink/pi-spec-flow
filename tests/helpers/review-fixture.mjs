@@ -7,12 +7,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 export function seedLegacyReviewFixture(dir, job) {
-  // A genuine legacy precondition has neither coverage metadata nor a v3 packet.
+  // A genuine legacy precondition has neither coverage/limit metadata nor a v3 packet.
   // Only disposable fake fixtures may be reseeded; never mutate a retained real job.
   const data = packetData(fs.readFileSync(path.join(dir, "packet.md"), "utf8"));
   delete job.result_protocol_version;
   delete job.prompt_version;
   delete job.coverage_index;
+  delete job.review_limit;
   for (const key of ["review_index_sha256", "source_context_sha256", "review_history_sha256"])
     delete job.bindings[key];
   for (const key of ["review_index", "source_context", "review_history", "review_metadata"])

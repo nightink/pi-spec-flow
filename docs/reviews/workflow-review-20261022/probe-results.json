@@ -1,0 +1,104 @@
+{
+  "node": "v24.19.0",
+  "providerCalls": 0,
+  "fixtures": "synthetic temporary repositories; removed on exit",
+  "results": [
+    {
+      "name": "working-tree diff with 4MiB env",
+      "outcome": "accepted",
+      "diffBytes": 614517
+    },
+    {
+      "name": "seal >512KiB with 4MiB env",
+      "outcome": "rejected",
+      "error": "Complete review packet exceeds limit; no truncation"
+    },
+    {
+      "name": "committed >512KiB diff with 4MiB env",
+      "outcome": "rejected",
+      "error": "Review Git operation failed/oversize: diff"
+    },
+    {
+      "name": "minimal packet overhead",
+      "packetBytes": 9991,
+      "dataBytes": 924,
+      "contractBytes": 7
+    },
+    {
+      "name": "seal invalid env=invalid",
+      "outcome": "accepted",
+      "packetBytes": 9991
+    },
+    {
+      "name": "seal invalid env=0",
+      "outcome": "accepted",
+      "packetBytes": 9991
+    },
+    {
+      "name": "seal invalid env=-1",
+      "outcome": "rejected",
+      "error": "Complete review packet exceeds limit; no truncation"
+    },
+    {
+      "name": "seal invalid env=524288junk",
+      "outcome": "accepted",
+      "packetBytes": 9991
+    },
+    {
+      "name": "line-heavy raw diff",
+      "diffBytes": 469121
+    },
+    {
+      "name": "line-heavy committed prepare",
+      "outcome": "rejected",
+      "error": "Complete review packet exceeds limit; no truncation"
+    },
+    {
+      "name": "contract plus index duplication within allowed source size",
+      "outcome": "rejected",
+      "error": "Complete review packet exceeds limit; no truncation"
+    },
+    {
+      "name": "CLI impl failed gate",
+      "exitCode": 0,
+      "reportsFail": true,
+      "storedPass": false
+    },
+    {
+      "name": "CLI audit oversize preflight",
+      "exitCode": 0,
+      "verdict": "fail",
+      "category": "execution-error",
+      "reportsOversize": true,
+      "budgetCreated": false
+    },
+    {
+      "name": "native board core output",
+      "board": "S1 [S1.md]: 进行中",
+      "nextStep": "下一步：工具执行/证据绑定错误（非产品 FAIL）：Complete review packet exceeds limit; no truncation。先修复调用参数、宿主或证据绑定；保留原结果，不自动付费重审。"
+    },
+    {
+      "name": "ordinary prepare cannot prepare lifecycle mode",
+      "outcome": "rejected",
+      "error": "Invalid ordinary review mode"
+    },
+    {
+      "name": "native text projection of verbose receipt",
+      "fullCharacters": 22087,
+      "visibleCharacters": 12028,
+      "includesJobId": true,
+      "includesPacketPath": false,
+      "fullReceiptContainsPacketPath": true
+    },
+    {
+      "name": "newSpec with prunable sibling worktree",
+      "outcome": "rejected",
+      "error": "Command failed: git rev-parse --show-toplevel\nfatal: not a git repository (or any of the parent directories): .git\n"
+    },
+    {
+      "name": "dryRun with prunable sibling worktree",
+      "dryRun": true,
+      "status": "draft"
+    }
+  ]
+}

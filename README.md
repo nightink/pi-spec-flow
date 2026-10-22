@@ -153,17 +153,46 @@ spec-flow 会扫描 `docs/specs/`、`docs/spec/`、`specs/`、`spec/` 四个显�
 
 | 工具 | 作用 |
 |---|---|
-| `spec_board` | 当前 worktree 的状态、漂移和下一步 |
-| `spec_alloc {prefix?}` | 在 Git common directory 原子预留编号，例如 prefix 为 `S1.` |
+| `spec_board {id?,live?}` | 阶段、阻塞与可执行 `nextActions`；默认明确 record-only，`live:true` 才比对当前 checkout |
+| `spec_alloc {prefix?}` | 在 Git common directory 原子预留编号，例如 prefix 为 `S1.`；家族成员不可用时报结构化诊断 |
 | `spec_new {title,…,dryRun?}` | 固定版本模板、共享编号、独占创建未批准 draft；预览不分配 |
-| `spec_review {action,…}` | prepare/run/status/repair：只读项目审查与零调用协议修复；不写生命周期 |
+| `spec_review {action,…,maxBytes?}` | prepare/run/status/repair：只读项目审查与零调用协议修复；`maxBytes` 仅 prepare；不写生命周期 |
 | `spec_begin <id>` | 要求 review approved、deps done；进入 v2 in-progress |
-| `spec_impl <id>` | 运行 required gates、逐项 E2E、migration 检查；写 `impl.pass` 与 snapshot |
-| `spec_audit <id>` | 隔离子 Pi 审计完整 base→working-tree diff；写 criteria、hash、model、prompt version |
+| `spec_impl <id>` | 运行 required gates、逐项 E2E、migration 检查；写 `impl.pass` 与 snapshot；FAIL 返回 `isError` |
+| `spec_audit {action?,id,maxBytes?,budgetId?,reviewJobId?}` | `action:"prepare"` 免费封存 full packet；默认 run 执行/附加；FAIL 返回 `isError` 与机器分类 |
 | `spec_attest <id> <item> <note>` | 仅在交互 UI 明确确认后登记人工 evidence |
 | `spec_done <id>` | record-consistency + live snapshot 双重校验后进入 done |
 
-Pi 的 begin/impl/audit/attest/done 仍使用 `withFileMutationQueue()`；核心还在 Git common directory 使用按 Spec ID 的跨进程锁，CLI/多 Pi 会话/多个 worktree 也受保护。冲突报 busy 并给 owner/锁路径，不静默覆盖；正常异常/取消释放锁，SIGKILL 等留下的锁**不会自动抢占**，须确认 owner 已退出后由用户清理。写回前重验 spec 文件，保留门禁期间的并发人工改动。工具失败通过 throw 呈现为真实错误，长输出会明确标记截断。
+Pi 的 begin/impl/audit/attest/done 仍使用 `withFileMutationQueue()`；核心还在 Git common directory 使用按 Spec ID 的跨进程锁，CLI/多 Pi 会话/多个 worktree 也受保护。冲突报 busy 并给 owner/锁路径，不静默覆盖；正常异常/取消释放锁，SIGKILL 等留下的锁**不会自动抢占**，须确认 owner 已退出后由用户清理。写回前重验 spec 文件，保留门禁期间的并发人工改动。非法输入仍抛错；impl/audit 执行失败返回 `isError:true` + `structuredContent`，长输出有界并标记摘要边界。
+
+### Agent 推荐路径与恢复
+
+CLI 与 native 工具共享一条 happy path：
+
+1. `spec_new` 生成未批准 draft；补齐合同并走项目批准/状态规则。
+2. `spec_review {action:"prepare", mode:"proposal", id}` 免费封存提案 packet；扫描 `packetPath` 后，才由用户授权 `{action:"run", jobId, budgetId}`。
+3. `spec_begin` → `spec_impl`：门禁/E2E/migration 与快照写入 impl。native FAIL 返回 `isError:true` + `pass/category/nextActions`，CLI FAIL 非零退出；PASS 才是 0/`isError:false`。
+4. `spec_audit {action:"prepare", id}` 免费准备 full current packet（零模型、零计次、不写 Spec/ledger）；扫描 packet 后，用现有授权 grant 或匹配的 `reviewJobId` 执行/附加。
+5. `spec_attest` 人工核验 → `spec_done`。
+
+`spec_board` 默认 `freshness=record-only`，只读记录，不读取当前 checkout 的实时 freshness；`spec_board {live:true}`（CLI `board --live`）才比对 active 实现/合同快照。默认结果不能当作“现在仍然 fresh”，也不能据此关闭 Spec。
+
+恢复表按机器分类，不靠 emoji 或正文猜测：
+
+| 分类 | 含义 | 下一步 |
+|---|---|---|
+| `precondition-error` | 状态/批准/base_sha/证据形状不满足 | 按 `nextActions` 修复前置条件；不绕过、不伪造证据 |
+| `impl-fail` / `impl-unstable` | 门禁失败或门禁期间内容变化 | 修复后重跑 `spec_impl`；不写伪 PASS |
+| `product-fail` | 静态产品判定未通过 | 处置 findings，重新 impl/prepare；旧 job 不自动重跑 |
+| `coverage-gap` | 覆盖/证据缺口，不是已确认产品 bug | 补验收/调用方证据或明确说明；不能洗成 runtime 延后 |
+| `protocol-error` | 工具输出协议错误 | 若 `repairable`，免费 `spec_review {action:"repair",jobId}`；不是产品 PASS |
+| `execution-error` | launcher/执行/绑定错误 | 读 `status` 与私有证据，修配置/绑定；不自动付费重试 |
+| `limit-exceeded` | 完整材料超过封存字节限额 | 用更大的显式 `maxBytes` 重新 prepare；不截断、不自动缩 scope |
+| `fresh=false` | live 快照已漂移 | 在当前 checkout 重跑 `spec_impl` 后再 prepare audit |
+| `configuration-error` | worktree 家族成员不可验证/prunable | 只读检查 `git worktree list --porcelain` / `prune --dry-run`；不自动 prune、不跳过成员 |
+| `tool-error` | 未归类的工作区/适配器错误 | 读 `diagnostic.message/code`，先修环境；不猜测为产品 FAIL |
+
+native 文本摘要有界，并优先显示 `state/category/jobId/packetPath/nextActions` 和私有 `job.json` 路径；完整 receipt 只在 `structuredContent` 与私有文件中，文本不是完整回执。`spec_review` 的 status/查询语义仍是只读结果；`spec_impl`/`spec_audit` 执行失败才以 `isError:true` 返回机器结果。
 
 ### 模型请求中的工具 schema
 
@@ -171,7 +200,7 @@ Pi 的 begin/impl/audit/attest/done 仍使用 `withFileMutationQueue()`；核心
 
 `spec_review` 缺省 action 为 prepare；run/status/repair 必须有 jobId，prepare-only 字段不能混入 run/status，budgetId 仅用于 run。平铺声明不取代共享引擎的逐 action 精确校验：非法字段/动作/ID 不被静默丢弃，不消耗授权或启动执行器。现有宿主与 executor 可能缓存旧声明；owner 需按实际加载机制 reload/rebind，源码修复不等于生产已采用，也不会自动重试原请求。
 
-`smoke:pi` 使用实际已安装 Pi SDK，在 OpenAI Completions/Responses 与 Anthropic 的 onPayload 边界检查全部声明、随后中止并以 fetch guard 禁止发送。它是零 HTTP 的离线序列化验收，不是远端 provider 成功或独立模型审查。
+`smoke:pi` 使用实际已安装 Pi SDK，在 OpenAI Completions/Responses 与 Anthropic 的 onPayload 边界检查全部声明、随后中止并以 fetch guard 禁止发送；native smoke 还覆盖免费 audit prepare（零模型/零计次/Spec+ledger 不变）、限额优先级、失败 outcome、`>12000` 字符真实 receipt 摘要与 board live。它是零 HTTP 的离线序列化/入口验收，不是远端 provider 成功或独立模型审查。
 
 ### SDK / daemon 的可选通知
 
@@ -207,8 +236,8 @@ note 至少 20 个字符，并与当前 implementation/contract hash 绑定。
 ## TUI 与 CLI
 
 ```text
-/spec          项目看板
-/spec board    同上
+/spec          项目看板（record-only）
+/spec board    同上，不读取当前 checkout freshness
 /spec <id>     单个 spec 详情
 /spec worktrees 同仓库全部 worktree 与 active 实时 freshness
 /spec new <JSON> 固定模板草案/预览
@@ -216,10 +245,12 @@ note 至少 20 个字符，并与当前 implementation/contract hash 绑定。
 ```
 
 ```bash
-spec-flow board
+spec-flow board [ID] [--live] [--json]  # 默认 record-only；--live 才计算 freshness
 spec-flow begin S3.13
-spec-flow impl S3.13
-spec-flow audit S3.13
+spec-flow impl S3.13                        # FAIL 非零退出
+spec-flow audit S3.13 --prepare [--max-bytes 4194304]  # 免费封存；不调用模型
+spec-flow audit S3.13 --review-job JOB_ID    # 复用匹配的已授权 full audit
+spec-flow audit S3.13                        # 默认执行；沿用封存限额/授权
 spec-flow attest S3.13 R1 "核验路径和样本（至少 20 字）"
 spec-flow done S3.13
 spec-flow migrate-alloc
@@ -255,11 +286,20 @@ spec-flow review --json '{"action":"status","jobId":"PREPARED_JOB_ID"}'
 
 只有 full current working-tree-audit 能写 lifecycle audit；prepare/run/status 普通审查永不修改 approval/status/audit。`spec_audit` 的 budgetId 或 `SPECFLOW_REVIEW_BUDGET_ID` 引用同一授权，reviewJobId 可无二次调用地 resume/attach 匹配的 full job；必须匹配 snapshot/contract/Spec/scope/diff/impl。当前 Spec 整体单独送审，重复的生命周期 diff 与 reserved ledger 排除；新文件 headers 稳定。delta/历史批准不能 import 为 full PASS。旧 v2 合法记录仍兼容。
 
-Git common-dir 的 `spec-flow/review-v1/{budgets,jobs}` 私有保存完整 packet、原始 stdout/stderr、hash/scan/usage/receipt/state（0700/0600）；不触碰旧 `spec-flow/jobs/*`。整个实际 child prompt <=512 KiB、raw <=32 MiB，不静默截断；名为 high-risk-patterns/v1 的有限扫描与 @file 字节 hash 在执行前重检，不能冒充通用 check_secrets。raw verdict 与归一化失败/父级 dispositions 分开；错格式/超限/取消绝不 PASS。
+Git common-dir 的 `spec-flow/review-v1/{budgets,jobs}` 私有保存完整 packet、原始 stdout/stderr、hash/scan/usage/receipt/state（0700/0600）；不触碰旧 `spec-flow/jobs/*`。整个实际 child prompt <= 封存限额（默认 524288 bytes，可显式提高到 16777216）、raw <=32 MiB，不静默截断；名为 high-risk-patterns/v1 的有限扫描与 @file 字节 hash 在执行前重检，不能冒充通用 check_secrets。raw verdict 与归一化失败/父级 dispositions 分开；错格式/超限/取消绝不 PASS。
 
 模型工具不能建/提高/重置授权。经过 preflight 后、spawn 前共享锁原子计次；失败/取消/中断不退款，同 job 不自动 respawn；completed cache 在 budget lookup 前免费。独立 worker 的结果先落盘，再交付 frontend，frontend 消失不会自动重审；未知 running 状态须查 owner/证据，不抢旧锁或换 cycle 逃避预算。已失败 job 重放不重审，明确 re-impl 后可创建新 job（仍消耗原授权）。授权 metadata 可写，不是防篡改/付费权限沙箱。
 
 Pi 项目识别只读取目标 tree/snapshot 的声明/常规入口、路径/mode/hash 与标记 lexical hints，不 import/load；128 declarations、256 matches、256 KiB/source 限制，记录缺失/不支持/越界/symlink diagnostics。静态 recognized 不是真实宿主加载证明。
+
+### 限额优先级、免费预检与机器恢复
+
+packet 限额按 **显式 `maxBytes` > `SPECFLOW_AUDIT_MAX_BYTES` > 默认 524288** 解析；允许 `1..16777216` 的安全整数，环境值必须是非空十进制整数字符串（空值按未配置，非法/小数/后缀/超界在计次前拒绝）。这是 **UTF-8 字节限额，不是模型 token 容量或“零漏报”保证**；合法超大包不会被截断。
+
+- `spec_review` 的 `maxBytes` 只在 prepare 生效；run/status/repair 读取 job 封存策略。`spec_audit` 的 `maxBytes` 只与 `action:"prepare"` 组合（CLI `audit ID --prepare --max-bytes N`）；`run`/`reviewJobId` 复用封存限额。旧 job 无 metadata 时按 512 KiB 兼容，提高/清空当前环境不会改写已封存 job。
+- `audit --prepare` / native `spec_audit {action:"prepare"}` 免费：不调 provider、不计次、不写 Spec/ledger；只创建私有 prepared job，返回 `jobId/packetPath/bytes/nextActions`。**prepared 既不是 PASS 也不是错误**；真正执行仍需用户已有授权，执行前重验实现/合同/packet 绑定。
+- 超限/执行/工作区异常在 native 带 `isError:true` 与 `diagnostic.code/category/stage/nextActions`；超限分项按实际序列化 bytes 对账，Git 提前中止只报告已知下界。CLI `impl`/`audit` 的 FAIL、协议/执行错误非零退出，PASS 为 0。
+- 长 receipt 的模型文本只摘要 `jobId/state/category/packetPath/nextActions` 与私有文件路径；完整 receipt 保留在 `structuredContent`/私有 `job.json`，不把头部截断的 JSON 当完整回执。
 
 ### 工具协议错误可修复，不等于产品 FAIL
 
@@ -327,7 +367,7 @@ spec-flow review --json '{"action":"run","jobId":"PREPARED_JOB_ID","budgetId":"A
 spec-flow audit SPEC_ID
 ```
 
-配置应传入**实际宿主/worker 的环境**；交互 shell 能运行 pi/npx 不证明 daemon 能解析它。现有 shim 仍可通过 `SPECFLOW_AUDIT_BIN=/absolute/trusted/shim` 使用；此变量优先于 `SPECFLOW_PI_CLI`。
+配置应传入**实际宿主/worker 的环境**；交互 shell 能运行 pi/npx 不证明 daemon 能解析它。在交互 shell `export` 限额/CLI 变量不会修改已运行 daemon 的进程环境，也没有自动 reload/重启：更新源码或环境后由宿主 owner 按其加载机制 reload/rebind；spec-flow 不自动重启生产进程。现有 shim 仍可通过 `SPECFLOW_AUDIT_BIN=/absolute/trusted/shim` 使用；此变量优先于 `SPECFLOW_PI_CLI`。
 
 ## 审计边界
 
@@ -344,7 +384,7 @@ spec-flow audit SPEC_ID
 | `SPECFLOW_PI_CLI` | 无 | `SPECFLOW_REVIEW_CLI` 的兼容别名（Pi 场景） |
 | `SPECFLOW_AUDIT_TIMEOUT` | `180000` | 首次执行的超时毫秒（1..1800000）；复用不修改旧计时器 |
 | `SPECFLOW_AUDIT_THINKING` | `off` | 子 Pi thinking 等级；可显式提高到 `low`/`medium`/`high` 等 |
-| `SPECFLOW_AUDIT_MAX_BYTES` | `524288` | 限制 patch/完整 child packet，不能提高 512 KiB packet cap；超限失败 |
+| `SPECFLOW_AUDIT_MAX_BYTES` | `524288` | prepare 的 packet 字节限额（1..16777216）；显式 `maxBytes` 优先；只影响新封存 job，不是 token 容量 |
 | `SPECFLOW_REVIEW_BUDGET_ID` | 无 | 已显式授权的 delivery-cycle grant；不自动创建 |
 | `SPECFLOW_SNAPSHOT_MAX_BYTES` | `536870912` | snapshot 总读取上限 |
 

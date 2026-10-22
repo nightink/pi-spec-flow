@@ -3,8 +3,9 @@
 // All long-running work (gates, e2e, pi audit subprocess) is async — the
 // event loop stays free so the TUI never freezes while waiting.
 // Lifecycle tools (begin/impl/audit/attest/done) resolve the real spec path and
-// hold the per-file mutation queue for the whole read-modify-write window;
-// failures are thrown — Pi turns a thrown execute() into a real error result.
+// hold the per-file mutation queue for the whole read-modify-write window.
+// Invalid input throws; machine outcomes (impl/audit/board diagnostics) return
+// isError + structuredContent so agents never parse emoji or prose.
 
 import { resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -13,17 +14,18 @@ import {
   allocateSpecId,
   appendCommitLedger,
   attest,
-  audit,
+  auditOutcome,
   begin,
-  board,
   commitGateDecision,
   done,
   findSpec,
-  impl,
+  implOutcome,
+  inspectBoard,
   isCommitCommand,
   loadSpecs,
   newSpec,
   nextStep,
+  prepareAudit,
   renderBoard,
   renderSpecDetail,
   renderWorktrees,
@@ -41,6 +43,10 @@ import {
 import { Type } from "typebox";
 import {
   attestationGate,
+  failureResult,
+  formatBoardText,
+  formatOutcomeText,
+  formatReviewSummary,
   notifySafely,
   truncateToolText,
   updateToolProgress,
@@ -80,10 +86,77 @@ function structuredResult(value: unknown) {
     structuredContent: value,
   };
 }
+
+// Structured machine outcome with bounded, recovery-first model text. A failed
+// product/tool outcome is a real error result while keeping structuredContent.
+function dataResult(value: unknown, text: string) {
+  return {
+    content: [{ type: "text" as const, text: truncateToolText(text) }],
+    details: value,
+    structuredContent: value,
+  };
+}
+
+function outcomeResult(value: { pass?: boolean }, text: string) {
+  const result = dataResult(value, text);
+  return value.pass === true ? result : { ...result, isError: true };
+}
+
+function hasDiagnostic(error: unknown): error is Error & { diagnostic: unknown } {
+  return Boolean(error) && typeof error === "object" && "diagnostic" in (error as object);
+}
 const stringList = Type.Array(Type.String({ minLength: 1, maxLength: 4000 }), {
   minItems: 1,
   maxItems: 100,
 });
+// Shared recovery action shape: tool + exact args + why, and whether a human
+// or an existing authorization is still required. Never invent consent.
+const nextActionSchema = Type.Object(
+  {
+    tool: Type.String(),
+    args: Type.Object({}, { additionalProperties: true }),
+    reason: Type.String(),
+    requiresAuthorization: Type.Boolean(),
+    requiresHuman: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+// Optional failure-envelope fields keep every schema an explicit object root
+// while letting scripts read core diagnostics under isError (no silent drop).
+const diagnosticFields = {
+  // failureResult() adds these two so the structured failure envelope stays a
+  // valid instance of the same declared output schema as the success value.
+  operation: Type.Optional(Type.String()),
+  specId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  pass: Type.Optional(Type.Boolean()),
+  category: Type.Optional(Type.String()),
+  summary: Type.Optional(Type.String()),
+  nextActions: Type.Optional(Type.Array(nextActionSchema)),
+  diagnostic: Type.Optional(Type.Any()),
+};
+const maxBytesSchema = Type.Optional(
+  Type.Integer({
+    minimum: 1,
+    maximum: 16777216,
+    description:
+      "prepare packet byte limit (1..16777216); explicit > SPECFLOW_AUDIT_MAX_BYTES > 524288. Bytes, not a model token capacity.",
+  }),
+);
+const outcomeSchema = Type.Object(
+  {
+    version: Type.Integer(),
+    operation: Type.Union([Type.Literal("impl"), Type.Literal("audit")]),
+    specId: Type.String(),
+    pass: Type.Boolean(),
+    category: Type.String(),
+    summary: Type.String(),
+    nextActions: Type.Array(nextActionSchema),
+    jobId: Type.Optional(Type.String()),
+    packetPath: Type.Optional(Type.String()),
+    diagnostic: Type.Optional(Type.Any()),
+  },
+  { additionalProperties: false },
+);
 const newParameters = Type.Object(
   {
     title: Type.String({ minLength: 1, maxLength: 300 }),
@@ -151,6 +224,7 @@ const reviewParameters = Type.Object(
           "run only; existing user-authorized delivery-cycle grant, never a new authorization",
       }),
     ),
+    maxBytes: maxBytesSchema,
   },
   { additionalProperties: false },
 );
@@ -160,10 +234,80 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "spec_board",
     label: "Spec Board",
-    description: "Show all specs with status and drift detection",
-    parameters: Type.Object({}),
-    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      return toolResult(board(ctx.cwd));
+    description:
+      "Inspect specs with stage, blockers and exact nextActions. Default freshness=record-only (does not read the current checkout); live=true compares active implementation/contract evidence.",
+    promptSnippet:
+      "Show spec stages, blockers and executable nextActions; default is record-only, live=true checks freshness.",
+    promptGuidelines: [
+      "Record-only means the board did not verify the current checkout; do not claim freshness or close on it. Use live=true when implementation state matters.",
+    ],
+    parameters: Type.Object({
+      id: Type.Optional(Type.String({ description: "Optional single Spec ID" })),
+      live: Type.Optional(
+        Type.Boolean({
+          description: "Compare current checkout freshness; default false (record-only)",
+        }),
+      ),
+    }),
+    // Success always fills freshness/specs/summary; they stay optional so the
+    // shared structured failure envelope (isError + diagnostic) is still a
+    // valid instance of this declared schema.
+    outputSchema: Type.Object(
+      {
+        version: Type.Integer(),
+        freshness: Type.Optional(Type.Union([Type.Literal("record-only"), Type.Literal("live")])),
+        note: Type.Optional(Type.String()),
+        specs: Type.Optional(
+          Type.Array(
+            Type.Object(
+              {
+                id: Type.String(),
+                file: Type.Optional(Type.String()),
+                status: Type.Optional(Type.String()),
+                statusLabel: Type.Optional(Type.String()),
+                stage: Type.String(),
+                fresh: Type.Union([Type.Boolean(), Type.Null()]),
+                blockers: Type.Array(Type.String()),
+                nextActions: Type.Array(nextActionSchema),
+              },
+              { additionalProperties: false },
+            ),
+          ),
+        ),
+        summary: Type.Optional(
+          Type.Union([
+            Type.String(),
+            Type.Object(
+              {
+                total: Type.Integer(),
+                managed: Type.Integer(),
+                unmanaged: Type.Integer(),
+                active: Type.Integer(),
+                fresh: Type.Integer(),
+                stale: Type.Integer(),
+                actionable: Type.Integer(),
+                blocked: Type.Integer(),
+              },
+              { additionalProperties: false },
+            ),
+          ]),
+        ),
+        ...diagnosticFields,
+      },
+      { additionalProperties: false },
+    ),
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+      try {
+        const result = await inspectBoard(ctx.cwd, {
+          id: params.id,
+          live: params.live === true,
+          signal,
+        });
+        return dataResult(result, formatBoardText(result));
+      } catch (error) {
+        if (hasDiagnostic(error)) return failureResult(error, "board", {});
+        throw error;
+      }
     },
   });
 
@@ -179,8 +323,23 @@ export default function (pi: ExtensionAPI) {
         }),
       ),
     }),
+    outputSchema: Type.Object(
+      {
+        version: Type.Integer(),
+        id: Type.Optional(Type.String()),
+        ...diagnosticFields,
+      },
+      { additionalProperties: false },
+    ),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      return toolResult(await allocateSpecId(ctx.cwd, params.prefix || ""));
+      try {
+        return toolResult(await allocateSpecId(ctx.cwd, params.prefix || ""));
+      } catch (error) {
+        // A12: unreadable/prunable family members stay fail-closed but become
+        // structured machine diagnostics instead of a bare Git error.
+        if (hasDiagnostic(error)) return failureResult(error, "alloc", {});
+        throw error;
+      }
     },
   });
 
@@ -197,25 +356,33 @@ export default function (pi: ExtensionAPI) {
     parameters: newParameters,
     outputSchema: Type.Object(
       {
+        // The structured failure envelope carries version; success omits it.
+        version: Type.Optional(Type.Integer()),
         id: Type.Optional(Type.String()),
         path: Type.Optional(Type.String()),
-        status: Type.String(),
-        template: Type.Object({ version: Type.Integer(), sha256: Type.String() }),
+        status: Type.Optional(Type.String()),
+        template: Type.Optional(Type.Object({ version: Type.Integer(), sha256: Type.String() })),
         dryRun: Type.Optional(Type.Boolean()),
         directory: Type.Optional(Type.String()),
         content: Type.Optional(Type.String()),
+        ...diagnosticFields,
       },
       { additionalProperties: false },
     ),
     async execute(_id, params, _signal, _update, ctx) {
-      return structuredResult(await newSpec(ctx.cwd, params));
+      try {
+        return structuredResult(await newSpec(ctx.cwd, params));
+      } catch (error) {
+        if (hasDiagnostic(error)) return failureResult(error, "new", {});
+        throw error;
+      }
     },
   });
   pi.registerTool({
     name: "spec_review",
     label: "Spec Review",
     description:
-      "Project-read-only isolated proposal/committed/incremental review. prepare/status/repair are free; repair creates a lossless derived receipt from retained protocol errors without a model call or budget change. run consumes an existing authorized grant. Never writes lifecycle audit or closes a Spec.",
+      "Project-read-only isolated proposal/committed/incremental review. prepare/status/repair are free; prepare-only maxBytes sets the sealed packet byte limit (explicit > SPECFLOW_AUDIT_MAX_BYTES > 524288). repair creates a lossless derived receipt from retained protocol errors without a model call or budget change. run consumes an existing authorized grant. Never writes lifecycle audit or closes a Spec.",
     promptSnippet:
       "Prepare/run/inspect or freely repair a retained review protocol error without changing Spec lifecycle.",
     promptGuidelines: [
@@ -224,16 +391,20 @@ export default function (pi: ExtensionAPI) {
       "Account every sealed source ID and verify its semantic acceptance/criterion mapping. A coverage gap is not a confirmed product defect; references alone do not prove semantics, runtime acceptance or zero model error. Keep original packet/raw/job for new coverage claims.",
     ],
     parameters: reviewParameters,
+    // Success always fills every field below; the optional markers keep the
+    // declared schema truthful for the shared structured failure envelope
+    // (isError:true + diagnostic) that isError results return instead.
     outputSchema: Type.Object(
       {
         version: Type.Integer(),
-        jobId: Type.String(),
-        mode: Type.String(),
-        state: Type.String(),
-        modelInvoked: Type.Boolean(),
-        receipt: Type.Any(),
-        packetPath: Type.String(),
-        result: Type.Any(),
+        jobId: Type.Optional(Type.String()),
+        mode: Type.Optional(Type.String()),
+        state: Type.Optional(Type.String()),
+        modelInvoked: Type.Optional(Type.Boolean()),
+        receipt: Type.Optional(Type.Any()),
+        packetPath: Type.Optional(Type.String()),
+        result: Type.Optional(Type.Any()),
+        reviewLimit: Type.Optional(Type.Any()),
         outputInfo: Type.Optional(
           Type.Object(
             {
@@ -269,17 +440,23 @@ export default function (pi: ExtensionAPI) {
             { additionalProperties: false },
           ),
         ),
+        ...diagnosticFields,
       },
       { additionalProperties: false },
     ),
     async execute(_id, params, signal, onUpdate, ctx) {
-      return structuredResult(
-        await reviewSpec(ctx.cwd, params, {
+      try {
+        const value = await reviewSpec(ctx.cwd, params, {
           signal,
           executor: reviewExecutor,
           onProgress: (text: string) => updateToolProgress(onUpdate, text),
-        }),
-      );
+        });
+        // Bounded recovery-first text; full receipt remains structured.
+        return dataResult(value, formatReviewSummary(value));
+      } catch (error) {
+        if (hasDiagnostic(error)) return failureResult(error, "review", {});
+        throw error;
+      }
     },
   });
 
@@ -301,27 +478,34 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "spec_impl",
     label: "Spec Impl",
-    description: "Run gates and e2e for a spec, record results",
+    description:
+      "Run gates and e2e for a spec, record results. A FAIL returns isError with the machine outcome (pass/category/nextActions); PASS returns isError=false.",
     parameters: Type.Object({
       id: Type.String({ description: "Spec ID" }),
     }),
+    outputSchema: outcomeSchema,
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      const output = await runSpecMutation(ctx.cwd, params.id, () =>
-        impl(ctx.cwd, params.id, {
-          signal,
-          onGate: (name) => {
-            const text = `⏳ spec-flow: 门禁 ${name} 运行中…`;
-            updateToolProgress(onUpdate, text);
-            notifySafely(ctx, text, "info");
-          },
-          onDiagnostic: (message: string) => {
-            const text = `⚠️ spec-flow: ${message}`;
-            updateToolProgress(onUpdate, text);
-            notifySafely(ctx, text, "warning");
-          },
-        }),
-      );
-      return toolResult(output);
+      try {
+        const outcome = await runSpecMutation(ctx.cwd, params.id, () =>
+          implOutcome(ctx.cwd, params.id, {
+            signal,
+            onGate: (name: string) => {
+              const text = `⏳ spec-flow: 门禁 ${name} 运行中…`;
+              updateToolProgress(onUpdate, text);
+              notifySafely(ctx, text, "info");
+            },
+            onDiagnostic: (message: string) => {
+              const text = `⚠️ spec-flow: ${message}`;
+              updateToolProgress(onUpdate, text);
+              notifySafely(ctx, text, "warning");
+            },
+          }),
+        );
+        return outcomeResult(outcome, formatOutcomeText(outcome));
+      } catch (error) {
+        if (hasDiagnostic(error)) return failureResult(error, "impl", { specId: params.id });
+        throw error;
+      }
     },
   });
 
@@ -329,20 +513,89 @@ export default function (pi: ExtensionAPI) {
     name: "spec_audit",
     label: "Spec Audit",
     description:
-      "Independent full current working-tree audit via the sealed review engine; existing authorized grant required for a fresh call. Can attach only a matching working-tree-audit job, never ordinary/delta approval.",
+      "Independent full current working-tree audit via the sealed review engine. action=prepare is free (no model, no charge, no Spec write) and returns the sealed job/packet; action=run (default) needs an existing authorized grant or a matching reviewJobId. A prepare result is not PASS and not an error; failed runs return isError with pass/category/nextActions.",
     parameters: Type.Object({
+      action: Type.Optional(
+        Type.Union([Type.Literal("prepare"), Type.Literal("run")], {
+          description:
+            "Default run. prepare is free and forbids budgetId/reviewJobId; new packet limits are set only by prepare (run/attach reuse the sealed limit). maxBytes is bytes, not a model token capacity.",
+        }),
+      ),
       id: Type.String({ description: "Spec ID" }),
+      maxBytes: maxBytesSchema,
       budgetId: Type.Optional(
         Type.String({ description: "Existing user-authorized delivery-cycle grant" }),
       ),
       reviewJobId: Type.Optional(
         Type.String({
           description:
-            "Matching prepared/completed full working-tree audit job to resume/attach, without duplicate invocation",
+            "Matching prepared/completed full working-tree audit job to resume/attach, without duplicate invocation; maxBytes is prepare-only and cannot be combined here",
         }),
       ),
     }),
+    outputSchema: Type.Object(
+      {
+        version: Type.Integer(),
+        operation: Type.Optional(Type.Union([Type.Literal("audit"), Type.Literal("prepare")])),
+        action: Type.Optional(Type.Union([Type.Literal("prepare"), Type.Literal("run")])),
+        specId: Type.String(),
+        pass: Type.Optional(Type.Boolean()),
+        category: Type.Optional(Type.String()),
+        summary: Type.Optional(Type.String()),
+        nextActions: Type.Optional(Type.Array(nextActionSchema)),
+        jobId: Type.Optional(Type.String()),
+        packetPath: Type.Optional(Type.String()),
+        state: Type.Optional(Type.String()),
+        bytes: Type.Optional(Type.Integer()),
+        maxBytes: Type.Optional(Type.Integer()),
+        limits: Type.Optional(Type.Any()),
+        prepared: Type.Optional(Type.Boolean()),
+        packetBytes: Type.Optional(Type.Integer()),
+        modelInvoked: Type.Optional(Type.Boolean()),
+        receipt: Type.Optional(Type.Any()),
+        result: Type.Optional(Type.Any()),
+        reviewLimit: Type.Optional(Type.Any()),
+        diagnostic: Type.Optional(Type.Any()),
+      },
+      { additionalProperties: false },
+    ),
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
+      const action = params.action === "prepare" ? "prepare" : "run";
+      // Reject invalid combinations here instead of silently dropping fields;
+      // money-adjacent requests must never become a different paid run.
+      if (
+        action === "prepare" &&
+        (params.budgetId !== undefined || params.reviewJobId !== undefined)
+      ) {
+        throw new Error(
+          "spec_audit prepare is free and forbids budgetId/reviewJobId; pass only id and optional maxBytes",
+        );
+      }
+      if (action !== "prepare" && params.maxBytes !== undefined) {
+        throw new Error(
+          "spec_audit maxBytes is valid only with action=prepare; run/attach reuses the sealed job limit",
+        );
+      }
+
+      if (action === "prepare") {
+        updateToolProgress(
+          onUpdate,
+          "🧾 spec-flow: 封存 full audit packet（零模型、零计次、不写 Spec）…",
+        );
+        try {
+          const prepared = await prepareAudit(ctx.cwd, params.id, {
+            signal,
+            maxBytes: params.maxBytes,
+            onProgress: (text: string) => updateToolProgress(onUpdate, text),
+          });
+          const value = { ...prepared, action, specId: params.id };
+          return dataResult(value, formatReviewSummary({ ...value, mode: prepared.receipt?.mode }));
+        } catch (error) {
+          if (hasDiagnostic(error)) return failureResult(error, "audit", { specId: params.id });
+          throw error;
+        }
+      }
+
       const notice = "🔍 spec-flow: 独立审计运行中（可 Esc 中断，输入会排队到结束后处理）…";
       notifySafely(ctx, notice, "info");
       updateToolProgress(onUpdate, notice);
@@ -353,16 +606,19 @@ export default function (pi: ExtensionAPI) {
         updateToolProgress(onUpdate, `⏳ 审计运行中 ${secs}s…（Esc 可中断）`);
       }, 5000);
       try {
-        const output = await runSpecMutation(ctx.cwd, params.id, () =>
-          audit(ctx.cwd, params.id, {
+        const outcome = await runSpecMutation(ctx.cwd, params.id, () =>
+          auditOutcome(ctx.cwd, params.id, {
             signal,
             executor: reviewExecutor,
             budgetId: params.budgetId,
             reviewJobId: params.reviewJobId,
-            onProgress: (text) => updateToolProgress(onUpdate, text),
+            onProgress: (text: string) => updateToolProgress(onUpdate, text),
           }),
         );
-        return toolResult(output);
+        return outcomeResult(outcome, formatOutcomeText(outcome));
+      } catch (error) {
+        if (hasDiagnostic(error)) return failureResult(error, "audit", { specId: params.id });
+        throw error;
       } finally {
         clearInterval(heartbeat);
       }

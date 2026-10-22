@@ -210,7 +210,7 @@ try {
     SPECFLOW_AUDIT_BIN: fake,
     SPECFLOW_REVIEW_BUDGET_ID: "full-fixture",
   });
-  assert.equal(originalFull.status, 0, originalFull.stderr);
+  assert.notEqual(originalFull.status, 0, "a tool/protocol error is not a passing audit");
   assert.match(originalFull.stdout, /工具\/协议错误/);
   const fixedFull = cli(full, { action: "repair", jobId: preparedFull.jobId }, noLaunch);
   const attached = command(["audit", "S1", "--review-job", fixedFull.jobId], noLaunch);
