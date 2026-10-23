@@ -4,6 +4,7 @@
 
 | 日期 | 文件 | 摘要 | 状态 |
 |---|---|---|---|
+| 2026-10-23 | [2026-10-23-delivery-friction-from-kite-spec89.md](./2026-10-23-delivery-friction-from-kite-spec89.md) | 真实 Spec（34 提交 / 126 文件）跑 10 次审计暴露 8 个问题：CLI `audit` 无 `--budget`（只有 MCP 能审计）、audit fail 与 check/commit 的死锁、red-first 无采集入口、4 处报错不指明对象、3 处上下文上限仍硬编码、protocol-error 埋掉真实发现、snapshot 含 build 产物、321→330 units 时模型输出为空 | open |
 | 2026-10-14 | [2026-10-14-review-coverage-and-evidence-precision.md](./2026-10-14-review-coverage-and-evidence-precision.md) | S1.7 归母修复：protocol 3 / prompt 9、源块/major/gap 与历史 ID 命名空间、受限 caller 上下文、模板 v2 / skill 1.2.0；盲探针 16/19→18/19→13/19→19/19，历史失败保留；原降级与第6次 scope/status 回归均获修后独立确认；232/232、CLI/Pi 通过；实际7/8次，通过即停；[分层关闭依据](../reviews/S1.7/evidence-precision/closure-20261015/closure.md)，非新全量审计或 lifecycle done | closed / 技术维护分层验收 |
 | 2026-10-10 | [2026-10-10-audit-criteria-out-of-packet.md](./2026-10-10-audit-criteria-out-of-packet.md) | S1.7 归母（issue #2）：审计 prompt v5 增加 criteria 可采性规则（运行时/跨仓库/人工事实进 `out_of_scope`），`out_of_scope` 落地 Spec 并可显示；198 单测/CLI E2E/私有 Pi smoke 通过 | resolved / parent-only（未独立审查） |
 | 2026-10-07 | [2026-10-07-recoverable-review-output.md](./2026-10-07-recoverable-review-output.md) | S1.7 归母：协议错误与产品 FAIL 分层、零模型派生修复/绑定附加；真实 Spec70 原结论救回、原 job/预算 2/2 不改；194 单测/九组 E2E/完整 Pi smoke | resolved / parent-only（未独立审查） |
