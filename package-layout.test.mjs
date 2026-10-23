@@ -25,6 +25,12 @@ test("root is a private workspace whose pi manifest points at packages/pi", () =
   const manifest = json("package.json");
   assert.equal(manifest.private, true);
   assert.deepEqual(manifest.workspaces, ["packages/*"]);
+  for (const file of [
+    "packages/core/package.json",
+    "packages/pi/package.json",
+    "package-lock.json",
+  ])
+    assert.equal(json(file).version, manifest.version, file);
   assert.deepEqual(manifest.pi.extensions, ["./packages/pi/index.ts"]);
   assert.deepEqual(manifest.pi.skills, ["./packages/pi/skills"]);
   for (const entry of [...manifest.pi.extensions, ...manifest.pi.skills]) {
@@ -56,7 +62,10 @@ test("packages/core is publish-ready and harness-free", () => {
 
 test("packages/pi depends on core by semver and keeps host SDKs as optional peers", () => {
   const manifest = json("packages/pi/package.json");
-  assert.equal(manifest.dependencies["@nightink/spec-flow-core"], "^0.3.0");
+  assert.equal(
+    manifest.dependencies["@nightink/spec-flow-core"],
+    `^${json("packages/core/package.json").version}`,
+  );
   assert.equal(manifest.private, true);
   assert.deepEqual(manifest.peerDependencies, {
     "@earendil-works/pi-coding-agent": "*",

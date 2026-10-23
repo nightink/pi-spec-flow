@@ -24,7 +24,7 @@ assert.ok(fs.existsSync(path.join(repo, manifest.pi.extensions[0])));
 const coreManifest = JSON.parse(
   fs.readFileSync(path.join(repo, "packages/pi/package.json"), "utf8"),
 );
-assert.equal(coreManifest.dependencies["@nightink/spec-flow-core"], "^0.3.0");
+assert.equal(coreManifest.dependencies["@nightink/spec-flow-core"], `^${coreManifest.version}`);
 
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "specflow-pi-skill-"));
 const cwd = path.join(sandbox, "private project"),

@@ -1,0 +1,141 @@
+✖ CLI audit accepts an explicit existing budget without hiding FAIL (635.382375ms)
+✖ change check preserves failed audit and permits repairs, not closure (5092.795791ms)
+✖ context ignored source error identifies path and reason (771.071542ms)
+✖ context UTF-8 error uses byte offset, not UTF-16 character offset (783.992667ms)
+✖ approved context policy supports >20 files and >128 KiB without truncation (168.933167ms)
+✖ context count diagnosis reports actual and limits (0.153667ms)
+✖ zero typed criteria is distinct from missing criteria; observations are not PASS (0.788ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 0
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7505.790666
+
+✖ failing tests:
+
+test at packages/core/test/delivery-recovery.test.mjs:10:1
+✖ CLI audit accepts an explicit existing budget without hiding FAIL (635.382375ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /category=product-fail/. Input:
+
+  ''
+
+      at TestContext.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:14:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: /category=product-fail/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at packages/core/test/delivery-recovery.test.mjs:18:1
+✖ change check preserves failed audit and permits repairs, not closure (5092.795791ms)
+  AssertionError [ERR_ASSERTION]: ❌ check --ci 失败 (1 个错误):
+    ✗ S1: audit verdict/criteria 未全绿
+  ⚠️ 警告:
+    ! 仅校验 Spec 合同/证据；项目门禁未运行（contracts-only）
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:24:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at packages/core/test/delivery-recovery.test.mjs:32:1
+✖ context ignored source error identifies path and reason (771.071542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - 'evidence/run.log'
+
+      at Object.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:36:12)
+      at expectedException (node:assert:578:17)
+      at expectsError (node:assert:703:21)
+      at strict.rejects (node:assert:769:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:35:3)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'evidence/run.log',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at packages/core/test/delivery-recovery.test.mjs:41:1
+✖ context UTF-8 error uses byte offset, not UTF-16 character offset (783.992667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - 'evidence/a.txt'
+
+      at Object.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:45:12)
+      at expectedException (node:assert:578:17)
+      at expectsError (node:assert:703:21)
+      at strict.rejects (node:assert:769:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:44:3)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'evidence/a.txt',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at packages/core/test/delivery-recovery.test.mjs:50:1
+✖ approved context policy supports >20 files and >128 KiB without truncation (168.933167ms)
+  Error: Invalid review_inputs contract fields
+      at reviewInputs (file://<repo>/packages/core/src/review-coverage.mjs:144:11)
+      at reviewMaterial (file://<repo>/packages/core/src/review-engine.mjs:1309:17)
+      at prepareCommittedReview (file://<repo>/packages/core/src/review-engine.mjs:1277:26)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:54:20)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+
+test at packages/core/test/delivery-recovery.test.mjs:60:1
+✖ context count diagnosis reports actual and limits (0.153667ms)
+  TypeError: Cannot read properties of undefined (reading 'actual')
+      at Object.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:62:35)
+      at expectedException (node:assert:578:17)
+      at expectsError (node:assert:703:21)
+      at strict.throws (node:assert:759:3)
+      at TestContext.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:61:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+
+test at packages/core/test/delivery-recovery.test.mjs:66:1
+✖ zero typed criteria is distinct from missing criteria; observations are not PASS (0.788ms)
+  TypeError: Cannot read properties of undefined (reading 'criteria')
+      at TestContext.<anonymous> (file://<repo>/packages/core/test/delivery-recovery.test.mjs:71:31)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)

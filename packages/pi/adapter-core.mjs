@@ -221,6 +221,13 @@ export function formatReviewSummary(status) {
   const lines = [
     `Spec review ${value.mode || "?"} · job=${value.jobId || "?"}`,
     `state=${value.state || "?"} modelInvoked=${value.modelInvoked === true} category=${info.category || "n/a"}${info.code ? ` code=${info.code}` : ""}`,
+    ...(value.engine
+      ? [
+          `engine=${value.engine.version} source=${value.engine.source_sha256} loadedAt=${value.engine.loaded_at}`,
+        ]
+      : []),
+    ...(info.rawCounts ? [`原始计数（不是验收通过）：${JSON.stringify(info.rawCounts)}`] : []),
+    ...(info.telemetry ? [`输出遥测：${JSON.stringify(info.telemetry)}`] : []),
     ...resultFacts(value),
     ...(value.bytes != null || value.maxBytes != null
       ? [
@@ -236,6 +243,10 @@ export function formatReviewSummary(status) {
     "摘要边界: 本文本只含状态/分类/恢复入口，未复制 receipt 全文；完整结果在 structuredContent，未裁剪。",
   ];
   if (info.message) lines.push(`说明: ${info.message}`);
+  for (const item of (info.observations || []).slice(0, 3))
+    lines.push(
+      `未验证观察（不是有效审查/产品定论） ${item.source}: ${String(item.summary).slice(0, 400)}`,
+    );
   return truncateToolText(lines.join("\n"));
 }
 
@@ -246,6 +257,10 @@ export function formatBoardText(board) {
   const lines = [
     `📋 spec-flow board — freshness=${value.freshness || "record-only"}${live ? "（已比对当前 checkout）" : "（record-only：未读取当前 checkout freshness）"}`,
   ];
+  if (value.engine)
+    lines.push(
+      `engine=${value.engine.version} source=${value.engine.source_sha256} loadedAt=${value.engine.loaded_at}`,
+    );
   const summary = value.summary;
   if (isRecord(summary)) {
     lines.push(
@@ -268,6 +283,7 @@ export function formatBoardText(board) {
     for (const blocker of Array.isArray(spec.blockers) ? spec.blockers : []) {
       lines.push(`  阻塞: ${blocker}`);
     }
+    if (spec.drift) lines.push(`  漂移定位: ${JSON.stringify(spec.drift)}`);
     const actions = Array.isArray(spec.nextActions) ? spec.nextActions : [];
     for (const action of actions) lines.push(`  ${formatNextAction(action)}`);
   }
@@ -284,6 +300,15 @@ export function formatOutcomeText(outcome) {
   const diagnostic = isRecord(value.diagnostic) ? value.diagnostic : null;
   const lines = [
     `Spec ${value.specId || "?"} ${operation}: ${value.pass === true ? "PASS" : "FAIL"} category=${value.category || "n/a"}`,
+    ...(value.engine
+      ? [`engine=${value.engine.version} source=${value.engine.source_sha256}`]
+      : []),
+    ...(value.outputInfo?.rawCounts
+      ? [`原始计数（不是验收通过）: ${JSON.stringify(value.outputInfo.rawCounts)}`]
+      : []),
+    ...(value.outputInfo?.observations || [])
+      .slice(0, 3)
+      .map((item) => `未验证观察 ${item.source}: ${String(item.summary).slice(0, 400)}`),
     ...(value.jobId ? [`job=${value.jobId}`] : []),
     ...(value.packetPath ? [`packetPath=${value.packetPath}`] : []),
     ...(diagnostic

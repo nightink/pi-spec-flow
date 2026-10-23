@@ -473,7 +473,10 @@ test("limits: blob/context/index limits stay independent of the packet limit", a
   environment(t, {});
   await assert.rejects(
     review(contextFixture.root, { mode: "proposal", id: "S1", maxBytes: 4194304 }),
-    /context source exceeds/,
+    (error) =>
+      error.diagnostic.code === "REVIEW_CONTEXT_FILE_LIMIT" &&
+      error.diagnostic.actual === 70000 &&
+      error.diagnostic.limit === 65536,
   );
 
   const oversizedSpec = writeFrontmatter(`# Contract\n\n${"z".repeat(300000)}\n`, {

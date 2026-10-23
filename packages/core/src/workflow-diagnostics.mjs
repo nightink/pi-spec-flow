@@ -11,6 +11,8 @@
 // `requiresHuman` marks an action a human has to perform (attestation). Board
 // inspections never fabricate either flag.
 
+import { engineIdentity } from "./engine-identity.mjs";
+
 export const WORKFLOW_DIAGNOSTICS_VERSION = 1;
 
 export const DEFAULT_AUDIT_MAX_BYTES = 512 * 1024;
@@ -279,6 +281,7 @@ export function workflowOutcome({
   jobId,
   packetPath,
   diagnostic,
+  outputInfo,
 }) {
   if (!["impl", "audit"].includes(operation)) throw new Error("Unsupported outcome operation");
   if (!OUTCOME_CATEGORIES.includes(category)) throw new Error("Unsupported outcome category");
@@ -286,6 +289,7 @@ export function workflowOutcome({
   if (pass !== (category === "pass")) throw new Error("outcome.pass must match category");
   return {
     version: WORKFLOW_DIAGNOSTICS_VERSION,
+    engine: engineIdentity(),
     operation,
     specId: String(specId),
     pass,
@@ -295,6 +299,7 @@ export function workflowOutcome({
     ...(jobId ? { jobId } : {}),
     ...(packetPath ? { packetPath } : {}),
     ...(diagnostic ? { diagnostic } : {}),
+    ...(outputInfo ? { outputInfo } : {}),
   };
 }
 

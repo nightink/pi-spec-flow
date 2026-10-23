@@ -1,0 +1,28 @@
+✔ invalid CLI budgets have zero job, Spec or grant effects (972.773667ms)
+✔ change mode still rejects forged PASS, receipt tamper, missing approval, bad contract and done (2355.359541ms)
+✔ repair checking never masks a real project gate failure (624.406416ms)
+✔ context current/committed boundaries identify missing, ignored, symlink and directory (1664.555292ms)
+✔ context limits have exact bytes, largest contributors, invalid UTF-8 offset and no source echo (394.546667ms)
+✔ context policy validates boundaries, applies to all modes, and is sealed against tampering (1554.094167ms)
+✔ 330-unit valid synthetic FAIL is mechanical capacity only; telemetry never upgrades it (3.036ms)
+✔ engine identity is startup-bound, comparable to CLI, and not a hot-reload claim (217.232541ms)
+✔ snapshot drift explains add/delete/content/type/execute mode and tracked ignored artifacts (1126.923584ms)
+✔ capture cannot mistake signal termination for an expected test failure (283.565459ms)
+✔ capture observes and explicitly binds both contract revisions (283.738208ms)
+✔ capture preserves binary bytes, records spawn errors and refuses replaced output paths (668.544583ms)
+✔ capture records actual red/green, mismatches and failure boundaries without lifecycle edits (2115.914917ms)
+✔ limits: resolver precedence, integer boundaries and invalid config reject free (189.485ms)
+✔ limits: exact UTF-8 packet boundary, reconciling breakdown and no over-limit job (1104.306ms)
+✔ limits: sealed environment policy survives lower/invalid env and replay stays free (2589.57675ms)
+✔ limits: legacy bytes and free repair remain, removed/tampered metadata never bypasses (2405.135208ms)
+✔ limits: Git early stop reports a provable lower bound, never a fake total (376.24125ms)
+✔ limits: blob/context/index limits stay independent of the packet limit (600.941542ms)
+✔ limits: full working-tree audit seals and runs a >512KiB packet via a detached fake worker (1322.835958ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12326.00625

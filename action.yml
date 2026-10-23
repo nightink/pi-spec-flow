@@ -2,6 +2,11 @@ name: Spec Flow governance and verify
 # For private same-account repositories: enable Settings → Actions → General → Access
 # on the spec-flow repository, and reference this action by a full commit SHA.
 description: Check caller Spec contracts and run its configured or detected project gates
+inputs:
+  purpose:
+    description: 'strict (default) or change; change permits active incomplete/stale records for repair, never closure or integrity violations'
+    required: false
+    default: strict
 runs:
   using: composite
   steps:
@@ -14,4 +19,10 @@ runs:
       shell: bash
       env:
         SPECFLOW_CLI: ${{ github.action_path }}/packages/core/src/core.mjs
-      run: node "$SPECFLOW_CLI" verify
+        SPECFLOW_CHECK_PURPOSE: ${{ inputs.purpose }}
+      run: |
+        case "$SPECFLOW_CHECK_PURPOSE" in
+          strict) node "$SPECFLOW_CLI" verify ;;
+          change) node "$SPECFLOW_CLI" verify --for-change ;;
+          *) echo "Invalid purpose: use strict or change" >&2; exit 2 ;;
+        esac

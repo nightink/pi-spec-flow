@@ -31,12 +31,14 @@ spec-flow spec-new --json '<object>'
 spec-flow begin <id>
 spec-flow impl <id>                            # non-zero exit when evidence fails
 spec-flow audit <id> --prepare [--max-bytes N]
-spec-flow audit <id> --review-job <32-hex JOB_ID>
-spec-flow audit <id>                           # run with the existing authorization
+spec-flow audit <id> --review-job <32-hex JOB_ID> [--budget EXISTING_GRANT]
+spec-flow audit <id> [--budget EXISTING_GRANT]   # existing grant or environment fallback
 spec-flow attest <id> <item> <note>
 spec-flow done <id>
-spec-flow verify
-spec-flow check --ci [--contracts-only] [--live]
+spec-flow identity
+spec-flow capture <id> --label LABEL --expect pass|fail --output PATH.json [--kind observation|historical-replay|mutation] [--timeout-ms N] [--max-output-bytes N] -- COMMAND [ARGS]
+spec-flow verify [--for-change]
+spec-flow check --ci [--contracts-only] [--live] [--for-change]
 spec-flow review --json '{"action":"prepare"|"run"|"status"|"repair", ...}'
 spec-flow review-budget --json '<grant>'
 ```
@@ -45,6 +47,42 @@ Review/audit execution needs an external model CLI. `board`, `impl`, `audit --pr
 `verify` and `check` never call a provider. `audit --prepare` is free (no model, no
 charge, no Spec/ledger write) and only seals a private prepared job; running or
 attaching it still needs the existing authorization.
+
+## Repair and diagnostics (0.4.0)
+
+`--for-change` permits active incomplete/failed/stale records as explicit warnings,
+without rewriting history or weakening approval, integrity, done or actual project
+gates. Default strict behavior is unchanged. Action callers select `purpose: change`
+explicitly; it never overrides a nested strict check. This is not closure acceptance.
+
+Approved `review_inputs.context_limits` supports `max_files` (default 20, max 100),
+`max_file_bytes` (65536, max 1048576), and `max_total_bytes` (131072, max 8388608).
+Use positive integers with file <= total. Policies bind to the sealed contract;
+packet/raw/index limits stay separate. Current review reads nonignored ordinary
+files even before commit; committed review only reads the chosen HEAD. Errors name
+paths/reasons/counts/bytes/excess or 0-based UTF-8 byte offsets, never source text.
+
+`outputInfo.rawCounts` distinguishes missing, untyped and typed criteria.
+`observations` are bounded, source-labelled, **unverified**, not product findings or
+PASS. `telemetry` uses actual decodePath/stopReason/usage; unknowns are null.
+The 330-unit fixture tests mechanics, not model capacity or semantic accuracy.
+
+`identity` / structured `engine` identifies core version and source bytes at module
+initialization, not hot reload or the entire host. New impl records retain private
+per-file manifests: live board/audit diagnostics locate add/delete/content/type/mode
+drift. Aggregate hashes remain authoritative; ignored untracked artifacts stay
+ignored, tracked artifacts remain included; missing/tampered manifests never pass.
+
+`capture` executes an explicit trusted argv (not a sandbox), creates a new mode-0600
+repository-relative JSON file, and binds real time, HEAD, before/after snapshots,
+exit code and bounded complete stdout/stderr. Defaults: 60000 ms, 262144 bytes;
+ranges: 1..1800000 ms, 1..1048576 combined bytes. Timeout, truncation, signal exit,
+spawn error or tree drift cannot satisfy the expected result. No overwrite, links,
+escape, .git/node_modules output, or high-risk secret pattern is permitted. The
+limited scanner is not a comprehensive secrets/PII audit; scan before sharing.
+Capture itself does not alter lifecycle/budget or invoke a reviewer. A failed
+process is not automatically a regression; declared replay/mutation is not proof
+of historical red-first order. Full details: [recovery guide](https://github.com/nightink/pi-spec-flow/blob/main/docs/recovery.md).
 
 ## Test
 

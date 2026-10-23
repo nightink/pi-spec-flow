@@ -13,7 +13,9 @@ import {
   runArgv,
   specContractHash,
 } from "./core.mjs";
+import { engineIdentity } from "./engine-identity.mjs";
 import { loadProjectProfile, parseProjectProfileData } from "./project-profile.mjs";
+import { assertContextText, contextError, resolveContextLimits } from "./review-context.mjs";
 import {
   readRetainedPacket,
   resolveReviewLimit,
@@ -163,13 +165,13 @@ async function blob(repo, entry, max = MAX_BLOB) {
     throw new Error("Contract/profile must be a regular tree blob");
   return (await git(repo, ["cat-file", "blob", entry.oid], max)).stdout;
 }
-function regularCurrent(repo, file) {
+function regularCurrent(repo, file, max = MAX_BLOB) {
   const target = path.join(repo, relative(file));
   for (let current = target; current !== repo; current = path.dirname(current)) {
     if (fs.lstatSync(current).isSymbolicLink())
       throw new Error("Review source cannot follow symlinks");
   }
-  return readPrivate(target, MAX_BLOB);
+  return readPrivate(target, max);
 }
 function globRegex(pattern) {
   let result = "^";
@@ -553,6 +555,49 @@ export function normalizeReviewResult(raw, job) {
   }
   return result;
 }
+function rawOutputObservability(raw, job) {
+  const list = (key) => (Array.isArray(raw?.[key]) ? raw[key] : []);
+  const criteria = list("criteria");
+  const candidates = [
+    ...criteria
+      .map((value, index) => ({ value, source: `raw.criteria[${index}]` }))
+      .filter(({ value }) => value?.status !== "pass"),
+    ...list("findings").map((value, index) => ({ value, source: `raw.findings[${index}]` })),
+    ...list("issues").map((value, index) => ({ value, source: `raw.issues[${index}]` })),
+  ];
+  return {
+    rawCounts: {
+      criteriaPresent: Array.isArray(raw?.criteria),
+      criteria: criteria.length,
+      productCriteria: criteria.filter((item) => item?.kind === "product").length,
+      evidenceCriteria: criteria.filter((item) => item?.kind === "evidence").length,
+      untypedCriteria: criteria.filter((item) => !["product", "evidence"].includes(item?.kind))
+        .length,
+      findings: list("findings").length,
+      issues: list("issues").length,
+      coverage: list("coverage").length,
+      expectedSourceUnits: job.coverage_index?.units?.length ?? null,
+    },
+    observationsTotal: candidates.length,
+    observations: candidates.slice(0, 20).map(({ value, source }) => {
+      const text = typeof value === "string" ? value : (JSON.stringify(value) ?? String(value));
+      return {
+        source,
+        verified: false,
+        summary: text.slice(0, 2000),
+        truncated: text.length > 2000,
+      };
+    }),
+    observationBoundary:
+      "Unverified raw observations, not validated product findings or permission to alter the verdict. Full data stays in retained raw output.",
+    telemetry: job.output_telemetry ?? {
+      decodePath: null,
+      stopReason: null,
+      usage: job.usage ?? null,
+    },
+  };
+}
+
 export function reviewOutputInfo(raw, job, result = normalizeReviewResult(raw, job)) {
   const version = job.result_protocol_version ?? 1;
   const compatible = compatibleScope(raw);
@@ -609,7 +654,12 @@ export function reviewOutputInfo(raw, job, result = normalizeReviewResult(raw, j
         : "product-fail";
   return {
     category,
-    code: malformed ? "REVIEW_OUTPUT_PROTOCOL" : null,
+    code: malformed
+      ? Array.isArray(raw?.criteria) && raw.criteria.length === 0
+        ? "REVIEW_OUTPUT_NO_CRITERIA"
+        : "REVIEW_OUTPUT_PROTOCOL"
+      : null,
+    ...rawOutputObservability(raw, job),
     repairable,
     rawVerdict: raw?.verdict ?? null,
     productCriteria: Array.isArray(raw?.criteria)
@@ -653,6 +703,25 @@ export function reviewOutputInfo(raw, job, result = normalizeReviewResult(raw, j
                   : "旧协议判定通过（未经过 v3 义务覆盖对账）。",
   };
 }
+export function reviewResponseTelemetry(stdout) {
+  const messages = stdout.split("\n").flatMap((line) => {
+    try {
+      const event = JSON.parse(line);
+      return event?.type === "message_end" && event.message?.role === "assistant"
+        ? [event.message]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  const message = messages.at(-1);
+  return {
+    decodePath: message ? "pi-jsonl/message_end/parseVerdictJson" : "stdout/parseVerdictJson",
+    stopReason: typeof message?.stopReason === "string" ? message.stopReason.slice(0, 100) : null,
+    usage: message?.usage ?? null,
+  };
+}
+
 export function decodeAuditorResponse(stdout) {
   const events = stdout
     .split("\n")
@@ -738,19 +807,27 @@ function proposalObligations(id, result) {
   return [...findings, ...failed, ...gaps];
 }
 function assertSourceInventory(data) {
-  const input = reviewInputs(parseFrontmatter(data.contract)?.data),
+  const frontmatter = parseFrontmatter(data.contract)?.data;
+  const input = reviewInputs(frontmatter),
     prior = [];
+  const limits = resolveContextLimits(frontmatter?.review_inputs?.context_limits);
+  if (
+    (data.bindings.context_limits !== undefined ||
+      frontmatter?.review_inputs?.context_limits !== undefined) &&
+    JSON.stringify(data.bindings.context_limits) !== JSON.stringify(limits)
+  )
+    throw new Error("Sealed context policy differs from the approved contract");
   if (
     JSON.stringify(input.context_files) !==
       JSON.stringify(data.source_context.map((source) => source.path)) ||
     JSON.stringify(input.proposal_reviews) !==
       JSON.stringify(data.review_history.map((source) => source.job_id)) ||
-    data.source_context.reduce((sum, source) => sum + source.bytes, 0) > 131072 ||
+    data.source_context.reduce((sum, source) => sum + source.bytes, 0) > limits.max_total_bytes ||
     data.source_context.some(
       (source) =>
         typeof source.content !== "string" ||
         source.bytes !== Buffer.byteLength(source.content) ||
-        source.bytes > 65536 ||
+        source.bytes > limits.max_file_bytes ||
         source.sha256 !== digest(source.content),
     ) ||
     (data.bindings.spec_blob_sha256 && data.bindings.spec_blob_sha256 !== digest(data.contract))
@@ -802,6 +879,9 @@ export async function sealReview(cwd, data, metadata = {}, options = {}) {
     bindings: {
       ...data.bindings,
       review_limit: limit,
+      context_limits: resolveContextLimits(
+        parseFrontmatter(data.contract)?.data?.review_inputs?.context_limits,
+      ),
       review_index_sha256: digest(JSON.stringify(index)),
       source_context_sha256: digest(JSON.stringify(data.source_context || [])),
       review_history_sha256: digest(JSON.stringify(data.review_history || [])),
@@ -820,6 +900,10 @@ export async function sealReview(cwd, data, metadata = {}, options = {}) {
       id: data.bindings?.spec_id ?? null,
       mode: data.mode ?? null,
       specPath: data.bindings?.spec_path ?? null,
+      base: data.bindings?.base ?? null,
+      head: data.bindings?.head ?? null,
+      previousReview: data.previous_review?.job ?? null,
+      allowDirty: data.bindings?.dirty_excluded === true,
     });
   const scan = scanReviewPacket(packet);
   if (scan.findings.length)
@@ -964,12 +1048,18 @@ function retainedStatus(cwd, id, checkHistory) {
     outputInfo = {
       category: "execution-error",
       code: "REVIEW_EXECUTION",
+      telemetry: job.output_telemetry ?? {
+        decodePath: null,
+        stopReason: null,
+        usage: job.usage ?? null,
+      },
       repairable: false,
       message: `工具执行未完整结束（非产品 FAIL）：${job.error || job.state}。保留输出/预算，不自动重试或退款。`,
     };
   }
   return {
     version: 1,
+    engine: engineIdentity(),
     jobId: id,
     mode: job.mode,
     state: job.state,
@@ -1223,6 +1313,10 @@ export async function prepareCommittedReview(cwd, input) {
         id: input.id ?? null,
         mode,
         specPath: bindings.spec_path,
+        base,
+        head,
+        previousReview: input.previousReview ?? null,
+        allowDirty: input.allowDirty === true,
       };
     diff = (
       await git(
@@ -1279,8 +1373,7 @@ export async function prepareCommittedReview(cwd, input) {
     content,
     file,
     entries,
-    read,
-    mode === "proposal",
+    mode === "proposal" ? "current" : "committed",
     previous,
   );
   return sealReview(
@@ -1305,29 +1398,108 @@ export async function prepareCommittedReview(cwd, input) {
     { limit },
   );
 }
-async function reviewMaterial(repo, content, file, entries, read, allowUntracked, previous = null) {
-  const input = reviewInputs(parseFrontmatter(content)?.data),
+async function reviewMaterial(repo, content, file, entries, sourceMode, previous = null) {
+  const frontmatter = parseFrontmatter(content)?.data;
+  const input = reviewInputs(frontmatter),
     source_context = [],
     review_history = [],
     prior = [];
-  let bytes = 0;
+  const limits = resolveContextLimits(frontmatter?.review_inputs?.context_limits);
+  const sources = [];
   for (const source of input.context_files) {
-    const entry =
-      entries.find((item) => item.file === source) ||
-      (allowUntracked ? { file: source, type: "blob", mode: "100644" } : null);
-    if (entry?.type !== "blob" || !/^100/.test(entry.mode))
-      throw new Error("Review context source must be an available regular file, never a symlink");
-    const text = await read(entry),
-      size = Buffer.byteLength(text);
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: no lossy binary/invalid UTF-8 source hashing
-    if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ufffd]/.test(text))
-      throw new Error(
-        "Review context source must be supported UTF-8 text (no binary/replacement/control bytes)",
+    const reject = (reason, explanation) => {
+      throw contextError("REVIEW_CONTEXT_SOURCE", `Context ${source}: ${explanation}`, {
+        path: source,
+        reason,
+        sourceMode,
+      });
+    };
+    let entry = entries.find((item) => item.file === source),
+      size;
+    if (sourceMode === "committed") {
+      if (!entry)
+        reject(
+          "not-at-head",
+          "not present in the selected HEAD; committed review does not read the current checkout",
+        );
+      if (entry.mode === "120000") reject("symlink", "symlink is not followed");
+      if (entry.type !== "blob" || !/^100/.test(entry.mode))
+        reject("nonregular", "not a regular Git blob");
+      size = Number((await git(repo, ["cat-file", "-s", entry.oid])).stdout.trim());
+    } else {
+      const target = path.join(repo, source);
+      let stat;
+      try {
+        // Inspect every ancestor before reading any content; never follow links.
+        for (let current = target; current !== repo; current = path.dirname(current)) {
+          const currentStat = fs.lstatSync(current);
+          if (currentStat.isSymbolicLink())
+            reject("symlink", "source or ancestor is a symlink; not followed");
+          if (current === target) stat = currentStat;
+        }
+      } catch (error) {
+        if (error.diagnostic) throw error;
+        reject(
+          error.code === "ENOENT" ? "missing" : "unavailable",
+          "current source is missing or inaccessible",
+        );
+      }
+      if (!stat.isFile()) reject("nonregular", "current source is not a regular file");
+      if ((await git(repo, ["check-ignore", "-q", "--", source], MAX_TREE, true)).code === 0)
+        reject(
+          "ignored",
+          "excluded by Git ignore; preserve a scrubbed nonignored evidence file or explicitly track it, do not delete required evidence",
+        );
+      size = stat.size;
+      entry = { file: source };
+    }
+    if (!Number.isSafeInteger(size) || size < 0) reject("invalid-size", "source size unavailable");
+    if (size > limits.max_file_bytes)
+      throw contextError(
+        "REVIEW_CONTEXT_FILE_LIMIT",
+        `Context ${source}: ${size} bytes > ${limits.max_file_bytes}; exceeds by ${size - limits.max_file_bytes}; no truncation`,
+        {
+          path: source,
+          actual: size,
+          limit: limits.max_file_bytes,
+          excess: size - limits.max_file_bytes,
+        },
       );
-    bytes += size;
-    if (size > 65536 || bytes > 131072)
-      throw new Error("Review context source exceeds single/total byte limit; no truncation");
-    source_context.push({ path: source, sha256: digest(text), bytes: size, content: text });
+    sources.push({ path: source, entry, bytes: size });
+  }
+  const total = sources.reduce((sum, source) => sum + source.bytes, 0);
+  if (total > limits.max_total_bytes)
+    throw contextError(
+      "REVIEW_CONTEXT_TOTAL_LIMIT",
+      `Context sources: ${total} bytes > ${limits.max_total_bytes}; exceeds by ${total - limits.max_total_bytes}; no truncation`,
+      {
+        actual: total,
+        limit: limits.max_total_bytes,
+        excess: total - limits.max_total_bytes,
+        largest: [...sources]
+          .sort((a, b) => b.bytes - a.bytes)
+          .slice(0, 5)
+          .map(({ path: filePath, bytes }) => ({ path: filePath, bytes })),
+      },
+    );
+  for (const source of sources) {
+    const text =
+      sourceMode === "committed"
+        ? await blob(repo, source.entry, limits.max_file_bytes + 1)
+        : regularCurrent(repo, source.path, limits.max_file_bytes);
+    assertContextText(text, source.path);
+    if (Buffer.byteLength(text) !== source.bytes)
+      throw contextError(
+        "REVIEW_CONTEXT_CHANGED",
+        `Context ${source.path}: byte size changed during preparation; retry free prepare`,
+        { path: source.path },
+      );
+    source_context.push({
+      path: source.path,
+      sha256: digest(text),
+      bytes: source.bytes,
+      content: text,
+    });
   }
   if (previous)
     for (const item of previous.result.findings.filter(blockingFinding))
@@ -1398,7 +1570,7 @@ export async function prepareWorkingAudit(
     ? await read({ file: "package.json" })
     : null;
   const file = path.relative(repo, fs.realpathSync(spec.path));
-  const material = await reviewMaterial(repo, content, file, entries, read, false);
+  const material = await reviewMaterial(repo, content, file, entries, "current");
   return sealReview(
     repo,
     {

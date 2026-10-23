@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  engineIdentity,
   findSpec,
   repositorySnapshotHash,
   specContractHash,
@@ -86,6 +87,11 @@ const factory = (pi) => {
       assert.equal(creation.result.structuredContent.status, "draft");
       assert.equal(creation.result.structuredContent.dryRun, true);
       assert.equal(creation.result.structuredContent.template.version, 2);
+      assert.equal(prepared.result.structuredContent.engine.version, engineIdentity().version);
+      assert.equal(
+        prepared.result.structuredContent.engine.source_sha256,
+        engineIdentity().source_sha256,
+      );
       assert.equal(prepared.result.structuredContent.receipt.result_protocol_version, 3);
       assert.equal(prepared.result.structuredContent.state, "skipped");
       assert.equal(prepared.result.structuredContent.modelInvoked, false);

@@ -124,6 +124,7 @@ const nextActionSchema = Type.Object(
 // Optional failure-envelope fields keep every schema an explicit object root
 // while letting scripts read core diagnostics under isError (no silent drop).
 const diagnosticFields = {
+  engine: Type.Optional(Type.Any()),
   // failureResult() adds these two so the structured failure envelope stays a
   // valid instance of the same declared output schema as the success value.
   operation: Type.Optional(Type.String()),
@@ -145,6 +146,8 @@ const maxBytesSchema = Type.Optional(
 const outcomeSchema = Type.Object(
   {
     version: Type.Integer(),
+    engine: Type.Optional(Type.Any()),
+    outputInfo: Type.Optional(Type.Any()),
     operation: Type.Union([Type.Literal("impl"), Type.Literal("audit")]),
     specId: Type.String(),
     pass: Type.Boolean(),
@@ -413,6 +416,12 @@ export default function (pi: ExtensionAPI) {
               repairable: Type.Boolean(),
               rawVerdict: Type.Optional(Type.Any()),
               productCriteria: Type.Optional(Type.Integer()),
+              evidenceCriteria: Type.Optional(Type.Integer()),
+              rawCounts: Type.Optional(Type.Any()),
+              observationsTotal: Type.Optional(Type.Integer()),
+              observations: Type.Optional(Type.Array(Type.Any())),
+              observationBoundary: Type.Optional(Type.String()),
+              telemetry: Type.Optional(Type.Any()),
               compatibilityApplied: Type.Optional(Type.Boolean()),
               issues: Type.Optional(Type.Array(Type.String())),
               message: Type.String(),
@@ -536,6 +545,8 @@ export default function (pi: ExtensionAPI) {
     outputSchema: Type.Object(
       {
         version: Type.Integer(),
+        engine: Type.Optional(Type.Any()),
+        outputInfo: Type.Optional(Type.Any()),
         operation: Type.Optional(Type.Union([Type.Literal("audit"), Type.Literal("prepare")])),
         action: Type.Optional(Type.Union([Type.Literal("prepare"), Type.Literal("run")])),
         specId: Type.String(),

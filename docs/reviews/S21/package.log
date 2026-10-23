@@ -1,0 +1,8 @@
+{
+  "pass": true,
+  "tarball": "<repo>/.git/spec-flow/releases/0.4.0/nightink-spec-flow-core-0.4.0.tgz",
+  "manifest": "<repo>/.git/spec-flow/releases/0.4.0/manifest.json",
+  "sha256": "c5c1b788e8488c6ccae8415f75e84ba3bfdb733e906023aafd2ed5ebe86348df",
+  "integrity": "sha512-DUi7OHe8LO+uKuvQCAn8VrRHwkKoSfpvYvrQf/+Df+29ddj7L28AT31sg6I2HXxj6g1/WJG01tL426SWD8fjIA==",
+  "exports": 11
+}

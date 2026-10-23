@@ -172,7 +172,9 @@ export function retainedReviewLimit(job) {
 
 function suggestedBytes(limit, actualBytes, lowerBoundBytes) {
   if (actualBytes !== null)
-    return Math.min(MAX_REVIEW_MAX_BYTES, Math.max(actualBytes, limit.maxBytes + 1));
+    // The new limit/source is itself serialized into the next packet. Leave
+    // bounded header headroom instead of suggesting a one-byte retry treadmill.
+    return Math.min(MAX_REVIEW_MAX_BYTES, Math.max(actualBytes + 256, limit.maxBytes + 1));
   if (lowerBoundBytes !== null)
     return Math.min(MAX_REVIEW_MAX_BYTES, Math.max(lowerBoundBytes + 1, limit.maxBytes + 1));
   return MAX_REVIEW_MAX_BYTES;
@@ -193,6 +195,11 @@ export function reviewLimitExceeded(
     id = null,
     mode = null,
     specPath = null,
+    jobId = null,
+    base = null,
+    head = null,
+    previousReview = null,
+    allowDirty = false,
     detail = null,
   },
 ) {
@@ -207,8 +214,22 @@ export function reviewLimitExceeded(
   const sizeKnown = actualBytes !== null;
   const provable = sizeKnown ? actualBytes : lowerBoundBytes;
   const suggested = suggestedBytes(policy, actualBytes, lowerBoundBytes);
+  const prepareArgs =
+    mode === "working-tree-audit"
+      ? { action: "prepare", id, maxBytes: suggested }
+      : {
+          action: "prepare",
+          ...(id ? { id } : {}),
+          ...(mode ? { mode } : {}),
+          ...(specPath ? { specPath } : {}),
+          ...(base ? { base } : {}),
+          ...(head ? { head } : {}),
+          ...(previousReview ? { previousReview } : {}),
+          ...(allowDirty ? { allowDirty: true } : {}),
+          maxBytes: suggested,
+        };
   const actions =
-    provable > MAX_REVIEW_MAX_BYTES
+    stage === "read" || provable > MAX_REVIEW_MAX_BYTES
       ? [
           nextAction(
             "spec_board",
@@ -221,14 +242,8 @@ export function reviewLimitExceeded(
           // Carry the real prepare selector so the suggestion is executable for
           // the mode that failed, not a bare `{action:"prepare",maxBytes}`.
           nextAction(
-            "spec_review",
-            {
-              action: "prepare",
-              ...(id ? { id } : {}),
-              ...(mode ? { mode } : {}),
-              ...(specPath ? { specPath } : {}),
-              maxBytes: suggested,
-            },
+            mode === "working-tree-audit" ? "spec_audit" : "spec_review",
+            prepareArgs,
             sizeKnown
               ? `完整包需要至少 ${actualBytes} bytes；显式限额不低于实际值，包保持完整、不截断`
               : `Git 只能证明超过 ${lowerBoundBytes} bytes 的下界，总量未知；提高显式限额重试 prepare，仍不截断`,
@@ -243,11 +258,11 @@ export function reviewLimitExceeded(
       ),
     );
   // A status action needs a retained job; never emit an unrunnable status call.
-  if (id)
+  if (typeof jobId === "string" && /^[a-f0-9]{32}$/.test(jobId))
     actions.push(
       nextAction(
         "spec_review",
-        { action: "status", jobId: id },
+        { action: "status", jobId },
         "读取保留 job 的状态/封存绑定；不修改限额、不自动重试付费调用",
       ),
     );
@@ -270,7 +285,7 @@ export function reviewLimitExceeded(
     }; ${
       provable > MAX_REVIEW_MAX_BYTES
         ? "next: manually split the contract/scope (spec_board); one packet cannot exceed 16777216 bytes"
-        : `next: spec_review ${JSON.stringify({ action: "prepare", ...(id ? { id } : {}), ...(mode ? { mode } : {}), ...(specPath ? { specPath } : {}), maxBytes: suggested })} (free prepare; authorized execution still required)`
+        : `next: ${mode === "working-tree-audit" ? "spec_audit" : "spec_review"} ${JSON.stringify(prepareArgs)} (free prepare; authorized execution still required)`
     }`,
   });
 }
@@ -338,7 +353,7 @@ export function readRetainedPacket(dir, job) {
       stage: "read",
       actualBytes: stat.size,
       breakdown: [{ section: "packet", bytes: stat.size }],
-      id: typeof job.id === "string" ? job.id : null,
+      jobId: typeof job.id === "string" ? job.id : null,
       detail: "retained packet exceeds the sealed limit",
     });
   const bytes = readPrivateBytes(file, limit.maxBytes);

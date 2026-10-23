@@ -223,3 +223,24 @@ Error: Spec 89 implementation changed after spec_impl (5966e2f8912a → 17d78ae0
 
 **净结果**：代码与证据层面完成（`verify` 9/9、1907 测试、A3 三宿主实测、A4 red-first 四例），
 但 `spec_done` 因第 8 条**在流程上不可达**。
+
+---
+
+## S21 父级处置补记（原报告原文保留，未核验的现场结论不升级成事实）
+
+本地 0.4.0 候选的入口与边界见 [恢复指南](../recovery.md)、[发布候选](../releases/0.4.0.md)及 [S21 验收](../reviews/S21/validation.md)。下表不是 Kite Spec89 已通过验收，也不是新的独立审计。
+
+| 原项 | 核实与处置 | 入口证据 |
+|---|---|---|
+| 1 | 已复现 CLI 不识别 budget；新增显式已有 grant 参数及负向拒绝。旧源码本来也支持环境回退，不能推导“只有 MCP 可用”。现场常驻旧代码需身份实测，不以磁盘版本代替。 | delivery-recovery / delivery-boundaries：真实 CLI、一次 fake worker、非法参数零 job/预算/Spec 变更 |
+| 2 | active FAIL 阻塞 strict 已复现；新增显式 change 修复检查，不删除历史、不放宽默认 strict/done/完整性/项目 gate。full-current 原本可读未提交的非忽略普通文件，只有 committed 按 HEAD；原“审计一概要求 HEAD”不成立。pending/清旧 audit 在 gates 前的时序早于本轮，未认定为新代码根因。 | CLI 与 Action 原样 check step E2E；篡改收据/伪造 PASS/非法合同/真实 gate FAIL 负向 |
+| 3 | 增独立 capture 记录真实观察，而非让 impl 的红灯冒充通过。非零、旧 SHA replay、mutation、首次修复前 red 是不同事实；缺失历史不能事后补造。引擎没有硬编码 red-first，来自该 Spec 的验收；有意改合同须说明损失并批准，不等于 done。 | capture API/CLI 真子进程；红/绿、不匹配、timeout/truncation/signal/漂移/路径/秘密边界 |
+| 4 | 精确路径/reason/count/bytes/excess/0-based UTF-8 offset；不回显源正文。 | current/committed 来源、总量 largest、非法字节定位回归 |
+| 5 | 在批准合同中增加 context_limits，独立于 packet 策略；重放按封存合同，不用环境重解释证据，不自动删源。 | >20 文件、>128KiB、单文件扩展、默认/上限/非法/封存 tamper |
+| 6 | rawCounts 分开 raw/typed，零 criteria 独立错误，候选 observations 明示未验证来源；保留原 verdict/raw/result。引擎不会把模型 issues 自动认定为“真缺陷”。 | 原始非空缺 kind、零 criteria、FAIL、协议错误、真实 worker 停止遥测 |
+| 7 | 不默认忽略 tracked 产物。原 Git ignore 对未跟踪 ignored 文件已生效；新增私有逐文件清单帮助定位真实漂移，aggregate 仍决定 freshness。 | add/delete/content/type/执行位、tracked ignored、legacy/篡改清单 |
+| 8 | 不认定 330 是模型容量阈值，不无证据分片。新增期望源单元/原始计数、stopReason/usage/decodePath、启动期 engine 指纹。330-unit synthetic FAIL 只验证机械协议，不证明模型质量。 | 330 单元机械回归、非正常停止/非零退出真实 worker、CLI/native 身份 |
+
+仍需 Kite 原始 Spec、packet/raw/job/grant 才能核实真实调用次数、第 10 次究竟 raw 为空还是 typed 为零、现场加载版本及剩余合同矛盾。最新 A3 声称已补证，不能继续列为确定缺口；A4 四次回退应分别识别历史 red、旧版本 replay 或 mutation。A6 与 D12 的 HEAD 405→200 冲突需真实合同批准，不能用“论证等价”或撤回/豁免冒充通过。
+
+本轮未新增真实 provider 调用；原报告的“10 次”不并入本仓库已耗尽的 3/3 grant，也不按表格推算实际计费。S2.2/S21 均保留独立审查欠账、未 done；候选待发布不等于现场问题全部验证关闭。packet 限额实际优先级为显式参数 > 环境 > 默认，不是环境覆盖显式参数。

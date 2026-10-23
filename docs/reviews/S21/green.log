@@ -1,0 +1,15 @@
+✔ CLI audit accepts an explicit existing budget without hiding FAIL (2277.990792ms)
+✔ change check preserves failed audit and permits repairs, not closure (2485.781417ms)
+✔ context ignored source error identifies path and reason (777.699833ms)
+✔ context UTF-8 error uses byte offset, not UTF-16 character offset (791.08675ms)
+✔ approved context policy supports >20 files and >128 KiB without truncation (565.786167ms)
+✔ context count diagnosis reports actual and limits (0.26ms)
+✔ zero typed criteria is distinct from missing criteria; observations are not PASS (0.2115ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6961.744708

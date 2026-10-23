@@ -6,7 +6,7 @@ compatibility: "Git is recommended for exact diff review; adapts to the current 
 
 # Autonomous Delivery
 
-`AUTONOMOUS_DELIVERY_WORKFLOW_V1` — installed bundle 1.3.0
+`AUTONOMOUS_DELIVERY_WORKFLOW_V1` — installed bundle 1.4.0
 
 Take one non-trivial software change from intake to honest closure without asking the user to manually trigger each phase.
 Arguments appended to `/skill:autonomous-delivery` are the task. Adapt to the current project; never impose the conventions
@@ -106,6 +106,29 @@ reload/rebind if needed; a source or config edit is not evidence that the live p
 These entries do not relax the rules below: authorization is explicit and finite, discovery/prepare/status/valid cache are
 free, failures are not refunded or automatically retried, ordinary/delta PASS never becomes a full current audit, and human
 attestation still requires real evidence and confirmation.
+
+## Repair submission and honest observations
+
+Use `audit ID --budget EXISTING_GRANT` for an already authorized grant; never add budget to free prepare.
+When an active FAIL/protocol-error/stale record blocks repairs, explicitly choose `check --ci --for-change`
+or `verify --for-change` (Action `purpose: change`). This leaves warnings and history intact, never weakens
+approval/integrity/done/actual project gates, and never overrides nested strict commands. Default remains strict.
+
+Declare larger context needs in approved `review_inputs.context_limits`: defaults 20 files / 65536 bytes per
+file / 131072 total; ceilings 100 / 1048576 / 8388608. Single <= total; packet policy stays independent.
+Current proposal/full audit can read nonignored ordinary uncommitted files; committed review reads selected
+HEAD only. Use path/reason/count/byte-offset diagnostics instead of deleting required evidence.
+
+Inspect `outputInfo.rawCounts`, source-labelled unverified `observations`, and actual decode/stop/usage
+telemetry before interpreting protocol errors. Raw candidates are not confirmed product findings; 330 units
+is not a model capacity claim. Compare CLI `identity` and native `engine` startup fingerprints before assuming
+a daemon loaded edited disk code. Live drift names paths; do not silently exclude tracked build outputs.
+
+For new test observations, `capture ID --label A1-red --expect fail --output evidence/A1-red.json -- COMMAND ARGS`
+records actual subprocess/time/code/output without writing lifecycle approval. Timeout/truncation/tree drift
+cannot satisfy expectations. Explicit replay/mutation labels never certify historical red-first. Scan captured
+files before sharing; finite pattern rejection is not complete sanitization. Missing historical red requires
+honest contract disposition, not reconstructed history. See the evidence ledger reference for boundaries.
 
 ## Ten-stage adaptive lifecycle
 

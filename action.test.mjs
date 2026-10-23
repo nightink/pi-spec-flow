@@ -12,7 +12,10 @@ test("private cross-repository Action is composite, installs pinned deps, and ru
   assert.doesNotMatch(install.run, /\$\{\{\s*secrets\./);
   // biome-ignore lint/suspicious/noTemplateCurlyInString: literal GitHub Actions expression
   assert.equal(verify.env.SPECFLOW_CLI, "${{ github.action_path }}/packages/core/src/core.mjs");
-  assert.equal(verify.run, 'node "$SPECFLOW_CLI" verify');
+  assert.equal(action.inputs.purpose.default, "strict");
+  assert.match(verify.run, /strict\) node "\$SPECFLOW_CLI" verify ;;/);
+  assert.match(verify.run, /change\) node "\$SPECFLOW_CLI" verify --for-change ;;/);
+  assert.match(verify.run, /exit 2/);
   assert.doesNotMatch(verify.run, /npm run verify/);
   assert.doesNotMatch(
     JSON.stringify(action),

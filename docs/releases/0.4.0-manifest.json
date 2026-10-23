@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "status": "local-candidate-not-published-not-independent-PASS",
+  "package": "@nightink/spec-flow-core",
+  "packageVersion": "0.4.0",
+  "sourceBase": "96dde2bcbae652120d50332a498a4ed2e49607ec",
+  "sourceBoundary": "Includes working-tree changes. Match per-file hashes and core source fingerprint; base is not a claim that changes were committed at packaging time.",
+  "node": "v24.19.0",
+  "npm": "11.17.0",
+  "platform": "darwin/arm64",
+  "archive": {
+    "filename": "nightink-spec-flow-core-0.4.0.tgz",
+    "bytes": 109898,
+    "sha256": "c5c1b788e8488c6ccae8415f75e84ba3bfdb733e906023aafd2ed5ebe86348df",
+    "integrity": "sha512-DUi7OHe8LO+uKuvQCAn8VrRHwkKoSfpvYvrQf/+Df+29ddj7L28AT31sg6I2HXxj6g1/WJG01tL426SWD8fjIA==",
+    "shasum": "1485caace78dcf7f2fa1dbb923115a13c288ea79",
+    "files": [
+      {
+        "path": "LICENSE",
+        "bytes": 1065,
+        "mode": 420,
+        "sha256": "ef37aca3c7144297b37ff89cec016fea6be9310c1f715cdf58f42afe69ee8ea9"
+      },
+      {
+        "path": "README.md",
+        "bytes": 12931,
+        "mode": 420,
+        "sha256": "830034a49a405257eba43651025276d06e5b5e101cbd8d4d21fc51d2fded9515"
+      },
+      {
+        "path": "package.json",
+        "bytes": 1411,
+        "mode": 420,
+        "sha256": "3082419e7f47678b4d577fa596c8abbcf16b5b813d942657879bbdcaace639f2"
+      },
+      {
+        "path": "src/core.mjs",
+        "bytes": 184912,
+        "mode": 493,
+        "sha256": "928ff259eebcdf09af16975237aa0ae4a923c984f4775790ea992a85bb33f0a2"
+      },
+      {
+        "path": "src/engine-identity.mjs",
+        "bytes": 1316,
+        "mode": 420,
+        "sha256": "5c231703625e1a63722a9f9ed81b97ce8fca29279b3e443465061c686fd36ce0"
+      },
+      {
+        "path": "src/evidence-capture.mjs",
+        "bytes": 9347,
+        "mode": 420,
+        "sha256": "6a91a5f8abcb0a377d84b3ac030d7708d7f5ce95f939ca3045b68ddfadf7512e"
+      },
+      {
+        "path": "src/executors/pi-cli.mjs",
+        "bytes": 3181,
+        "mode": 420,
+        "sha256": "ce94d26613e3b2ab1dcbac1489183be764a69304b1f821409be9a738e2e2e7c3"
+      },
+      {
+        "path": "src/project-profile.mjs",
+        "bytes": 21081,
+        "mode": 420,
+        "sha256": "5cf2df233695bdb39c617f674d4ff3b4f32ce6b43effaacf4db0b1cbe406bde2"
+      },
+      {
+        "path": "src/review-context.mjs",
+        "bytes": 2411,
+        "mode": 420,
+        "sha256": "c2d989ea8012bfac577bb63945e51a665b71ab1dced84924d8d90e946cbfae59"
+      },
+      {
+        "path": "src/review-coverage.mjs",
+        "bytes": 18387,
+        "mode": 420,
+        "sha256": "ec3fb55b5e8f26626a0656d9817f13856d5aa40de9ebe035dc516909bd420ff7"
+      },
+      {
+        "path": "src/review-engine.mjs",
+        "bytes": 69512,
+        "mode": 420,
+        "sha256": "7d10e34c4ded0e2852cf8c71793467d94687c6c11530c35d2c662d0dfa9394da"
+      },
+      {
+        "path": "src/review-execution.mjs",
+        "bytes": 3509,
+        "mode": 420,
+        "sha256": "c3a39f84df44c4e9d1d821db95692fef8c5853113b6b7748714b48c5c4f72daf"
+      },
+      {
+        "path": "src/review-executor.mjs",
+        "bytes": 5827,
+        "mode": 420,
+        "sha256": "a90f665a127b177e6a6dcc31130e7191d0a72df3f5b4d744e32fbed83173eeab"
+      },
+      {
+        "path": "src/review-limits.mjs",
+        "bytes": 13930,
+        "mode": 420,
+        "sha256": "2a635f8d07b8506c9299e6341d2b208a8b8e55a0f08a424d3f2c4ac927f70049"
+      },
+      {
+        "path": "src/review-storage.mjs",
+        "bytes": 5257,
+        "mode": 420,
+        "sha256": "3f95a68251780804cc3975665473dce08c089a10fd50ea5fd32b5a2c2edd0a39"
+      },
+      {
+        "path": "src/review-worker.mjs",
+        "bytes": 4190,
+        "mode": 420,
+        "sha256": "f7ab276cf861f0feaeb8b62f46c508c5510667ef7525dd25f40c61295fef3c4e"
+      },
+      {
+        "path": "src/snapshot-manifest.mjs",
+        "bytes": 3596,
+        "mode": 420,
+        "sha256": "acee2b0cb8f1ab1a6271d3bd0fe0d55b6673692671ee099ea77b39afd5f5867d"
+      },
+      {
+        "path": "src/spec-creation.mjs",
+        "bytes": 10772,
+        "mode": 420,
+        "sha256": "55c185b2d670eddc77e735fa0d2be8cca3386340a932a59df793da90f6cdab61"
+      },
+      {
+        "path": "src/workflow-diagnostics.mjs",
+        "bytes": 12833,
+        "mode": 420,
+        "sha256": "657e54a394c406582c83f742e99da6b97b0ed3f89b62b83fa486d130885cf9e5"
+      },
+      {
+        "path": "src/workspace.mjs",
+        "bytes": 6033,
+        "mode": 420,
+        "sha256": "b818e35899d7e8e8fc64fca5f47b3d83bd504d21f829555d15dc5562e23ba347"
+      },
+      {
+        "path": "templates/spec-v1.md",
+        "bytes": 690,
+        "mode": 420,
+        "sha256": "1eb25876978ed28e5d913aabba2e05767ce2e6918966211babf7c026cc568687"
+      },
+      {
+        "path": "templates/spec-v2.md",
+        "bytes": 2114,
+        "mode": 420,
+        "sha256": "358de590b6ba9668445b5880a12561216ed9e9d215c4a07d6b3ddfc1ab92accf"
+      }
+    ]
+  },
+  "engine": {
+    "package": "@nightink/spec-flow-core",
+    "version": "0.4.0",
+    "source_sha256": "91015a4c32e9aba6788b379a9fe6aa42e784bf80c165a8cea5cc5fbbb736787a"
+  },
+  "acceptance": {
+    "offline": true,
+    "installScripts": false,
+    "outsideSource": true,
+    "symlinkedPackage": false,
+    "binIdentity": true,
+    "binBoard": true,
+    "exports": [
+      ".",
+      "./review",
+      "./coverage",
+      "./review-limits",
+      "./diagnostics",
+      "./executor",
+      "./executors/pi-cli",
+      "./profile",
+      "./workspace",
+      "./spec-creation",
+      "./package.json"
+    ],
+    "installSummary": "added 3 packages in 155ms",
+    "dependencyVersions": {
+      "@nightink/spec-flow-core": "0.4.0",
+      "js-yaml": "4.3.2",
+      "argparse": "2.0.1"
+    },
+    "actionEquivalent": {
+      "lockedInstall": true,
+      "installScripts": false,
+      "offline": true,
+      "strict": true,
+      "change": true,
+      "hostedRunner": false
+    }
+  },
+  "boundaries": [
+    "No registry/hosted Action/provider acceptance",
+    "Private root/Pi adapter are not npm targets",
+    "No push/publish/tag/lifecycle PASS"
+  ]
+}

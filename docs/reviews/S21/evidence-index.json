@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "boundary": "actual parent test runs, not independent review or historical certification",
+  "logs": [
+    {
+      "path": "red.log",
+      "purpose": "initial seven regressions, before implementation",
+      "originalSha256": "66698168e2dde62951fb776c3850a56819b062ac6936f8e7f754e22319ece346",
+      "publicSha256": "fdff51d9c5beffc42d2dd8413ae9489c895aa7abc76c1ef50164749ab249ab4a",
+      "redaction": "repository/home absolute paths replaced; trailing whitespace removed in public copy only; original retained privately"
+    },
+    {
+      "path": "green.log",
+      "purpose": "initial seven regressions, after implementation",
+      "originalSha256": "d2403ebaaf2986542e72c77904d0ce081896e169cb0c736ddf5322945058f7c7",
+      "publicSha256": "d2403ebaaf2986542e72c77904d0ce081896e169cb0c736ddf5322945058f7c7",
+      "redaction": "repository/home absolute paths replaced; trailing whitespace removed in public copy only; original retained privately"
+    },
+    {
+      "path": "capture-red.log",
+      "purpose": "signal termination regression before fix",
+      "originalSha256": "9cc5f79980f04436e71b309bcd785a2692792fdee0f9f5dfd4c9b3508334e8bb",
+      "publicSha256": "58f39c30e13adf5f9f3106ef4179552bce474d7d624bfdd87aee1d588c6ecdcf",
+      "redaction": "repository/home absolute paths replaced; trailing whitespace removed in public copy only; original retained privately"
+    },
+    {
+      "path": "capture-green.log",
+      "purpose": "capture/boundary and limit tests after fix",
+      "originalSha256": "6918983b8111fc5bcb9fd67813d9a6d3f4fad8fe4bea87efcb8d567fa4e0aa16",
+      "publicSha256": "6918983b8111fc5bcb9fd67813d9a6d3f4fad8fe4bea87efcb8d567fa4e0aa16",
+      "redaction": "repository/home absolute paths replaced; trailing whitespace removed in public copy only; original retained privately"
+    },
+    {
+      "path": "check.log",
+      "purpose": "npm run check, 297 tests and 14 E2E scripts",
+      "originalSha256": "1a7db3b764bcd3f4d2bce560769aa5b0a77fa4a36175509e617d7af3d6f1a11a",
+      "publicSha256": "1a7db3b764bcd3f4d2bce560769aa5b0a77fa4a36175509e617d7af3d6f1a11a",
+      "redaction": "repository/home absolute paths replaced; trailing whitespace removed in public copy only; original retained privately"
+    },
+    {
+      "path": "smoke.log",
+      "purpose": "npm run smoke:pi, actual installed Pi 1.3.0",
+      "originalSha256": "2f231b9fe71170ab194a1e5943fd9807da1746f6449368886ace539eac7e2578",
+      "publicSha256": "2f231b9fe71170ab194a1e5943fd9807da1746f6449368886ace539eac7e2578",
+      "redaction": "repository/home absolute paths replaced; trailing whitespace removed in public copy only; original retained privately"
+    },
+    {
+      "path": "package.log",
+      "purpose": "offline package and exact Action steps, outside checkout",
+      "originalSha256": "d6c2fcd420a41024acb5f76b7197d19b7832ab5d2ced961cbc98cb33dec9a14d",
+      "publicSha256": "4f5a520355c971e4aa77e5a39bba303b2e7403c727c426a29d6f764d26bcecb4",
+      "redaction": "repository/home absolute paths replaced; trailing whitespace removed in public copy only; original retained privately"
+    },
+    {
+      "path": "worker.log",
+      "purpose": "actual failed workers with synthetic output, no provider",
+      "originalSha256": "8cb36c5eef2da321dbd961658461a90d10f184b43e82e2d1923d2473146af8f9",
+      "publicSha256": "8cb36c5eef2da321dbd961658461a90d10f184b43e82e2d1923d2473146af8f9",
+      "redaction": "repository/home absolute paths replaced; trailing whitespace removed in public copy only; original retained privately"
+    }
+  ]
+}

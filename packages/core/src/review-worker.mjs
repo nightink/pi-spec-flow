@@ -3,12 +3,13 @@
 // review-executor.mjs) and never constructs provider-specific flags itself.
 import fs from "node:fs";
 import path from "node:path";
-import { runSpawn } from "./core.mjs";
+import { engineIdentity, runSpawn } from "./core.mjs";
 import {
   assertReviewIndexBinding,
   decodeAuditorResponse,
   normalizeReviewResult,
   readRetainedPacket,
+  reviewResponseTelemetry,
   scanReviewPacket,
 } from "./review-engine.mjs";
 import { digest, loadJob, saveJob } from "./review-storage.mjs";
@@ -30,6 +31,7 @@ function persist() {
 try {
   if (job.state !== "running") throw new Error("Worker has no claimed review job");
   job.worker_pid = process.pid;
+  job.worker_engine = engineIdentity();
   const packet = readRetainedPacket(dir, job).toString("utf8");
   if (digest(packet) !== job.packet_sha256 || scanReviewPacket(packet).findings.length)
     throw new Error("Sealed packet changed before child execution");
@@ -75,6 +77,7 @@ try {
   job.output_scan = scanReviewPacket(response.stdout);
   if (job.output_scan.findings.length)
     throw new Error("Auditor output contains sensitive pattern; retained privately, not returned");
+  job.output_telemetry = reviewResponseTelemetry(response.stdout);
   if (job.timed_out)
     throw new Error(
       `Auditor execution timed out after ${job.execution.timeout}ms; new settings require a new job`,

@@ -137,9 +137,13 @@ test("F2/F3 regression: over-limit recovery actions are executable, not bare pre
   );
   assert.ok(prepareAction.args.maxBytes >= diagnostic.actualBytes);
   assert.ok(
-    !diagnostic.nextActions.some((item) => item.args.action === "status" && !item.args.jobId),
+    !diagnostic.nextActions.some((item) => item.args.action === "status"),
     "no status action without a retained job id",
   );
+
+  const retried = cli(f.cwd, ["review", "--json", JSON.stringify(prepareAction.args)]);
+  assert.equal(retried.status, 0, retried.stderr);
+  assert.equal(JSON.parse(retried.stdout).state, "prepared");
 
   // Full audit: the suggested limit must cover the measured packet exactly.
   assert.equal(cli(f.cwd, ["begin", "S1"]).status, 0);

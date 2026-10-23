@@ -12,6 +12,16 @@ import { StringDecoder } from "node:string_decoder";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import yaml from "js-yaml";
+import { engineIdentity } from "./engine-identity.mjs";
+import { reviewInputs } from "./review-coverage.mjs";
+import {
+  driftSummary,
+  explainSnapshotDrift,
+  retainSnapshotManifest,
+} from "./snapshot-manifest.mjs";
+
+export { engineIdentity } from "./engine-identity.mjs";
+
 import { buildPromptArgs } from "./executors/pi-cli.mjs";
 import {
   applyLifecycleWrite,
@@ -232,13 +242,21 @@ export function runSpawn(
       childError = error;
       if (child.pid) terminate();
     });
-    child.on("close", (code) => {
+    child.on("close", (code, exitSignal) => {
       if (timer) clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
       stdout += decoders.stdout.end();
       stderr += decoders.stderr.end();
       if (childError) reject(childError);
-      else resolve({ stdout, stderr, code: code ?? 1, tooBig, timedOut });
+      else
+        resolve({
+          stdout,
+          stderr,
+          code: code ?? 1,
+          exitSignal: exitSignal || null,
+          tooBig,
+          timedOut,
+        });
     });
   });
 }
@@ -765,6 +783,7 @@ export async function repositorySnapshotHash(
   hash.update("specflow-repository-snapshot-v2\0");
   const budget = { used: 0, max: maxBytes };
   let fileCount = 0;
+  const manifest = [];
 
   for (const relativePath of files) {
     abortIfNeeded(signal);
@@ -776,6 +795,13 @@ export async function repositorySnapshotHash(
     if (excluded.has(absolutePath)) continue;
 
     const normalized = normalizePathForHash(relativePath);
+    const itemHash = crypto.createHash("sha256");
+    const update = (value) => {
+      hash.update(value);
+      itemHash.update(value);
+    };
+    let kind,
+      mode = 0;
     let stat;
     try {
       stat = fs.lstatSync(absolutePath);
@@ -787,24 +813,33 @@ export async function repositorySnapshotHash(
         // An uninitialized/sparse gitlink is different: its indexed SHA is
         // still the content identity, unless Git reports an actual deletion.
         if (indexedHead && !deletedPaths.has(relativePath)) {
-          hash.update(`\0P\0${normalized}\0`);
-          hash.update(`G\0${indexedHead}\0`);
+          update(`\0P\0${normalized}\0`);
+          update(`G\0${indexedHead}\0`);
+          manifest.push({
+            path: normalized,
+            kind: "gitlink",
+            mode: 0,
+            hash: itemHash.digest("hex"),
+          });
           fileCount++;
         }
         continue;
       }
       throw error;
     }
-    hash.update(`\0P\0${normalized}\0`);
+    update(`\0P\0${normalized}\0`);
 
     if (stat.isSymbolicLink()) {
       const target = fs.readlinkSync(absolutePath);
       budget.used += Buffer.byteLength(target);
       if (budget.used > budget.max) throw new Error(`Snapshot exceeds ${budget.max} bytes`);
-      hash.update(`L\0${target}\0`);
+      kind = "symlink";
+      update(`L\0${target}\0`);
     } else if (stat.isFile()) {
-      hash.update(`F\0${stat.mode & 0o111}\0${stat.size}\0`);
-      await hashFileInto(hash, absolutePath, signal, budget);
+      kind = "file";
+      mode = stat.mode & 0o111;
+      update(`F\0${mode}\0${stat.size}\0`);
+      await hashFileInto({ update }, absolutePath, signal, budget);
     } else if (stat.isDirectory()) {
       const indexedHead = gitlinks.get(relativePath);
       if (!indexedHead) {
@@ -832,16 +867,19 @@ export async function repositorySnapshotHash(
           submoduleHead = head.stdout.trim();
         }
       }
-      hash.update(`G\0${submoduleHead}\0`);
+      kind = "gitlink";
+      update(`G\0${submoduleHead}\0`);
     } else {
       throw new Error(`Unsupported file type in snapshot: ${relativePath}`);
     }
+    manifest.push({ path: normalized, kind, mode, hash: itemHash.digest("hex") });
     fileCount++;
   }
 
   return {
     hash: hash.digest("hex"),
     repo: root,
+    files: manifest,
     fileCount,
     totalBytes: budget.used,
   };
@@ -945,7 +983,7 @@ function limitConfigurationError(error) {
   );
 }
 
-function lifecycleError(message, { code, stage = "lifecycle", nextActions = [] } = {}) {
+function lifecycleError(message, { code, stage = "lifecycle", nextActions = [], ...extra } = {}) {
   return workflowError(
     message,
     workflowDiagnostic({
@@ -954,6 +992,7 @@ function lifecycleError(message, { code, stage = "lifecycle", nextActions = [] }
       stage,
       message,
       nextActions,
+      ...extra,
     }),
   );
 }
@@ -2011,6 +2050,7 @@ export async function inspectBoard(cwd, { id, live = false, signal } = {}) {
     }
 
     let fresh = null;
+    let drift = null;
     if (live && role === "active" && fm.workflow_version === WORKFLOW_VERSION) {
       if (fm.impl?.snapshot_hash) {
         try {
@@ -2019,6 +2059,8 @@ export async function inspectBoard(cwd, { id, live = false, signal } = {}) {
             excludePaths: [spec.path],
             signal,
           });
+          if (snapshot.hash !== fm.impl.snapshot_hash)
+            drift = explainSnapshotDrift(repo, fm.impl, snapshot);
           fresh =
             snapshot.hash === fm.impl.snapshot_hash &&
             contractHash !== null &&
@@ -2052,12 +2094,14 @@ export async function inspectBoard(cwd, { id, live = false, signal } = {}) {
       blockers,
       nextActions,
     });
+    if (drift) entry.drift = drift;
     entries.push(entry);
   }
 
   const computedFresh = entries.filter((entry) => entry.fresh !== null);
   return {
     version: 1,
+    engine: engineIdentity(),
     freshness: live ? "live" : "record-only",
     note: live
       ? "live：已按当前 checkout 计算实现/合同新鲜度；不调用模型、不改生命周期"
@@ -2450,6 +2494,8 @@ async function implRun(cwd, id, { signal, onGate, onDiagnostic } = {}) {
     migrations,
     diagnostics,
     snapshot_hash: snapshot.hash,
+    snapshot_manifest: retainSnapshotManifest(repo, snapshot),
+    engine: engineIdentity(),
     contract_hash: contractHash,
   };
   delete fm.audit;
@@ -2900,11 +2946,13 @@ async function auditPreconditions(cwd, id, { signal, onProgress } = {}) {
     signal,
   });
   if (snapshot.hash !== fm.impl.snapshot_hash) {
+    const drift = explainSnapshotDrift(repo, fm.impl, snapshot);
     throw lifecycleError(
-      `Spec ${id} implementation changed after spec_impl (${fm.impl.snapshot_hash.slice(0, 12)} → ${snapshot.hash.slice(0, 12)}); rerun spec_impl`,
+      `Spec ${id} implementation changed after spec_impl (${fm.impl.snapshot_hash.slice(0, 12)} → ${snapshot.hash.slice(0, 12)}); ${driftSummary(drift)}; rerun spec_impl`,
       {
         code: "AUDIT_IMPLEMENTATION_STALE",
         stage: "impl",
+        drift,
         nextActions: [implAction(id, "当前 checkout 与 impl 快照不一致；重跑 impl 后再审计")],
       },
     );
@@ -3091,6 +3139,7 @@ function buildAuditOutcome({
       jobId,
       packetPath,
       diagnostic,
+      outputInfo: outputIssue,
     }),
     jobId,
     packetPath,
@@ -3909,6 +3958,89 @@ export function recordConsistencyGaps(spec, profile = spec.profile || defaultPro
   return gaps;
 }
 
+// Change validation never upgrades a failed/stale record to closure. It verifies
+// immutable records where available, while leaving unfinished work actionable.
+async function changeRecordProblems(cwd, spec) {
+  const fm = spec.frontmatter,
+    errors = [],
+    warnings = [];
+  const receipt = fm.audit?.review;
+  if (!receipt) {
+    if (fm.audit?.verdict === "pass")
+      errors.push("audit PASS 缺少 retained review receipt；修复模式不能验证伪造批准");
+    return { errors, warnings };
+  }
+  if (
+    receipt.version !== 1 ||
+    receipt.mode !== "working-tree-audit" ||
+    !["prepared", "running", "completed", "failed"].includes(receipt.state) ||
+    !/^[a-f0-9]{32}$/.test(receipt.job_id || "")
+  ) {
+    errors.push("audit review identity 非法");
+    return { errors, warnings };
+  }
+  const normalized = normalizeAuditResult(fm.audit);
+  for (const key of ["packet_sha256", "child_input_sha256", "raw_sha256", "result_sha256"])
+    if (
+      (receipt.state === "completed" || receipt[key] != null) &&
+      !/^[a-f0-9]{64}$/.test(receipt[key] || "")
+    )
+      errors.push(`audit review ${key} 非法`);
+  if (receipt.child_input_sha256 != null && receipt.child_input_sha256 !== receipt.packet_sha256)
+    errors.push("audit packet/child binding 被改写");
+  if (receipt.result_sha256 && receipt.result_sha256 !== sha256(stableJson(normalized)))
+    errors.push("audit result binding 被改写");
+  if (
+    receipt.coverage_summary_sha256 &&
+    receipt.coverage_summary_sha256 !== sha256(stableJson(fm.audit.coverage ?? null))
+  )
+    errors.push("audit coverage summary binding 被改写");
+  if (errors.length) return { errors, warnings };
+  const repo = implementationRepo(cwd, fm);
+  const dir = path.join(gitWorkspace(repo).commonDir, "spec-flow/review-v1/jobs", receipt.job_id);
+  try {
+    fs.lstatSync(dir);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    if (fm.audit?.verdict === "pass")
+      errors.push("audit PASS 缺少 retained review job；无法核验批准");
+    else
+      warnings.push(
+        "历史失败审查的私有 job 不在本 checkout；无法核验原始材料，不宣称完整性通过或审查 PASS；保留并恢复原 packet/raw/job 后再关闭",
+      );
+    return { errors, warnings };
+  }
+  try {
+    const retained = retainedReviewStatus(repo, receipt.job_id);
+    const saved = retained.receipt;
+    if (
+      retained.mode !== receipt.mode ||
+      (receipt.packet_sha256 && saved.packet_sha256 !== receipt.packet_sha256) ||
+      (receipt.raw_sha256 && saved.raw_sha256 !== receipt.raw_sha256) ||
+      (receipt.state === "completed" && retained.state !== "completed")
+    )
+      throw new Error("retained audit receipt binding 被改写");
+    if (
+      receipt.state === "completed" &&
+      (sha256(stableJson(normalizeAuditResult(retained.result))) !== receipt.result_sha256 ||
+        saved.bindings.snapshot_hash !== fm.audit.impl_hash ||
+        saved.bindings.contract_hash !== fm.audit.contract_hash ||
+        saved.bindings.base_sha !== fm.audit.base_sha)
+    )
+      throw new Error("retained audit result/implementation/contract binding 被改写");
+    if (
+      receipt.result_protocol_version >= 3 &&
+      receipt.state === "completed" &&
+      (receipt.coverage_sha256 !== sha256(stableJson(retained.result?.coverage ?? [])) ||
+        receipt.normalized_review_sha256 !== sha256(stableJson(retained.result)))
+    )
+      throw new Error("retained normalized review binding 被改写");
+  } catch (error) {
+    errors.push(error.message);
+  }
+  return { errors, warnings };
+}
+
 function inProgressConsistencyGaps(spec, profile = spec.profile || defaultProjectProfile()) {
   const fm = spec.frontmatter || {};
   if (!fm.impl?.at) {
@@ -4091,13 +4223,17 @@ function projectDependencyProblems(specs, profile) {
 
 export async function checkCI(
   cwd,
-  { runProjectGates = true, live = false, preferVerify = false } = {},
+  { runProjectGates = true, live = false, preferVerify = false, forChange = false } = {},
 ) {
   const specs = loadSpecs(cwd);
   const profile = specs[0]?.profile || loadProjectProfile(cwd);
   const config = detectProjectConfig(cwd, profile);
   const errors = [];
   const warnings = [];
+  if (forChange)
+    warnings.push(
+      "change / 修复提交检查：未完成或过期状态不阻止修复；不是关闭验收，不改写历史，也不豁免完整性与项目门禁",
+    );
   if (
     preferVerify &&
     !profile.gates &&
@@ -4128,6 +4264,11 @@ export async function checkCI(
     }
     for (const problem of projectContractProblems(spec, profile)) {
       errors.push(`${id}: ${problem}`);
+    }
+    try {
+      reviewInputs(fm);
+    } catch (error) {
+      errors.push(`${id}: ${error.message}`);
     }
     if (role === "ignored") continue;
     if (profile.configured && role === "startable") {
@@ -4169,7 +4310,16 @@ export async function checkCI(
       }
       if (role === "active") {
         for (const gap of inProgressConsistencyGaps(spec, profile)) {
-          errors.push(`${id}: ${gap}`);
+          const integrity =
+            /^(proposal approval|evidence schema|spec contract 无法计算|impl\.base_sha|impl\.snapshot_hash|impl\.required_gates|impl 未执行但存在|人工核验元数据|audit repair 来源凭证)/.test(
+              gap,
+            );
+          (forChange && !integrity ? warnings : errors).push(`${id}: ${gap}`);
+        }
+        if (forChange) {
+          const integrity = await changeRecordProblems(cwd, spec);
+          errors.push(...integrity.errors.map((item) => `${id}: ${item}`));
+          warnings.push(...integrity.warnings.map((item) => `${id}: ${item}`));
         }
       }
       if (role === "done") {
@@ -4215,7 +4365,9 @@ export async function checkCI(
     ) {
       const snapshot = await repositorySnapshotHash(implRepo, { excludePaths: [spec.path] });
       if (snapshot.hash !== fm.impl.snapshot_hash)
-        errors.push(`${id}: live implementation snapshot stale; rerun impl in this checkout`);
+        (forChange ? warnings : errors).push(
+          `${id}: live implementation snapshot stale; ${driftSummary(explainSnapshotDrift(implRepo, fm.impl, snapshot))}; rerun impl in this checkout`,
+        );
     }
     const evidenceMig = Array.isArray(fm.evidence?.migrations) ? fm.evidence.migrations : [];
     for (const migNum of evidenceMig) {
@@ -4275,7 +4427,14 @@ export async function checkCI(
     );
   }
 
-  return { output: lines.join("\n"), pass: errors.length === 0 };
+  return {
+    output: lines.join("\n"),
+    pass: errors.length === 0,
+    purpose: forChange ? "change" : "strict",
+    errors,
+    warnings,
+    engine: engineIdentity(),
+  };
 }
 
 // ─── nextStep: suggest next action for an in-progress spec ──────────────────
@@ -4565,6 +4724,9 @@ export async function newSpec(cwd, input) {
 export async function reviewSpec(cwd, input, options = {}) {
   return (await import("./review-engine.mjs")).review(cwd, input, options);
 }
+export async function captureEvidence(cwd, input) {
+  return (await import("./evidence-capture.mjs")).captureEvidence(cwd, input);
+}
 
 export async function renderWorktrees(cwd) {
   const lines = ["📋 spec-flow worktrees (checkout-local evidence)"];
@@ -4619,11 +4781,20 @@ function parseAuditArgs(args) {
   let prepare = false;
   let reviewJobId;
   let maxBytes;
+  let budgetId;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
     if (arg === "--prepare") {
       if (prepare) throw new Error("audit received duplicate --prepare");
       prepare = true;
+    } else if (arg === "--budget") {
+      if (budgetId !== undefined) throw new Error("audit received duplicate --budget");
+      const value = rest[++i];
+      if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,100}$/.test(value))
+        throw new Error(
+          "--budget requires an existing delivery-cycle budget ID; nothing prepared or spent",
+        );
+      budgetId = value;
     } else if (arg === "--review-job") {
       if (reviewJobId !== undefined) throw new Error("audit received duplicate --review-job");
       const value = rest[++i];
@@ -4650,7 +4821,11 @@ function parseAuditArgs(args) {
     );
   if (maxBytes !== undefined && !prepare)
     throw new Error("--max-bytes is valid only with audit --prepare; nothing spent");
-  return { id, prepare, reviewJobId, maxBytes };
+  if (prepare && budgetId !== undefined)
+    throw new Error(
+      "audit --prepare cannot accept --budget; preparation is free, nothing prepared or spent",
+    );
+  return { id, prepare, reviewJobId, maxBytes, budgetId };
 }
 
 function cliPrepareView(result) {
@@ -4727,7 +4902,7 @@ async function main() {
 
   if (!cmd) {
     console.log(
-      "Usage: spec-flow board [ID] [--live] [--json]|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id> [--prepare [--max-bytes N] | --review-job JOB_ID]|attest <id> <item> <note>|done <id>|migrate-alloc|verify|check --ci [--contracts-only] [--live]",
+      "Usage: spec-flow board [ID] [--live] [--json]|worktrees|spec-alloc [--prefix PREFIX]|spec-new --json <object>|review --json <object>|review-budget --json <grant>|begin <id>|impl <id>|audit <id> [--prepare [--max-bytes N] | [--review-job JOB_ID] [--budget GRANT]]|attest <id> <item> <note>|done <id>|migrate-alloc|identity|capture <id> --label LABEL --expect pass|fail --output PATH.json [--kind observation|historical-replay|mutation] [--timeout-ms N] [--max-output-bytes N] -- COMMAND [ARGS]|verify [--for-change]|check --ci [--contracts-only] [--live] [--for-change]",
     );
     process.exit(1);
   }
@@ -4767,9 +4942,24 @@ async function main() {
         console.log(JSON.stringify(result, null, 2));
         break;
       }
+      case "capture": {
+        const { parseCaptureArgs } = await import("./evidence-capture.mjs");
+        const result = await captureEvidence(cwd, parseCaptureArgs(args));
+        console.log(JSON.stringify(result, null, 2));
+        process.exitCode = result.expectedMatched ? 0 : 1;
+        break;
+      }
+      case "identity":
+        if (args.length) throw new Error("identity accepts no arguments");
+        console.log(JSON.stringify(engineIdentity(), null, 2));
+        break;
       case "verify": {
-        if (args.length) throw new Error("verify accepts no arguments");
-        const result = await checkCI(cwd, { preferVerify: true });
+        if (args.length > 1 || (args.length === 1 && args[0] !== "--for-change"))
+          throw new Error("verify accepts only optional --for-change");
+        const result = await checkCI(cwd, {
+          preferVerify: true,
+          forChange: args.includes("--for-change"),
+        });
         console.log(result.output);
         process.exit(result.pass ? 0 : 1);
         break;
@@ -4797,6 +4987,7 @@ async function main() {
         }
         const outcome = await auditOutcome(cwd, parsed.id, {
           ...(parsed.reviewJobId ? { reviewJobId: parsed.reviewJobId } : {}),
+          ...(parsed.budgetId ? { budgetId: parsed.budgetId } : {}),
           onProgress: (t) => console.error(`⏳ ${t}`),
         });
         printOutcome(outcome);
@@ -4818,13 +5009,18 @@ async function main() {
         if (args.includes("--ci")) {
           if (
             args.length !== new Set(args).size ||
-            args.some((arg) => !["--ci", "--contracts-only", "--live"].includes(arg))
+            args.some(
+              (arg) => !["--ci", "--contracts-only", "--live", "--for-change"].includes(arg),
+            )
           ) {
-            throw new Error("check accepts only --ci and optional --contracts-only / --live");
+            throw new Error(
+              "check accepts only --ci and optional --contracts-only / --live / --for-change",
+            );
           }
           const result = await checkCI(cwd, {
             runProjectGates: !args.includes("--contracts-only"),
             live: args.includes("--live"),
+            forChange: args.includes("--for-change"),
           });
           console.log(result.output);
           process.exit(result.pass ? 0 : 1);

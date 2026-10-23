@@ -165,6 +165,10 @@ spec-flow 会扫描 `docs/specs/`、`docs/spec/`、`specs/`、`spec/` 四个显�
 
 Pi 的 begin/impl/audit/attest/done 仍使用 `withFileMutationQueue()`；核心还在 Git common directory 使用按 Spec ID 的跨进程锁，CLI/多 Pi 会话/多个 worktree 也受保护。冲突报 busy 并给 owner/锁路径，不静默覆盖；正常异常/取消释放锁，SIGKILL 等留下的锁**不会自动抢占**，须确认 owner 已退出后由用户清理。写回前重验 spec 文件，保留门禁期间的并发人工改动。非法输入仍抛错；impl/audit 执行失败返回 `isError:true` + `structuredContent`，长输出有界并标记摘要边界。
 
+### 0.4.0 修复与诊断
+
+显式 `audit --budget`、`check --ci --for-change` / `verify --for-change`、合同内 context 限额、原始响应计数/未验证观察、启动期 `identity`、路径级 snapshot 漂移以及真实子进程 `capture` 见 [恢复指南](docs/recovery.md)。默认 strict/done 不放宽，捕获不认证历史 red-first。本地候选不等于已发布，见 [0.4.0 发布步骤与证据](docs/releases/0.4.0.md)。
+
 ### Agent 推荐路径与恢复
 
 CLI 与 native 工具共享一条 happy path：
@@ -249,14 +253,15 @@ spec-flow board [ID] [--live] [--json]  # 默认 record-only；--live 才计算 
 spec-flow begin S3.13
 spec-flow impl S3.13                        # FAIL 非零退出
 spec-flow audit S3.13 --prepare [--max-bytes 4194304]  # 免费封存；不调用模型
-spec-flow audit S3.13 --review-job JOB_ID    # 复用匹配的已授权 full audit
-spec-flow audit S3.13                        # 默认执行；沿用封存限额/授权
+spec-flow audit S3.13 --review-job JOB_ID [--budget EXISTING_GRANT] # 复用匹配 full audit
+spec-flow audit S3.13 --budget EXISTING_GRANT # 引用已有授权；省略时仍支持环境回退
 spec-flow attest S3.13 R1 "核验路径和样本（至少 20 字）"
 spec-flow done S3.13
 spec-flow migrate-alloc
 spec-flow spec-alloc --prefix S1.
 spec-flow worktrees
-spec-flow verify                     # Action 同款：配置门禁 / 旧 npm verify / 默认探测
+spec-flow identity                   # 当前进程启动期 core 版本/源码指纹
+spec-flow verify [--for-change]      # Action 同款：配置门禁 / 旧 npm verify / 默认探测
 spec-flow check --ci
 spec-flow check --ci --contracts-only --live  # 不运行项目 gates，但比对 active 实时快照
 ```
@@ -338,7 +343,7 @@ review_inputs:
   proposal_reviews: []                        # 同一 Spec 留存 proposal job 的 32-hex ID
 ```
 
-`context_files` 最多 20 个普通文件，单个 64 KiB、合计 128 KiB；只读当前 proposal/working tree 或指定 head，保留内容/hash，整包扫描。拒绝越界、symlink、Git 内部、明显凭证路径和不支持的文本（NUL/control/解码替换字符 U+FFFD；即便它是合法原文也拒绝）。不执行文件、不自动爬全仓/另一仓库、不读取生产会话。`proposal_reviews` 最多 5 个同路径、已完成且可重验的 proposal job，带入原结果、packet/raw/result hash 与 blockers/failed criteria/显式 evidence gaps；gap 仍标明不是已确认产品 bug。它不是 approval。全量 audit 不再默认丢掉这些**已声明**来源；不声明的外部报告不会被自动发现。confirmed major 需 acceptance → criterion/证据与 prior closure，作者摘要或“已写进 Design”不算原始独立证据。
+`context_files` 默认最多 20 个普通文件，单个 64 KiB、合计 128 KiB；批准合同可显式设置 `context_limits`（最多 100 个、1 MiB/文件、8 MiB 总量，单文件≤总量，具体诊断及封存规则见[恢复指南](docs/recovery.md)）；只读当前 proposal/working tree 或指定 head，保留内容/hash，整包扫描。拒绝越界、symlink、Git 内部、明显凭证路径和不支持的文本（NUL/control/解码替换字符 U+FFFD；即便它是合法原文也拒绝）。不执行文件、不自动爬全仓/另一仓库、不读取生产会话。`proposal_reviews` 最多 5 个同路径、已完成且可重验的 proposal job，带入原结果、packet/raw/result hash 与 blockers/failed criteria/显式 evidence gaps；gap 仍标明不是已确认产品 bug。它不是 approval。全量 audit 不再默认丢掉这些**已声明**来源；不声明的外部报告不会被自动发现。confirmed major 需 acceptance → criterion/证据与 prior closure，作者摘要或“已写进 Design”不算原始独立证据。
 
 索引必须与完整合同及声明的 context/history 清单确定性重建一致，继承原文不能替换成作者摘要。执行前、worker 与状态读取都会重验直接声明的 proposal 原 job/packet/raw/result；来源丢失或篡改不能继续消费或复用。这里只重验直接来源，不递归认证无限历史图。
 
@@ -401,7 +406,7 @@ npm install --save-dev @nightink/spec-flow-core
 
 项目的 `verify` 可以调用 `spec-flow check --ci --contracts-only` 作为元数据门禁；`spec_impl` 仍运行 profile 的权威 `npm run verify`。**不要**在 `verify` 内调用完整 `check --ci`：它会再次执行 `verify`，产生递归。contracts-only 明示未运行项目 gates，不能单独冒充完整 CI；独立 `check --ci` 仍执行项目 gates 且缓存禁用。
 
-此仓库根目录提供 `action.yml` composite Action，仓库公开，任意仓库可直接按完整 SHA 引用：调用方 `uses: nightink/pi-spec-flow@<full-40-char-commit-SHA>`，使用真实已推送 SHA，不用 `main` 等可变引用。Action 用自己的 `package-lock.json` 安装运行时依赖，然后调用 `node "$SPECFLOW_CLI" verify`：显式 gates 优先；没有 gates 配置时保留 caller 的 npm `verify`（若存在）且只运行一次，否则用默认探测。无可执行门禁时 Action 失败。`verify` 先校验 Spec 合同/证据，失败即退出且不执行 caller gates；有效合同才运行各 gate，非零退出传播为失败。普通 `check --ci` 为兼容诊断仍执行全部配置 gates，即使文档校验失败；contracts-only 始终不执行 gates。`SPECFLOW_CLI` 指向该 Action 的 `packages/core/src/core.mjs`，项目 verify 内仍仅调用 contracts-only 避免递归；不需要跨仓 checkout 的 PAT。Caller 应使用 `permissions: contents: read`，先 checkout，准备 Node >=22.19.0（引擎要求）及自身 Python/uv/venv/npm 等测试环境；Action 不安装 caller 依赖。本地 CLI 使用已安装的 `@nightink/spec-flow-core`（`npx spec-flow`）或本仓库源码；Action 只提供 CI，不自动部署 Pi skill 或扩展，也不执行 npm publish。
+此仓库根目录提供 `action.yml` composite Action，仓库公开，任意仓库可直接按完整 SHA 引用：调用方 `uses: nightink/pi-spec-flow@<full-40-char-commit-SHA>`，使用真实已推送 SHA，不用 `main` 等可变引用。Action 用自己的 `package-lock.json` 安装运行时依赖，默认 `purpose: strict` 调用 `node "$SPECFLOW_CLI" verify`；显式 `purpose: change` 则追加 `--for-change`（不覆盖 caller 内嵌 strict 命令，其他值拒绝）：显式 gates 优先；没有 gates 配置时保留 caller 的 npm `verify`（若存在）且只运行一次，否则用默认探测。无可执行门禁时 Action 失败。`verify` 先校验 Spec 合同/证据，失败即退出且不执行 caller gates；有效合同才运行各 gate，非零退出传播为失败。普通 `check --ci` 为兼容诊断仍执行全部配置 gates，即使文档校验失败；contracts-only 始终不执行 gates。`SPECFLOW_CLI` 指向该 Action 的 `packages/core/src/core.mjs`，项目 verify 内仍仅调用 contracts-only 避免递归；不需要跨仓 checkout 的 PAT。Caller 应使用 `permissions: contents: read`，先 checkout，准备 Node >=22.19.0（引擎要求）及自身 Python/uv/venv/npm 等测试环境；Action 不安装 caller 依赖。本地 CLI 使用已安装的 `@nightink/spec-flow-core`（`npx spec-flow`）或本仓库源码；Action 只提供 CI，不自动部署 Pi skill 或扩展，也不执行 npm publish。
 
 **交付顺序**：本地提交 → push 该 commit → 调用方仓库引用已推送的固定 SHA → push 调用方并查看真实 CI。没有真实推送和远端运行前只能证明本地 Action 等价路径，不能宣称远端已接通；本工具不会自动 push/publish 或改 GitHub 设置。调用方仓库的协作者可能通过 workflow 日志间接看到 Action 输出；不要在 Action 输出机密，也不要授权不可信仓库。
 
@@ -433,7 +438,7 @@ Pi 的 `tool_call` 拦截器识别 `git commit`、`git -C … commit` 和常见 
 - run: npm audit --omit=dev
 ```
 
-本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/lint/unit/11 组 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
+本仓库 `.spec-flow.json` 仅把完整 `npm run check` 设为权威 gate；该脚本已先运行 syntax/lint/unit/全部 E2E，再执行 contracts-only，避免递归。仓库内提供 `.github/workflows/ci.yml`。`check --ci` 检查 frontmatter/body 漂移、重复 ID、evidence 路径、migration 冲突、v2 done 记录一致性，并运行当前项目门禁。
 
 Legacy 行为：
 

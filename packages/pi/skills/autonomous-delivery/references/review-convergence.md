@@ -78,13 +78,22 @@ source blocks consumption/cache without an extra call. This is not recursive cer
 PASS, repairs and free cache retain their original meaning and do not acquire v3 completeness retroactively.
 
 Distinguish protocol error, coverage/evidence gap, confirmed static product failure, execution failure and runtime acceptance.
-For prompt 7, criteria explicitly use kind=product|evidence; a nonpassing evidence criterion needs visible gap linkage, not a fabricated product finding.
+For the typed coverage protocol, criteria explicitly use kind=product|evidence; a nonpassing evidence criterion needs visible gap linkage, not a fabricated product finding.
 Factual rejection supported by bound static counterevidence does not require scope-owner consent; withdrawal/waiver of a real requirement does.
 Missing acceptance/context prevents the relevant PASS but does not prove a product bug. Runtime/remote/human residuals may be
 visibly deferred while checking required recorded evidence; a confirmed static wiring omission cannot be deferred as runtime.
 Do not assume an unchanged entry is disconnected: the baseline may already satisfy the promise. Do not cap a sum of parallel
 session spans at one day or merge fork sessions without an explicit aggregation/identity contract. Test both false negatives and
 false positives against independently fixed expectations. Fake matrices/executors test mechanics only, not model detection quality.
+
+### Recovery without inventing conclusions
+
+Inspect rawCounts separately from typed criteria; source-labelled observations are unverified candidates,
+not validated defects or PASS. Zero criteria has its own error; a completed process is not a valid review.
+Use actual decodePath/stopReason/usage (unknown stays null), not an assumed model capacity threshold or
+automatic chunking. Compare startup engine identities across CLI/native/worker before attributing old behavior.
+Retain original packet/raw/job/grant. Explicit change checks only unblock repair submissions; no amount of
+parent testing, free prepare or history reconstruction replaces a required independent PASS or historical red.
 
 ## 4. Incremental scope
 

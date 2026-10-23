@@ -85,3 +85,10 @@ For each important gate record:
 - revision at which it ran.
 
 Behavior-changing commits invalidate stale runtime evidence unless explicitly shown otherwise.
+
+For spec-flow, explicit `capture` can preserve a real bounded subprocess observation with code/time/output
+bindings. Declare `observation`, `historical-replay`, or `mutation` honestly: none certifies first-red-before-fix.
+Do not replace missing historical evidence with an equivalent-looking replay. Timeout, truncation and tree
+changes are incomplete observations, not expected passes. Reject unsafe/sensitive output and scan before sharing.
+An explicit `--for-change` check may permit an active failed/stale record for repair; it neither rewrites that
+history nor passes closure. Default strict, integrity, done and actual project gates still apply.

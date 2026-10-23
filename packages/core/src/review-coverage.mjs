@@ -1,5 +1,6 @@
 // Structural coverage, not a natural-language theorem prover. Every body block
 // is indexed; a reviewer must justify its semantics instead of silently omitting it.
+import { contextError, resolveContextLimits } from "./review-context.mjs";
 import { digest } from "./review-storage.mjs";
 export const REVIEW_INDEX_VERSION = 1;
 export const MAX_REVIEW_UNITS = 400;
@@ -139,18 +140,30 @@ export function reviewInputs(frontmatter) {
     !input ||
     typeof input !== "object" ||
     Array.isArray(input) ||
-    Object.keys(input).some((k) => !["context_files", "proposal_reviews"].includes(k))
+    Object.keys(input).some(
+      (k) => !["context_files", "proposal_reviews", "context_limits"].includes(k),
+    )
   )
     throw new Error("Invalid review_inputs contract fields");
   const files = input.context_files ?? [],
     jobs = input.proposal_reviews ?? [];
-  if (
-    !Array.isArray(files) ||
-    files.length > 20 ||
-    new Set(files).size !== files.length ||
-    files.some((f) => !nonblank(f, 1024))
-  )
-    throw new Error("Invalid context source list (max 20 unique files)");
+  const limits = resolveContextLimits(input.context_limits);
+  if (!Array.isArray(files) || files.some((f) => !nonblank(f, 1024)))
+    throw contextError(
+      "REVIEW_CONTEXT_FILES",
+      "context_files must be an array of nonempty paths (<=1024 characters each)",
+    );
+  if (files.length > limits.max_files || new Set(files).size !== files.length)
+    throw contextError(
+      "REVIEW_CONTEXT_COUNT",
+      `Context sources: ${files.length} files (${new Set(files).size} unique), max ${limits.max_files} unique files; exceeds by ${Math.max(0, files.length - limits.max_files)}; duplicates are forbidden`,
+      {
+        actual: files.length,
+        unique: new Set(files).size,
+        limit: limits.max_files,
+        excess: Math.max(0, files.length - limits.max_files),
+      },
+    );
   if (
     !Array.isArray(jobs) ||
     jobs.length > 5 ||

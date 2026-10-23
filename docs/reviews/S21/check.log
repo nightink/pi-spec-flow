@@ -1,0 +1,403 @@
+
+> pi-spec-flow@0.4.0 check
+> npm run typecheck && npm run lint && npm test && node tests/e2e/e2e-commit-gate.mjs && node tests/e2e/e2e-trustworthy-closure.mjs && node tests/e2e/e2e-spec-discovery.mjs && node tests/e2e/e2e-project-governance-profile.mjs && node tests/e2e/e2e-private-action.mjs && node tests/e2e/e2e-worktrees-python.mjs && node tests/e2e/e2e-review-and-spec-new.mjs && node tests/e2e/e2e-review-execution.mjs && node tests/e2e/e2e-review-repair.mjs && node tests/e2e/e2e-review-coverage.mjs && node tests/e2e/e2e-review-limits.mjs && node tests/e2e/e2e-agent-workflow.mjs && node tests/e2e/e2e-monorepo-packages.mjs && node tests/e2e/e2e-delivery-recovery.mjs && node packages/core/src/core.mjs check --ci --contracts-only
+
+
+> pi-spec-flow@0.4.0 typecheck
+> node --check packages/core/src/core.mjs && node --check packages/core/src/review-engine.mjs && node --check packages/core/src/review-coverage.mjs && node --check packages/core/src/review-execution.mjs && node --check packages/core/src/review-limits.mjs && node --check packages/core/src/review-context.mjs && node --check packages/core/src/engine-identity.mjs && node --check packages/core/src/evidence-capture.mjs && node --check packages/core/src/snapshot-manifest.mjs && node --check packages/core/src/workflow-diagnostics.mjs && node --check packages/core/src/review-executor.mjs && node --check packages/core/src/executors/pi-cli.mjs && node --check packages/core/src/review-storage.mjs && node --check packages/core/src/review-worker.mjs && node --check packages/core/src/project-profile.mjs && node --check packages/core/src/workspace.mjs && node --check packages/core/src/spec-creation.mjs && node --check packages/pi/index.ts && node --check packages/pi/adapter-core.mjs
+
+
+> pi-spec-flow@0.4.0 lint
+> biome check --error-on-warnings && eslint .
+
+Checked 69 files in 93ms. No fixes applied.
+
+> pi-spec-flow@0.4.0 test
+> node --test packages/core/test/*.test.mjs packages/pi/test/*.test.mjs action.test.mjs package-layout.test.mjs
+
+✔ private cross-repository Action is composite, installs pinned deps, and runs caller verify (4.455916ms)
+✔ self CI statically selects supported Node, Python and the entire authoritative gate (1.26975ms)
+✔ root is a private workspace whose pi manifest points at packages/pi (0.920917ms)
+✔ packages/core is publish-ready and harness-free (1.089833ms)
+✔ packages/pi depends on core by semver and keeps host SDKs as optional peers (0.204417ms)
+✔ repository and publishable packages declare the MIT license (1.46275ms)
+✔ action.yml pins an existing packages/core CLI path (0.178917ms)
+✔ only the reference executor may own harness SDKs or CLI flags (2.335292ms)
+✔ inspectBoard: default is explicit record-only and never writes lifecycle (1189.257167ms)
+✔ inspectBoard: live freshness routes stale implementation/contract to impl, never done (3981.440375ms)
+✔ inspectBoard: draft and failing impl get stable free/recovery stages (1253.878958ms)
+✔ inspectBoard: approval and human blockers never fabricate authorization (3685.656042ms)
+✔ prepareAudit: free prepared packet, unchanged Spec/ledger, then one authorized attach (7008.711375ms)
+✔ prepareAudit: run-only parameters and invalid limits are rejected before writing (3357.536417ms)
+✔ implOutcome: gate failure is impl-fail and actionable; pass is machine-pass (2957.732ms)
+✔ auditOutcome: product FAIL, protocol error, execution error stay classified and non-passing (13308.593458ms)
+✔ auditOutcome: unverifiable cached evidence never reuses the old PASS (4946.153917ms)
+✔ auditOutcome: over-limit material is a machine limit diagnostic, not product FAIL (1838.327916ms)
+✔ buildAuditDiff: strict argument/env limits and machine overflow diagnostics (1155.842416ms)
+✔ prepareAudit: packet over-limit exposes actual bytes, reconciling breakdown and lifecycle actions (1835.260458ms)
+✅ All tests defined
+✔ frontmatter: parse and write roundtrip (5.392333ms)
+✔ frontmatter: missing returns null (0.075708ms)
+✔ status line: extract and update (0.201083ms)
+✔ status line: update preserves note (0.071542ms)
+✔ status line: update replaces note when new note provided (0.058541ms)
+✔ status line: update without note on line without note (0.0445ms)
+✔ drift: no drift when body matches frontmatter (0.183ms)
+✔ drift: detect mismatch (0.076084ms)
+✔ drift: ignore parenthetical notes (0.077292ms)
+✔ drift: ignore emoji prefix (0.115792ms)
+✔ config: detect gates (2.146542ms)
+✔ config: degrade gracefully when no config (0.749541ms)
+✔ migrate-alloc: increment from last (1.386ms)
+✔ migrate-alloc: reject when no directory (0.606959ms)
+✔ attest: reject short note (28.901375ms)
+✔ attest: accept valid note and bind both hashes (4069.724792ms)
+✔ done: list gaps when incomplete (27.035041ms)
+✔ done: accepts hash-bound evidence from impl.repo (external repo) (4479.645584ms)
+✔ done: reject when tracked or untracked implementation changes after audit (7822.919625ms)
+✔ check --ci keeps v2 done historical: no live snapshot or current evidence-file recheck (4498.84525ms)
+✔ done: ledger includes bound impl and audit summary (4126.494209ms)
+✔ done: verdict=pass with a failing criterion is rejected (3879.052208ms)
+✔ spec discovery: scans docs/project singular and plural directories without recursion (4.691958ms)
+✔ spec discovery: ignores a candidate symlink that escapes the project (1.40675ms)
+✔ spec discovery: duplicate IDs fail closed instead of selecting one directory (1.702334ms)
+✔ board: show managed and unmanaged specs (1.148334ms)
+✔ evidence: check --ci detects missing e2e file (1.334375ms)
+✔ isCommitCommand: git -C and subshell forms match (S1.1) (0.350792ms)
+✔ parseCommitTargetRepo: cd / -C chains resolve to target dir (S1.1) (0.817916ms)
+✔ resolveCommitRepo: confirms via git rev-parse --show-toplevel (S1.1) (103.358292ms)
+✔ commitGateDecision: external repo without gates → allow (S1.1) (133.538791ms)
+✔ commitGateDecision: block reason includes the repo path (S1.1 audit) (288.066958ms)
+✔ commitGateDecision: unresolved target falls back to session gating (S1.1 audit) (221.769167ms)
+✔ appendCommitLedger: writes to target repo with targetRepo field (S1.1 audit) (93.459708ms)
+✔ appendCommitLedger: unresolved target → session fallback with ledgerFallback (S1.1 audit) (0.576917ms)
+✔ commitGateDecision: external repo WITH gates runs ITS gates (S1.1) (280.267375ms)
+✔ commitGateDecision: external repo gates red → block with repo context (S1.1) (317.646458ms)
+✔ bypass: -C form recognized (S1.1) (0.448958ms)
+✔ bypass: env prefix to git commit is recognized (0.117125ms)
+✔ bypass: after separator is recognized (0.082583ms)
+✔ bypass: substring in commit message is NOT recognized (0.064291ms)
+✔ bypass: no bypass var is not recognized (0.059916ms)
+✔ e2e parse: all PASS exit0 → pass (0.082958ms)
+✔ e2e parse: PASS + FAIL lines → fail (0.070542ms)
+✔ e2e parse: only FAIL → fail (0.063125ms)
+✔ e2e parse: no PASS no FAIL → fail (0.075875ms)
+✔ e2e parse: PASS must be at line start (0.059792ms)
+✔ impl: e2e with FAIL lines in output is detected as failure (1304.475083ms)
+✔ impl: e2e with all PASS lines passes (1358.937917ms)
+✔ impl: e2e with non-zero exit is failure (1362.091459ms)
+✔ impl: missing and path-traversal e2e evidence fail closed (2588.984958ms)
+✔ audit: pass result caches only on unchanged implementation and contract hashes (5278.349125ms)
+✔ audit: failed job is never respawned; explicit re-impl permits a new charged review (7104.352875ms)
+✔ audit: subprocess failure persists fail/unverifiable criteria (2715.238917ms)
+✔ audit: runtime/cross-repository/human acceptance facts defer instead of blocking PASS (3079.819459ms)
+✔ audit: out_of_scope never rescues unverifiable or empty criteria (fail closed) (4933.550291ms)
+✔ buildAuditorArgs: returns @file arg, file contains prompt, cleanup works (0.786375ms)
+✔ buildAuditorArgs: includes --model when model is provided (0.555375ms)
+✔ buildAuditorArgs: preserves backticks, ${}, $(), double quotes in prompt file (0.582208ms)
+✔ buildAuditorArgs: returns a new array each call (no shared mutation) (0.960583ms)
+✔ buildAuditorArgs: long prompt over argv limit goes to file (0.913958ms)
+✔ nextStep: impl.at empty → spec_impl (1.516875ms)
+✔ nextStep: missing proposal approval is surfaced before implementation (0.879167ms)
+✔ nextStep: impl pass, no audit → spec_audit (0.5145ms)
+✔ nextStep: impl has gate failure → fix impl (0.689666ms)
+✔ nextStep: audit verdict fail → fix findings (0.89075ms)
+✔ nextStep: stale audit binding → rerun audit (2402.148667ms)
+✔ nextStep: all bound evidence green → spec_done (2273.214209ms)
+✔ nextStep: board stays record-only; done owns live snapshot validation (2630.243917ms)
+✔ renderBoard: empty project → empty string (1.416042ms)
+✔ renderBoard: shows status, impl/audit/attest, and accurate next step (2635.0395ms)
+✔ renderBoard: drift detected on mismatched status line (0.941708ms)
+✔ renderSpecDetail: not found → null (0.825959ms)
+✔ renderSpecDetail: unmanaged → warning line (0.61225ms)
+✔ renderSpecDetail: shows review/deps/impl/audit/attest lines (71.326125ms)
+✔ parseVerdictJson: handles \s in evidence string (0.132334ms)
+✔ parseVerdictJson: valid JSON passes through unchanged (0.036459ms)
+✔ parseVerdictJson: totally broken JSON falls back to verdict=fail (0.031333ms)
+✔ commitGateAction: non-commit command → allow (0.032375ms)
+✔ commitGateAction: all gates green → allow (0.027916ms)
+✔ commitGateAction: red gate → block with gate name in reason (0.030667ms)
+✔ commitGateAction: SPECFLOW_BYPASS prefix → bypass (0.023333ms)
+✔ commitGateAction: SPECFLOW_BYPASS in message → NOT bypass, still block (0.025666ms)
+✔ runGates: success captures stdout tail for evidence (29.133542ms)
+✔ runGates: gate timeout defaults to 15min and is configurable via SPECFLOW_GATE_TIMEOUT (1041.303833ms)
+✔ invalid CLI budgets have zero job, Spec or grant effects (1654.73125ms)
+✔ change mode still rejects forged PASS, receipt tamper, missing approval, bad contract and done (3998.27125ms)
+✔ repair checking never masks a real project gate failure (1144.027417ms)
+✔ context current/committed boundaries identify missing, ignored, symlink and directory (3054.082ms)
+✔ context limits have exact bytes, largest contributors, invalid UTF-8 offset and no source echo (704.654958ms)
+✔ context policy validates boundaries, applies to all modes, and is sealed against tampering (2834.17575ms)
+✔ 330-unit valid synthetic FAIL is mechanical capacity only; telemetry never upgrades it (4.651542ms)
+✔ failed real workers retain actual stop telemetry and their own engine identity (7013.286875ms)
+✔ engine identity is startup-bound, comparable to CLI, and not a hot-reload claim (358.220708ms)
+✔ snapshot drift explains add/delete/content/type/execute mode and tracked ignored artifacts (2105.975042ms)
+✔ capture cannot mistake signal termination for an expected test failure (523.824541ms)
+✔ capture observes and explicitly binds both contract revisions (500.054333ms)
+✔ capture preserves binary bytes, records spawn errors and refuses replaced output paths (1269.743792ms)
+✔ capture records actual red/green, mismatches and failure boundaries without lifecycle edits (3958.183917ms)
+✔ CLI audit accepts an explicit existing budget without hiding FAIL (3612.715166ms)
+✔ change check preserves failed audit and permits repairs, not closure (4112.940583ms)
+✔ context ignored source error identifies path and reason (1539.988833ms)
+✔ context UTF-8 error uses byte offset, not UTF-16 character offset (1626.710459ms)
+✔ approved context policy supports >20 files and >128 KiB without truncation (1154.379667ms)
+✔ context count diagnosis reports actual and limits (0.30225ms)
+✔ zero typed criteria is distinct from missing criteria; observations are not PASS (0.28325ms)
+✔ without validation profile, project contract rules remain disabled (10.817709ms)
+✔ configured contract checker enforces parity across done/legacy/archived (6.237208ms)
+✔ numeric ID, filename, missing dependency, arbitrary cycle and addendum fail closed (4.564834ms)
+Error: check accepts only --ci and optional --contracts-only / --live / --for-change
+✔ Action verify stops before gates on invalid contracts while bare CI still diagnoses all gates (239.98ms)
+✔ strict validation schema rejects unknown keys and unsafe required fields (5.64825ms)
+✔ CLI contracts-only does not execute gates; full CI does; unknown flags fail (471.2055ms)
+✔ project profile: strict config loads status, approval, dependencies, and replace gates (2.863291ms)
+✔ project profile: unknown keys, missing scripts, overlapping status, and symlinks fail closed (8.64125ms)
+✔ project profile: invalid config blocks commit while explicit bypass remains available (2.808334ms)
+✔ project profile: configured lifecycle rejects an external implementation repo (36.017541ms)
+✔ project profile: external legacy warning is limited to explicit IDs (234.315541ms)
+✔ project profile: example-app-shaped numeric lifecycle preserves local metadata and uses verify only (4608.603417ms)
+✔ project profile: config content is snapshot-bound after impl (1461.770083ms)
+✔ project profile: changed contract can re-impl when verify runs contracts-only (2705.93375ms)
+✔ coverage: legacy v2 arbitrary nonempty criteria remain byte-equivalent, not relabelled as exhaustive (3.333584ms)
+✔ coverage: coverage-marked jobs cannot downgrade protocol before charging, in worker, or in cached status (5095.880333ms)
+✔ coverage: closure ID namespace is explicit and author table or current finding IDs never enroll as prior (642.044042ms)
+✔ coverage: index inventories design outside checkboxes, preserves location, ignores YAML and fenced fake acceptance (1.887667ms)
+✔ coverage: omitted, duplicate, unknown IDs and dangling criterion/acceptance refs cannot PASS (1.856833ms)
+✔ coverage: missing acceptance is a gap, not a fabricated product defect; major/context escape is rejected (0.401333ms)
+✔ coverage: mixed product failure and coverage gap preserve both layers, never wash the static failure into gap (0.315459ms)
+✔ coverage: prompt 7 types evidence failures without laundering independently failing product criteria (1.086292ms)
+✔ coverage: retained prompt 6 criteria without kind are not reclassified or supplemented (0.408792ms)
+✔ coverage: explicit withdrawal/rejection requires a distinct decision and static evidence; parallel sums have no invented cap (0.902875ms)
+✔ coverage: runtime residuals need recorded-evidence criteria and visible reasons; context absence is a gap (1.108834ms)
+✔ coverage: prepare seals unchanged caller source from selected head, not dirty files, without a provider (868.09325ms)
+✔ coverage: unsafe context, symlinks and oversize sources reject before grant/spawn (1274.011333ms)
+✔ coverage: tampered index cannot change sealed interpretation before spend (1524.269042ms)
+✔ coverage: v3 file/note diagnostics never construct a downgraded coverage job (2.639125ms)
+✔ coverage: v3 file/note completed status and free cache preserve raw output and budget (2756.189042ms)
+✔ coverage: malformed/oversize/unknown output remains protocol error without throwing or lossy approval (0.920833ms)
+✔ coverage: sealed inventory cannot be author-trimmed or contain lossy binary caller data (428.993083ms)
+✔ coverage: original proposal blockers are source-bound, inherited by full audit and acceptance-linked (3706.150417ms)
+✔ coverage: proposal evidence gaps are inherited as gaps to resolve, never relabelled as proven bugs (2554.428459ms)
+✔ coverage: v3 lifecycle persists accounting; cache/attest/done/CI reject altered or missing retained evidence (8043.834875ms)
+✔ new: deterministic parseable draft, TODO, YAML title, no evidence/approval; preview burns no ID (910.014625ms)
+✔ new: strict creation-only numeric profile makes a CI-clean unapproved draft (646.523833ms)
+✔ new: custom lifecycle mappings and kind defaults are respected (577.211333ms)
+✔ new: explicit no-draft lifecycle, unfillable metadata and unknown keys fail before reservation (373.235958ms)
+✔ new: unsafe profile defaults/template paths, expressions, symlinks and ambiguous dirs fail closed (258.98075ms)
+✔ new: exclusive publication never overwrites and a failed reservation stays burned (1027.430625ms)
+✔ review: exact head contract, static nonexecuting Pi metadata, explicit dirty exclusions (1046.678958ms)
+✔ review: no model on empty diff; proposal isn't an empty-diff PASS (1656.855042ms)
+✔ review: flat native declaration retains exact per-action rejection before charge/spawn (978.147042ms)
+✔ review: malformed revisions, nonancestor and oversized packets fail before model (1095.920292ms)
+✔ review: high-risk scanner and packet tampering reject before charge/spawn (2361.489292ms)
+✔ review: explicit immutable grant, single charge, exact child bytes, raw response and free cache (4527.197625ms)
+✔ review: malformed model output and contradictory criteria remain nonpassing and retained (2150.748ms)
+✔ review: cancellation remains charged, nonpassing and never auto-respawns (2679.448375ms)
+✔ incremental: unchanged baseline observations don't block, and blockers need exact delta lines/closure (3241.166041ms)
+✔ Pi recognition: globs/exclusions/missing/unsafe/symlink and invalid manifests never execute (0.528125ms)
+✔ lifecycle: shared full audit, free attach/cache, ordinary report cannot close; source mutation rejected (7374.833833ms)
+✔ new: safe custom body template is versioned; kind cannot be guessed (555.609ms)
+✔ review: profile/package from head and fsmonitor never executes during preparation (1004.587125ms)
+✔ review: cached packet/raw/result tampering cannot become another cached approval (2226.8365ms)
+✔ review: overflowing output is captured boundedly and never passes (2374.070416ms)
+✔ lifecycle: a mid-review source edit rejects even a fake PASS; ordinary approval never attaches (7507.657208ms)
+✔ lifecycle: retained tamper rejects cached audit and done without another model call (4237.358125ms)
+✔ lifecycle: prepared full job checks exact diff/impl and attaches after same-content commit for free (4427.907084ms)
+✔ execution: prepared job refreshes stale unstarted settings from current timeout (2541.1035ms)
+✔ execution: running/cache reuse exposes ignored timeout without changing provenance or spending (4205.085084ms)
+✔ execution: missing bin, permission errors and invalid timeout fail before charge/spawn (5427.775584ms)
+✔ execution: no PATH pi and invalid explicit CLI are resumable preflight failures (3685.3255ms)
+✔ execution: explicit Node + trusted CLI needs no PATH pi/shim and preserves exact bytes (2576.205958ms)
+✔ execution: explicit BIN shim wins over CLI and timeout failure/replay remains charged (2606.809416ms)
+✔ execution: PATH pi and relative explicit BIN resolve to stable absolute executables (3843.839541ms)
+✔ execution: lifecycle audit shares Node CLI launcher and explains cached timeout without mutation (3831.062458ms)
+✔ limits: resolver precedence, integer boundaries and invalid config reject free (292.662959ms)
+✔ limits: exact UTF-8 packet boundary, reconciling breakdown and no over-limit job (1941.543625ms)
+✔ limits: sealed environment policy survives lower/invalid env and replay stays free (4404.260042ms)
+✔ limits: legacy bytes and free repair remain, removed/tampered metadata never bypasses (4052.232ms)
+✔ limits: Git early stop reports a provable lower bound, never a fake total (674.544459ms)
+✔ limits: blob/context/index limits stay independent of the packet limit (1071.17225ms)
+✔ limits: full working-tree audit seals and runs a >512KiB packet via a detached fake worker (2106.718792ms)
+✔ precision oracle: frozen inputs and hidden expected classifications have separate hashes; no provider (2.963458ms)
+✔ precision probe: nineteen frozen contrasts prepare production prompts without oracle, labels, execution or provider (4351.378334ms)
+✔ precision oracle observation (not reviewer verdict): design-without-entry-acceptance (1.137333ms)
+✔ precision oracle observation (not reviewer verdict): explicit-entry-disconnected (2.122959ms)
+✔ precision oracle observation (not reviewer verdict): unchanged-entry-already-connected (1.194375ms)
+✔ precision oracle observation (not reviewer verdict): compound-display-dimension-missing (1.99225ms)
+✔ precision oracle observation (not reviewer verdict): wrong-span-aggregation (1.288083ms)
+✔ precision oracle observation (not reviewer verdict): legitimate-parallel-sum-above-day (0.776959ms)
+✔ precision oracle observation (not reviewer verdict): explicit-midnight-interval-clipping (0.799333ms)
+✔ precision oracle observation (not reviewer verdict): fork-identity-explicitly-distinct (0.756042ms)
+✔ precision oracle observation (not reviewer verdict): acceptance-formula-conflicts-with-outcome (0.838792ms)
+✔ precision oracle observation (not reviewer verdict): milliseconds-contract-seconds-result (0.830125ms)
+✔ precision oracle observation (not reviewer verdict): fork-task-identity-unspecified (1.026666ms)
+✔ F1 regression: a Spec edited after sealing is rejected, never reported prepared/pre-spend (171.093625ms)
+ℹ guard rejects a Spec whose bytes no longer match the sealed contract
+✔ F2/F3 regression: over-limit recovery actions are executable, not bare prepare/status (2735.165625ms)
+✔ F5 regression: an oversized summary degrades with an explicit marker instead of throwing (0.659375ms)
+✔ repair: versioned lossless known scope observations; legacy normalization stays byte-equivalent (2.162667ms)
+✔ repair: new packet explicitly types scope items and pins prompt/result versions (959.093291ms)
+✔ repair: sealed packet forbids runtime/remote/human facts as criteria and defers them (833.078292ms)
+✔ repair: exhausted grant permits explicit derived repair/free replay, not original rewriting or respawn (5112.43325ms)
+✔ repair: unknown fields, semantic fabrication parameters and incomplete/cancelled sources reject free (4356.841209ms)
+✔ repair: genuine product FAIL remains FAIL after protocol correction (3079.1605ms)
+✔ repair: derived proof rejects tampered source metadata/raw/packet/result and derived bindings (3831.184166ms)
+✔ repair: full lifecycle protocol error gives actionable free fix, repaired bound proof can attach/attest/done (6043.3465ms)
+✔ repair: ordinary proof cannot attach and PASS cannot swallow a genuine blocking finding (3188.061125ms)
+✔ repair: interrupted derived publication leaves original intact and retry needs no new review (2381.971291ms)
+✔ repair: changed contract/implementation never inherits historical PASS (3773.529416ms)
+✔ gate cache: default off executes every time; opt-in binds content (576.043958ms)
+✔ gate cache: unavailable/null fingerprint is always a miss with diagnostics (243.687125ms)
+✔ repository snapshot covers working content but excludes spec lifecycle and ledger (1110.276208ms)
+✔ snapshot keeps a staged deletion bound after committing identical content (527.745084ms)
+✔ snapshot hashes verified gitlink HEAD and fails closed on an untracked nested repository (1665.385333ms)
+✔ contract hash ignores lifecycle/review evidence/checkmarks but detects contract edits (2.668708ms)
+✔ audit diff includes tracked and untracked changes and rejects injection/oversize (273.631917ms)
+✔ audit normalization makes empty, malformed, or contradictory pass results fail closed (0.232792ms)
+✔ impl persists explicit failure for missing, traversal, and symlink E2E evidence (3436.869958ms)
+✔ impl persists migration missing/conflict evidence and done cannot bypass it (2905.44ms)
+✔ legacy matrix: migrate active work explicitly, reject legacy transitions, warn for done (616.4325ms)
+✔ workflow v2 rejects duplicate begin and audit before explicit passing impl (764.074ms)
+✔ evidence schema rejects scalar/duplicate declarations instead of treating them as empty (639.089625ms)
+✔ check --ci strictly validates an executed v2 in-progress record (525.154ms)
+✔ E2E parent-directory symlink cannot escape the implementation repository (538.069042ms)
+✔ audit cache never bypasses base ancestor validation (4015.231916ms)
+✔ Python: minimal profile, real unittest/E2E, custom migration evidence, failing gate (2087.303542ms)
+✔ generic schema rejects ambiguous gates, unsafe argv, unknown fields and evidence paths (115.683375ms)
+✔ argv metacharacters remain literal, not shell instructions (178.243458ms)
+✔ Python discovery is conservative, venv-aware, and no-gate impl cannot pass (909.186666ms)
+✔ missing executable is a failing configured gate, not default fallback (117.4935ms)
+✔ linked/detached/spaced worktrees keep local evidence and expose live freshness (3973.08725ms)
+✔ shared Spec allocator reserves unique IDs across competing processes/prefixes (4633.379291ms)
+✔ common-dir locks reject overlapping same-ID lifecycle, independent worktrees proceed (3258.900417ms)
+✔ cancelled lifecycle releases the cross-process lock and leaves pending nonpass evidence (929.477292ms)
+✔ allocator fails closed on unavailable worktree inventory (595.197334ms)
+✔ mid-gate code changes fail impl, mid-gate spec edits are preserved (4979.52675ms)
+✔ worktree diagnosis: missing git marker blocks allocation, not preview; no family mutation (2933.498792ms)
+✔ worktree diagnosis: missing directory blocks allocation, not preview; no family mutation (2197.586875ms)
+✔ gate: allow — 用户确认后放行，透传 signal 且展示 item+note (1.04ms)
+✔ gate: allow — 无可用 signal 时不传 opts (0.100083ms)
+✔ gate: deny — confirm 返回 false 时不放行 (0.121875ms)
+✔ gate: deny — confirm 返回 undefined（取消）时不放行 (0.0845ms)
+✔ gate: no-ui — hasUI=false 拒绝且不调用 confirm (0.080166ms)
+✔ gate: no-ui — hasUI=true 但没有 confirm 实现时同样拒绝 (0.065083ms)
+✔ gate: confirm 抛错时向上抛出（不伪造放行/拒绝） (0.273125ms)
+✔ formatAttestationPrompt 同时包含 item 与 note，超长 note 有明确上限 (0.137083ms)
+✔ truncateToolText 短文本原样返回、长文本截断并标记 (0.092959ms)
+✔ index.ts: begin/impl/audit/attest/done 都在 mutation queue 包裹内 (0.393417ms)
+✔ index.ts: 输入错误仍 throw；机器结果用 isError + structuredContent (0.099375ms)
+✔ index.ts: 已移除无用 imports（migrateAlloc/checkCI/parseFrontmatter） (0.106458ms)
+✔ index.ts: fake Pi 可加载注册，且并发 begin 由真实 spec path 串行化 (1011.437208ms)
+✔ native impl: missing notify does not interrupt real gates or tool progress (958.670375ms)
+✔ native impl: non-callable notify does not interrupt real gates or tool progress (867.080666ms)
+✔ native impl: absent ui does not interrupt real gates or tool progress (973.193167ms)
+✔ native impl: throwing notify does not interrupt real gates or tool progress (919.06875ms)
+✔ native impl: headless does not interrupt real gates or tool progress (835.451708ms)
+✔ native impl: missing notify cannot hide a real failed gate (637.41025ms)
+✔ native impl: cache diagnostics reach tool progress when notify is unavailable (712.997208ms)
+✔ native impl: throwing tool update transports cannot replace gate evidence (1145.272ms)
+✔ commit interception: unavailable/throwing notify still executes gates and blocks a failure (428.856291ms)
+✔ native audit: missing notify reaches core validation, not a UI TypeError or paid spawn (410.124334ms)
+✔ native commands/startup: all notifications tolerate partial and throwing UI (698.525458ms)
+✔ native attestation: no callable confirmation stays fail-closed; missing notify alone does not deny a human (811.365792ms)
+✔ safe feedback helpers: capability/receiver/caps and sync/async transport failures (0.671458ms)
+✔ adapter source: no direct notify invocation bypasses the capability guard (0.917125ms)
+✔ formatNextAction 显示 tool/args/reason 与授权、人工标记 (0.605917ms)
+✔ reviewNextActions: prepared 普通审查 → 授权 run；不伪造授权 (0.483583ms)
+✔ reviewNextActions: prepared full audit → spec_audit 复用 reviewJobId (0.112792ms)
+✔ reviewNextActions: repairable 协议错误 → 免费 repair；失败 job 只读 status (0.098916ms)
+✔ reviewNextActions: 已有 core nextActions 时原样透传 (0.081125ms)
+✔ formatReviewSummary 大 receipt 仍先给 state/category/jobId/packetPath/nextActions (0.387333ms)
+✔ reviewReceiptPath 从封存 packet 推导私有 job.json，非法输入返回 null (0.065375ms)
+✔ formatBoardText: record-only 明说未查 freshness；live 显示 yes/NO 与阻塞 (0.714667ms)
+✔ formatOutcomeText 长 summary 不挤掉 nextActions 与 job/packet 恢复入口 (0.160583ms)
+✔ formatOutcomeText PASS 不伪造 FAIL；诊断行包含 code/stage (0.118083ms)
+✔ failureResult 保留 core error.diagnostic 的 code/category/nextActions 且 isError (0.158458ms)
+✔ specflowFailure 对无 diagnostic 的普通异常给稳定 envelope (0.061833ms)
+✔ native workflow: board 默认 record-only、live 识别漂移、impl FAIL isError、诊断结构化 (1684.90225ms)
+✔ native review: maxBytes 显式>环境>默认，超限返回 isError 诊断且不建 job (717.169208ms)
+ℹ tests 297
+ℹ suites 0
+ℹ pass 297
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 71330.425
+PASS 跨仓库 commit 放行（目标仓库无门禁，不被会话项目牵连）
+PASS 目标仓库经 rev-parse 确认
+PASS 裁决仓库为 pages 而非会话项目
+PASS allow-external 台账落目标仓库
+PASS 台账含 targetRepo 字段
+PASS 会话项目无台账残留
+PASS 会话内 commit 仍被红门禁拦截
+PASS block reason 标明仓库
+PASS CLI begin migrates approved spec to workflow v2
+PASS CLI impl reports non-passing evidence through non-zero exit instead of an empty success
+PASS invalid and missing E2E results are persisted explicitly
+PASS migration conflict is persisted
+PASS path-traversal E2E was not executed
+PASS done rejects failed E2E/migration evidence
+PASS second spec begins
+PASS clean impl records explicit pass and snapshot
+PASS fake CLI review has an explicit finite grant
+PASS isolated fake auditor produces bound pass evidence
+PASS audit subprocess disables tools, session, and extensions
+PASS audit prompt contains untracked implementation patch without truncation placeholder
+PASS done rejects verdict/criteria inconsistency
+PASS done rejects a changed live implementation snapshot
+PASS unchanged bound record reaches done
+PASS terminal status is persisted
+PASS CLI board scans all supported directories
+PASS board merges singular/plural docs and project directories
+PASS discovery does not recurse into nested directories
+PASS discovery order is deterministic
+PASS CLI lifecycle resolves a project-level specs file
+PASS project-level spec receives normal lifecycle writeback
+PASS numeric ID and dot-prefixed filename are discovered by the real CLI
+PASS configured legacy active specs remain under external project governance
+PASS begin preserves example-app-shaped fields and does not inject a body status line
+PASS impl runs only the configured authoritative verify npm script
+PASS explicit finite fake-review grant created
+PASS audit remains bound after review-only metadata updates
+PASS profile audit keeps the isolated no-tools subprocess boundary
+PASS done preserves project metadata and writes the configured terminal status
+PASS second configured spec begins
+PASS second configured spec records impl evidence
+PASS profile changes invalidate previously recorded implementation evidence
+PASS invalid profile fails closed at the CLI boundary
+PASS exact action.yml CLI path runs caller verify once offline
+PASS private Action preserves unconfigured verify-only callers
+PASS private Action-equivalent chain fails closed before gates on invalid caller Spec
+Error: validation contains unknown key: unknown
+PASS private Action-equivalent chain rejects malformed profile before gates
+PASS private Action-equivalent chain propagates failed caller gate exactly once
+PASS exact action.yml CLI path invokes package.json-free Python verify exactly once without recursion
+PASS real linked worktree has isolated Python lifecycle, E2E and live evidence despite concurrent main edits
+PASS six real processes create exclusive drafts across linked worktrees (space paths)
+PASS exact scanned/child bytes, shared isolation flags, finite seeded grant and free idempotent cache
+PASS killed frontend does not kill durable review, reset grant or double-spend; legacy jobs unchanged
+PASS real review CLI without PATH pi: uncharged preflight, current first-run timeout, Node+trusted CLI, exact bytes and free immutable replay
+PASS real audit CLI shares launcher, resumes uncharged prepared job with new timeout and explains cached overrides without metadata changes
+PASS timed-out CLI job retains original timeout, nonpassing result and charged budget; replay never respawns
+PASS custom non-Pi executor module: free invalid preflight, serialized invocation, sealed packet bytes and charged run
+PASS actual CLI + linked checkout repairs exhausted legacy format error with no launcher/probe/charge, preserving original bytes and all bindings; idempotent replay
+PASS actual CLI rejects repair budget/semantic parameters and changed source evidence without any additional fake-review invocation
+PASS actual audit --review-job attaches only a bound free repaired full audit; stale binding/invalid CLI parameters neither inherit PASS nor spawn again
+PASS actual CLI carries original proposal provenance and unchanged caller context; prescribed coverage gap blocks closure without false product claim or automatic respawn
+PASS actual CLI new implementation rebinds v3 full audit/major closure, free cache and done; real fixture entry returns fresh, fake verdicts do not prove model semantics
+PASS large proposal CLI: default rejection, exact UTF-8 boundary, invalid/lowered env sealed, detached fake worker, free replay
+PASS large committed/incremental CLI: default git lower-bound rejection, sealed 4 MiB packet, detached worker and free replay
+PASS working-tree audit: exact >512KiB packet, detached fake worker, sealed CLI status
+PASS full audit CLI: free >512KiB prepare with default rejection, sealed execution and attached PASS
+PASS real CLI free prepare/exit codes/structured diagnostics/board staging over synthetic fixtures
+PASS workspace link, package-name import from packages/pi and spec-flow bin board
+PASS source CLI, npm pack surface and publish-ready core metadata
+PASS explicit CLI budget invokes one synthetic worker; default strict and Action change remain distinct
+PASS stale repair can be checked but never closed
+PASS protocol error remains an error with unverified raw observations while repairs stay reachable
+PASS CLI capture preserves a real failed process without changing Spec or audit budget or certifying history
+PASS exact Action change script still rejects a real product gate failure; hosted execution not claimed
+⚠️ 警告:
+  ! S1.1: legacy done spec，仅做只读兼容
+  ! 仅校验 Spec 合同/证据；项目门禁未运行（contracts-only）
+✅ check --ci --contracts-only 通过（项目门禁未运行）
